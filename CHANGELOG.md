@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **28 小时 23 分钟 (28.39 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 0 小时 07 分钟** (2026-09-29 22:17 至 2026-10-04 22:25)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,537 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **28 小时 28 分钟 (28.47 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 0 小时 12 分钟** (2026-09-29 22:17 至 2026-10-04 22:30)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,599 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,16 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~22:25 (共 3 个时段) | 9h 22m (9.37h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~22:30 (共 3 个时段) | 9h 26m (9.45h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+---
+
+## [v1.2610042230] - 2026-10-04 22:30
+
+### 悬停交互与材质高亮优化 / Hover Feedback & Material Lighting
+- **鼠标指上构件改用 10% 透明度白色叠加层 / Translucent 10% White Hover Overlay**
+  - **中文**: 优化鼠标滑过 3D 构件时的动态悬停高亮逻辑。此前加法混合（Additive Blending）在浅色材质（如白色混凝土、金属屋顶、浅色木材）上容易因光强相加造成高光过曝、将构件彻底泛白为纯白色；现调整为标准透明混合（`NormalBlending`），覆盖一层半透明度仅为 10%（`opacity: 0.10`）的白色蒙版（透明玻璃构件进一步降为 5%）。保留构件原有纹理、色泽及阴影细节的同时，提供极其克制、细腻的浅白色交互提亮反馈。
+  - **English**: Refined the 3D element cursor hover feedback. Previously, additive blending caused light-colored materials (such as standing-seam zinc roofing, concrete pads, and timber siding) to clip to solid white highlights; transitioned to standard normal blending (`NormalBlending`) with a delicate 10% translucent white overlay (`opacity: 0.10`, dialed down to 5% for transparent glass panels). Preserves the element's authentic base hue, material textures, and shadows while offering subtle, elegant interactive visual feedback.
+
 ---
 
 ## [v1.2610042226] - 2026-10-04 22:26

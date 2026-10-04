@@ -500,7 +500,7 @@ class BIMViewerApp {
     this.highlightOverlayGroup = null;
     this.hoveredMesh = null;
     this.hoverOverlayGroup = null;
-    this.hoverOpacity = 0.20;
+    this.hoverOpacity = 0.10;
     
     // Measure Tool
     this.isMeasureMode = false;
@@ -879,30 +879,11 @@ class BIMViewerApp {
         (sourceMat.opacity !== undefined && sourceMat.opacity < 0.85)
       ) : false;
 
-      // Maintain exact color hue & saturation, gently boosting brightness via Additive Blending
-      let hoverColor;
-      if (sourceMat && sourceMat.color) {
-        hoverColor = sourceMat.color.clone();
-        const hsl = { h: 0, s: 0, l: 0 };
-        hoverColor.getHSL(hsl);
-        if (hsl.s > 0.05) {
-          // Chromatic component: retain exact hue & saturation, gently boost lightness for luminance lift
-          hsl.l = Math.min(0.85, Math.max(0.35, hsl.l * 1.15));
-          hoverColor.setHSL(hsl.h, hsl.s, hsl.l);
-        } else {
-          // Achromatic component (gray/black/white): gentle neutral brightness lift
-          const gray = Math.min(0.70, Math.max(0.32, hsl.l + 0.22));
-          hoverColor.setRGB(gray, gray, gray);
-        }
-      } else {
-        hoverColor = new THREE.Color(0.5, 0.5, 0.5);
-      }
-
       const overlayMat = new THREE.MeshBasicMaterial({
-        color: hoverColor,
-        blending: THREE.AdditiveBlending,
+        color: 0xffffff,
+        blending: THREE.NormalBlending,
         transparent: true,
-        opacity: isTrans ? 0.06 : 0.16,
+        opacity: isTrans ? this.hoverOpacity * 0.5 : this.hoverOpacity,
         depthTest: true,
         depthWrite: false,
         polygonOffset: true,
@@ -912,12 +893,6 @@ class BIMViewerApp {
         clippingPlanes: planes,
         clipShadows: true
       });
-      if (sourceMat && sourceMat.map) {
-        overlayMat.map = sourceMat.map;
-      }
-      if (sourceMat && sourceMat.vertexColors) {
-        overlayMat.vertexColors = true;
-      }
       if (sourceMat && sourceMat.alphaMap) {
         overlayMat.alphaMap = sourceMat.alphaMap;
         overlayMat.alphaTest = sourceMat.alphaTest !== undefined ? sourceMat.alphaTest : 0.5;
