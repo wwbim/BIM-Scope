@@ -868,12 +868,19 @@ size_mb = os.path.getsize(OUTPUT_HTML) / (1024 * 1024)
 print(f"Successfully compiled standalone HTML viewer: {OUTPUT_HTML} ({size_mb:.2f} MB)")
 print(f"Also created mirror copy at: {INDEX_HTML}")
 
+# Auto-calculate and update project development time in CHANGELOG.md
+changelog_path = os.path.join(BASE_DIR, "CHANGELOG.md")
+try:
+    import calc_time
+    calc_time.update_changelog()
+except Exception as e:
+    print(f"Notice: dev time metrics update skipped: {e}")
+
 # Auto-distribute to Deliverables folder (sibling of Project)
 deliverables_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "Deliverables"))
 os.makedirs(deliverables_dir, exist_ok=True)
 shutil.copy2(OUTPUT_HTML, os.path.join(deliverables_dir, "BIMScope.html"))
 shutil.copy2(INDEX_HTML, os.path.join(deliverables_dir, "index.html"))
-changelog_path = os.path.join(BASE_DIR, "CHANGELOG.md")
 features_path = os.path.join(BASE_DIR, "FEATURES.md")
 if os.path.exists(changelog_path):
     shutil.copy2(changelog_path, os.path.join(deliverables_dir, "CHANGELOG.md"))
