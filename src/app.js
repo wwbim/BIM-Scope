@@ -497,7 +497,7 @@ class BIMViewerApp {
     this.measureLine = null;
     
     // Labels & UI state
-    this.showLabels = true;
+    this.showLabels = false;
     this.labelsOpacity = 1.0;
     this.billboardElements = [];
     this.activeModel = null;
@@ -1066,7 +1066,7 @@ class BIMViewerApp {
 
     const stats = this.calculateModelStats(model);
     this.currentModelInfo = {
-      fileName: "Modern Hillside Villa (Demo)",
+      fileName: "Demo Model",
       format: "Procedural BIM (JavaScript/Three.js)",
       schema: "Built-in Procedural BIM",
       fileSize: "Bundled In-Memory",
@@ -1382,6 +1382,7 @@ class BIMViewerApp {
     data.forEach(item => {
       const el = document.createElement('div');
       el.className = 'billboard-label';
+      if (!this.showLabels) el.style.display = 'none';
       el.textContent = item.text;
       container.appendChild(el);
       
@@ -5815,6 +5816,7 @@ class BIMViewerApp {
         this.setLabelsVisible(labelChk.checked);
       });
     }
+    this.setLabelsVisible(this.showLabels);
 
     const labelOpSlider = document.getElementById('labels-opacity-slider');
     const labelOpVal = document.getElementById('labels-opacity-val');

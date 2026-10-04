@@ -26,6 +26,9 @@ This document records all formal version iterations and major changes of BIMScop
 - **NSEW 预设视角严格正对轴线方向 / Strict Axis-Aligned NSEW Elevation Views**
   - **中文**: 移除原预设视角中 20° 的下倾俯视夹角（`dist * 0.35`），将北向、南向、东向、西向四个立面相机的观察高度严格锁定于模型几何中心标高（`pos.y = center.y`），实现视角 100% 水平正对三维坐标轴向（$\pm Z$、$\pm X$）的标准工程立面图投影。
   - **English**: Eliminated the legacy 20° downward tilt pitch (`dist * 0.35`); locked camera elevation strictly to the model center height (`pos.y = center.y`) for North, South, East, and West presets, delivering 100% true horizontal, axis-aligned engineering elevations along the coordinate axes ($\pm Z$, $\pm X$).
+- **演示模型更名与 3D 标签默认静默 / Demo Model Renaming & Default Labels Off**
+  - **中文**: 初始示范模型正式更名为 `Demo Model`；3D 构件空间图钉标签（3D Labels）默认置为关闭状态，保持视口画面的纯净开阔，用户可在顶部工具栏或检查器中随时一键开启。
+  - **English**: Renamed initial architectural template to `Demo Model`; defaulted floating 3D billboard pin labels to off upon loading for clean, unobstructed viewing, togglable anytime via navbar or inspector.
 - **多语言与反馈联动 / Localization & Live Feedback**
   - **中文**: 按钮文案、悬停 Tooltip 提示以及切换完成 Toast 弹窗全面支持中英文双语实时联动。
   - **English**: Full bilingual i18n synchronization for button labels, tooltip titles, and toast feedback.

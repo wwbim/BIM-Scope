@@ -8,7 +8,7 @@ const I18N = {
   
   translations: {
     en: {
-      appTitle: "Modern Hillside Villa - Architectural Model",
+      appTitle: "Demo Model",
       appSubtitle: "Contemporary 2-storey timber residence | Gabled roof, cantilevered balcony terrace, glass curtain wall, sloped site",
       viewIso: "Iso",
       viewPlan: "Plan",
@@ -355,7 +355,7 @@ const I18N = {
     },
     
     zh: {
-      appTitle: "现代半山度假别墅 - 建筑模型",
+      appTitle: "Demo Model",
       appSubtitle: "现代双层木结构住宅 | 人字双坡屋面、悬挑观景露台、落地玻璃幕墙、坡地台地基础",
       viewIso: "等轴测",
       viewPlan: "平面图",

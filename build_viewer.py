@@ -96,7 +96,7 @@ html_content = f"""<!DOCTYPE html>
         </div>
         <div class="project-title-box">
           <div class="project-title">
-            <span id="project-title-text" data-i18n="appTitle">Modern Hillside Villa - Architectural Model</span>
+            <span id="project-title-text" data-i18n="appTitle">Demo Model</span>
           </div>
           <div class="project-subtitle" id="project-subtitle-text" data-i18n="appSubtitle">
             Contemporary 2-storey timber residence | Gabled roof, cantilevered balcony terrace, glass curtain wall, sloped site
@@ -146,7 +146,7 @@ html_content = f"""<!DOCTYPE html>
             <svg viewBox="0 0 24 24"><path d="M9.4 10.5l4.77-8.26C13.47 2.09 12.75 2 12 2c-2.4 0-4.6.85-6.32 2.25l3.66 6.35.06-.1zM21.54 9c-.92-2.92-3.15-5.26-6-6.34L11.88 9h9.66zm.26 1h-7.49l.29.5 4.76 8.25C21 16.97 22 14.61 22 12c0-.69-.07-1.35-.2-2zM8.54 12l-3.9-6.75C3.01 7.03 2 9.39 2 12c0 .69.07 1.35.2 2h7.49l-1.15-2zm-1.89 3.25L2.46 15c.92 2.92 3.15 5.26 6 6.34l3.66-6.34h-5.47zm8.01.75l-4.77 8.26c.7.15 1.42.24 2.17.24 2.4 0 4.6-.85 6.32-2.25l-3.66-6.35-.06.1z"/></svg>
             Camera
           </button>
-          <button class="tool-btn active" id="btn-tool-labels" data-i18n="toolLabels" title="Toggle 3D Structure Labels">
+          <button class="tool-btn" id="btn-tool-labels" data-i18n="toolLabels" title="Toggle 3D Structure Labels">
             <svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg>
             Labels
           </button>
@@ -164,7 +164,7 @@ html_content = f"""<!DOCTYPE html>
         
         <!-- Language Switcher & File Actions -->
         <button class="tool-btn" id="btn-lang-toggle" title="Switch English / 中文">🌐 中文</button>
-        <button class="tool-btn" id="btn-load-demo" data-i18n="loadDemo" title="Reload CR301 West Depot Demo Model">Demo</button>
+        <button class="tool-btn" id="btn-load-demo" data-i18n="loadDemo" title="Reload Demo Model">Demo</button>
         <button class="btn-primary" id="btn-open-file" data-i18n="openFile">
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           Open Model
@@ -687,7 +687,7 @@ html_content = f"""<!DOCTYPE html>
             <div class="pref-inline-row" style="margin-bottom:6px">
               <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="labelsToggle">3D Labels</span>
               <label class="toggle-switch" style="margin-left:auto">
-                <input type="checkbox" id="labels-toggle-chk" checked>
+                <input type="checkbox" id="labels-toggle-chk">
                 <span class="slider-switch"></span>
               </label>
             </div>
