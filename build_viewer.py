@@ -113,7 +113,7 @@ html_content = f"""<!DOCTYPE html>
           <button class="tool-btn" id="btn-view-south" data-i18n="viewSouth" title="South Elevation">S</button>
           <button class="tool-btn" id="btn-view-east" data-i18n="viewEast" title="East Elevation">E</button>
           <button class="tool-btn" id="btn-view-west" data-i18n="viewWest" title="West Elevation">W</button>
-          <button class="tool-btn" id="btn-view-fit" data-i18n="viewFit" title="Fit to Screen">Fit</button>
+          <button class="tool-btn" id="btn-view-proj" data-i18n="camProjPersp" title="Perspective View (Click to switch to Orthogonal)">Persp</button>
         </div>
         
         <!-- Visible Distance Slider Control -->
@@ -275,12 +275,28 @@ html_content = f"""<!DOCTYPE html>
               </label>
             </div>
             
-            <div class="control-row">
+            <div class="control-row clipping-mode-row">
               <span class="control-label" data-i18n="secMode">Clipping Mode</span>
-              <select class="select-input" id="sec-mode-sel">
-                <option value="plane" data-i18n="secPlane">Single Plane</option>
-                <option value="box" data-i18n="secBox">Section Box</option>
-              </select>
+              <div class="segmented-control" id="sec-mode-segmented">
+                <button type="button" class="segment-btn active" id="sec-mode-btn-plane" data-mode="plane" data-i18n="secPlane">Section Plane</button>
+                <button type="button" class="segment-btn" id="sec-mode-btn-box" data-mode="box" data-i18n="secBox">Section Box</button>
+              </div>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label" data-i18n="secShowHelpers">Show Section Plane / Box</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="sec-show-helpers-chk" checked>
+                <span class="slider-switch"></span>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <span class="control-label" data-i18n="secShowWireframe">Show Cut-away Wireframe</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="sec-wireframe-chk">
+                <span class="slider-switch"></span>
+              </label>
             </div>
           </div>
 
@@ -288,11 +304,11 @@ html_content = f"""<!DOCTYPE html>
           <div class="control-section" id="sec-plane-controls">
             <div class="control-row">
               <span class="control-label" data-i18n="secAxis">Section Axis</span>
-              <select class="select-input" id="sec-axis-sel">
-                <option value="Z" data-i18n="secAxisZ" selected>Z - 标高剖切 (RL Height)</option>
-                <option value="X" data-i18n="secAxisX">X - 东西向剖切 (Easting Cut)</option>
-                <option value="Y" data-i18n="secAxisY">Y - 南北向剖切 (Northing Cut)</option>
-              </select>
+              <div class="segmented-control axis-segmented" id="sec-axis-segmented">
+                <button type="button" class="segment-btn axis-btn-x" id="sec-axis-btn-x" data-axis="X" data-i18n="secAxisXBtn">X Easting</button>
+                <button type="button" class="segment-btn axis-btn-y" id="sec-axis-btn-y" data-axis="Y" data-i18n="secAxisYBtn">Y Northing</button>
+                <button type="button" class="segment-btn axis-btn-z active" id="sec-axis-btn-z" data-axis="Z" data-i18n="secAxisZBtn">Z Elevation</button>
+              </div>
             </div>
             <div class="control-row">
               <span class="control-label" data-i18n="secOffset">Slice Position</span>
@@ -574,6 +590,26 @@ html_content = f"""<!DOCTYPE html>
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
             <span data-i18n="menuSectionBox">Section Box</span>
           </div>
+          <div class="context-menu-item" id="menu-move-sec-here" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+            <span id="menu-move-sec-here-text" data-i18n="menuMoveSectionPlaneToHere">Move Section Plane to Here</span>
+          </div>
+          <div class="context-menu-item" id="menu-group-isolate" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span id="menu-group-isolate-text" data-i18n="menuIsolateGroup">Isolate Group</span>
+          </div>
+          <div class="context-menu-item" id="menu-group-hide" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+            <span id="menu-group-hide-text" data-i18n="menuHideGroup">Hide Group</span>
+          </div>
+          <div class="context-menu-item" id="menu-group-zoom" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <span id="menu-group-zoom-text" data-i18n="menuZoomGroup">Zoom to Group</span>
+          </div>
+          <div class="context-menu-item" id="menu-group-sec-box" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
+            <span id="menu-group-sec-box-text" data-i18n="menuFitSectionBoxToGroup">Fit Section Box to Group</span>
+          </div>
           <div class="context-menu-divider" id="menu-sectioning-divider" style="display:none"></div>
           <div class="context-menu-item" id="menu-toggle-section-box" style="display:none">
             <svg id="menu-toggle-section-box-icon" viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
@@ -844,5 +880,11 @@ for d_dir in potential_deliverables_dirs:
     if os.path.exists(d_dir) and os.path.isdir(d_dir) and d_dir not in copied_destinations:
         shutil.copy2(OUTPUT_HTML, os.path.join(d_dir, "BIMScope.html"))
         shutil.copy2(INDEX_HTML, os.path.join(d_dir, "index.html"))
+        changelog_path = os.path.join(BASE_DIR, "CHANGELOG.md")
+        features_path = os.path.join(BASE_DIR, "FEATURES.md")
+        if os.path.exists(changelog_path):
+            shutil.copy2(changelog_path, os.path.join(d_dir, "CHANGELOG.md"))
+        if os.path.exists(features_path):
+            shutil.copy2(features_path, os.path.join(d_dir, "FEATURES.md"))
         copied_destinations.add(d_dir)
         print(f"Exported deliverable to: {d_dir}")

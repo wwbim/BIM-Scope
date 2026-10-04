@@ -685,6 +685,85 @@ input:checked + .slider:before {
   outline: none;
 }
 
+/* SEGMENTED CONTROL & AXIS BUTTONS */
+.segmented-control {
+  display: flex;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 2px;
+  gap: 3px;
+  width: 100%;
+}
+
+.clipping-mode-row {
+  justify-content: flex-start !important;
+  gap: 16px !important;
+}
+
+#sec-mode-segmented {
+  width: fit-content;
+  flex: 0 0 auto;
+}
+
+#sec-mode-segmented .segment-btn {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 4px 12px;
+}
+
+.segment-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.segment-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.segment-btn.active {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-weight: 600;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
+}
+
+.axis-segmented .axis-btn-x.active {
+  background: rgba(255, 71, 87, 0.18);
+  border-color: rgba(255, 71, 87, 0.5);
+  color: #ff4757;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(255, 71, 87, 0.25);
+}
+
+.axis-segmented .axis-btn-y.active {
+  background: rgba(46, 213, 115, 0.18);
+  border-color: rgba(46, 213, 115, 0.5);
+  color: #2ed573;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(46, 213, 115, 0.25);
+}
+
+.axis-segmented .axis-btn-z.active {
+  background: rgba(30, 144, 255, 0.18);
+  border-color: rgba(30, 144, 255, 0.5);
+  color: #1e90ff;
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(30, 144, 255, 0.25);
+}
+
 /* RIGHT INSPECTOR PANEL */
 #right-sidebar {
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);

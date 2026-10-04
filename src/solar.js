@@ -63,12 +63,18 @@ class SolarEngine {
     // Camera Headlight (soft fill light that follows the camera)
     this.headLight = new THREE.DirectionalLight(0xffffff, 0.35);
     this.headLight.castShadow = false;
+    this.headLightTarget = new THREE.Object3D();
+    this.scene.add(this.headLightTarget);
+    this.headLight.target = this.headLightTarget;
     this.scene.add(this.headLight);
   }
 
-  setCamera(camera) {
+  setCamera(camera, target) {
     if (this.headLight && camera) {
       this.headLight.position.copy(camera.position);
+      if (target && this.headLightTarget) {
+        this.headLightTarget.position.copy(target);
+      }
     }
   }
   
@@ -107,14 +113,18 @@ class SolarEngine {
     
     // Zenith angle
     const cosZenith = Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(haRad);
-    const zenith = Math.acos(Math.max(-1, Math.min(1, cosZenith)));
-    const elevation = 90 - (zenith * 180 / Math.PI);
+    const clampedZenith = Math.max(-1, Math.min(1, isFinite(cosZenith) ? cosZenith : 0));
+    const zenith = Math.acos(clampedZenith);
+    let elevation = 90 - (zenith * 180 / Math.PI);
     
     // Solar Azimuth Angle from North clockwise (0° = North, 90° = East, 180° = South, 270° = West)
     const x = -Math.cos(decl) * Math.sin(haRad);
     const y = Math.sin(decl) * Math.cos(latRad) - Math.cos(decl) * Math.sin(latRad) * Math.cos(haRad);
     let azimuth = Math.atan2(x, y) * 180 / Math.PI;
     if (azimuth < 0) azimuth += 360;
+    
+    if (!isFinite(elevation)) elevation = 45;
+    if (!isFinite(azimuth)) azimuth = 180;
     
     return {
       elevation: Math.round(elevation * 10) / 10,

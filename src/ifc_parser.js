@@ -34,7 +34,12 @@ const IFCCSG = (function() {
     const n = new THREE.Vector3().crossVectors(
       b.pos.clone().sub(a.pos),
       c.pos.clone().sub(a.pos)
-    ).normalize();
+    );
+    if (n.lengthSq() < 1e-12) {
+      n.set(0, 1, 0);
+    } else {
+      n.normalize();
+    }
     return new Plane(n, n.dot(a.pos));
   };
   Plane.prototype.clone = function() {
@@ -73,8 +78,10 @@ const IFCCSG = (function() {
           if (ti !== BACK) f.push(vi);
           if (ti !== FRONT) b.push(ti !== BACK ? vi.clone() : vi);
           if ((ti | tj) === SPANNING) {
-            const t = (this.w - this.normal.dot(vi.pos)) / this.normal.dot(vj.pos.clone().sub(vi.pos));
-            const v = vi.interpolate(vj, t);
+            const denom = this.normal.dot(vj.pos.clone().sub(vi.pos));
+            const t = Math.abs(denom) > 1e-8 ? (this.w - this.normal.dot(vi.pos)) / denom : 0.5;
+            const clampedT = isFinite(t) ? Math.max(0, Math.min(1, t)) : 0.5;
+            const v = vi.interpolate(vj, clampedT);
             f.push(v);
             b.push(v.clone());
           }
@@ -1051,6 +1058,7 @@ class IFCParser {
   
   // Fast argument parser handling nested parens and quotes
   parseArgs(raw) {
+    if (!raw) return [];
     const args = [];
     let depth = 0;
     let current = '';
@@ -1589,9 +1597,10 @@ class IFCParser {
   }
   
   // Placement Matrix computation (Pure native IFC coordinates)
-  getPlacementMatrix(placementRef) {
+  getPlacementMatrix(placementRef, visited = new Set()) {
     const matrix = new THREE.Matrix4();
-    if (!placementRef || placementRef === '$') return matrix;
+    if (!placementRef || placementRef === '$' || visited.has(placementRef) || visited.size > 60) return matrix;
+    visited.add(placementRef);
     
     const ent = this.getEntity(placementRef);
     if (!ent) return matrix;
@@ -1603,7 +1612,7 @@ class IFCParser {
       
       const localMat = this.getPlacement3DMatrix(relPlacement);
       if (relTo && relTo !== '$') {
-        const parentMat = this.getPlacementMatrix(relTo);
+        const parentMat = this.getPlacementMatrix(relTo, visited);
         matrix.multiplyMatrices(parentMat, localMat);
       } else {
         matrix.copy(localMat);
@@ -2134,7 +2143,9 @@ class IFCParser {
 
   // Procedural expanded metal mesh alpha texture (seamless tileable diamond wire grid, zero external assets)
   getExpandedMeshAlphaTexture() {
-    if (this._expandedMeshTexture) return this._expandedMeshTexture;
+    if (this._expandedMeshTexture && this._expandedMeshTexture.image && !this._expandedMeshTexture._isDisposed) {
+      return this._expandedMeshTexture;
+    }
 
     const size = 128;
     const canvas = document.createElement('canvas');
@@ -2175,6 +2186,13 @@ class IFCParser {
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = true;
     texture.needsUpdate = true;
+
+    texture.addEventListener('dispose', () => {
+      texture._isDisposed = true;
+      if (this._expandedMeshTexture === texture) {
+        this._expandedMeshTexture = null;
+      }
+    });
 
     this._expandedMeshTexture = texture;
     return texture;

@@ -412,16 +412,27 @@ class BIMViewerApp {
     this.visibleDistance = 5000;
     
     // Camera with default 5,000m far plane (max 10,000m, accommodating large civil / infrastructure projects)
-    const width = this.container.clientWidth;
-    const height = this.container.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.5, this.visibleDistance);
-    this.camera.position.set(220, 180, 260);
+    const width = this.container.clientWidth || window.innerWidth;
+    const height = this.container.clientHeight || window.innerHeight;
+    const aspect = width / (height || 1);
+
+    this.perspectiveCamera = new THREE.PerspectiveCamera(45, aspect, 0.5, this.visibleDistance);
+    this.perspectiveCamera.position.set(220, 180, 260);
+
+    const initH = 200;
+    const initW = initH * aspect;
+    this.orthographicCamera = new THREE.OrthographicCamera(-initW / 2, initW / 2, initH / 2, -initH / 2, 0.5, this.visibleDistance);
+    this.orthographicCamera.position.set(220, 180, 260);
+
+    this.camera = this.perspectiveCamera;
+    this.cameraProjection = 'perspective';
     this.updateFog();
     
     // Renderer
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: true,
+      stencil: true,
       powerPreference: "high-performance"
     });
     this.renderer.setSize(width, height);
@@ -526,9 +537,9 @@ class BIMViewerApp {
     // Glowing cyan reticle ring
     const ringGeom = new THREE.RingGeometry(0.55, 0.72, 32);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00e5ff,
+      color: 0x00f0ff,
       transparent: true,
-      opacity: 0.9,
+      opacity: 1.0,
       side: THREE.DoubleSide,
       depthTest: false
     });
@@ -542,7 +553,7 @@ class BIMViewerApp {
     const dotMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0.9,
+      opacity: 1.0,
       depthTest: false
     });
     const dot = new THREE.Mesh(dotGeom, dotMat);
@@ -560,9 +571,9 @@ class BIMViewerApp {
     ]);
     crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
     const crossMat = new THREE.LineBasicMaterial({
-      color: 0x00e5ff,
+      color: 0x00f0ff,
       transparent: true,
-      opacity: 0.9,
+      opacity: 1.0,
       depthTest: false
     });
     const cross = new THREE.LineSegments(crossGeom, crossMat);
@@ -580,7 +591,7 @@ class BIMViewerApp {
     this.pivotHelper.position.copy(position);
     this.pivotHelper.visible = true;
     this.pivotStartTime = performance.now();
-    this.pivotHelperMaterials.forEach(m => m.opacity = 0.9);
+    this.pivotHelperMaterials.forEach(m => m.opacity = 1.0);
     this.updatePivotIndicator();
   }
 
@@ -592,7 +603,7 @@ class BIMViewerApp {
       return;
     }
     const alpha = Math.max(0, 1 - (elapsed / 900));
-    this.pivotHelperMaterials.forEach(m => m.opacity = alpha * 0.9);
+    this.pivotHelperMaterials.forEach(m => m.opacity = alpha * 1.0);
 
     const dist = this.camera.position.distanceTo(this.pivotHelper.position);
     const scale = Math.max(0.15, dist * 0.0175);
@@ -614,7 +625,15 @@ class BIMViewerApp {
   setFarClip(distance, updateUI = true) {
     const clamped = Math.max(200, Math.min(distance, 10000));
     this.visibleDistance = clamped;
-    if (this.camera) {
+    if (this.perspectiveCamera) {
+      this.perspectiveCamera.far = clamped;
+      this.perspectiveCamera.updateProjectionMatrix();
+    }
+    if (this.orthographicCamera) {
+      this.orthographicCamera.far = clamped;
+      this.orthographicCamera.updateProjectionMatrix();
+    }
+    if (this.camera && this.camera !== this.perspectiveCamera && this.camera !== this.orthographicCamera) {
       this.camera.far = clamped;
       this.camera.updateProjectionMatrix();
     }
@@ -702,10 +721,15 @@ class BIMViewerApp {
 
   // Native CAD / Forge Screen-space Camera Panning (Right/Middle drag)
   panCamera(dx, dy) {
-    const dist = this.camera.position.distanceTo(this.pivotPoint);
-    const fov = this.camera.fov * (Math.PI / 180);
-    const targetHeight = 2.0 * Math.tan(fov / 2.0) * dist;
-    const factor = targetHeight / (this.canvas.clientHeight || 1000);
+    let factor;
+    if (this.camera && this.camera.isOrthographicCamera) {
+      factor = ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1.0)) / (this.canvas.clientHeight || 1000);
+    } else {
+      const dist = this.camera.position.distanceTo(this.pivotPoint);
+      const fov = (this.camera.fov || 45) * (Math.PI / 180);
+      const targetHeight = 2.0 * Math.tan(fov / 2.0) * dist;
+      factor = targetHeight / (this.canvas.clientHeight || 1000);
+    }
 
     const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
     const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
@@ -1068,21 +1092,42 @@ class BIMViewerApp {
   clearModel() {
     if (this.activeModel) {
       this.scene.remove(this.activeModel);
+      const texturesToDispose = new Set();
       this.activeModel.traverse(obj => {
-        if (obj.isMesh) {
-          if (obj.userData && obj.userData.edgeLines) {
-            if (obj.userData.edgeLines.geometry) obj.userData.edgeLines.geometry.dispose();
-            if (obj.userData.edgeLines.material) obj.userData.edgeLines.material.dispose();
-            obj.userData.edgeLines = null;
+        if (obj.userData && obj.userData.edgeLines) {
+          if (obj.userData.edgeLines.geometry) obj.userData.edgeLines.geometry.dispose();
+          if (obj.userData.edgeLines.material) {
+            if (Array.isArray(obj.userData.edgeLines.material)) obj.userData.edgeLines.material.forEach(m => m && m.dispose());
+            else obj.userData.edgeLines.material.dispose();
           }
-          if (obj.geometry) obj.geometry.dispose();
-          if (obj.material) {
-            if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-            else obj.material.dispose();
-          }
+          obj.userData.edgeLines = null;
+        }
+        if (obj.geometry) {
+          obj.geometry.dispose();
+        }
+        if (obj.material) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          const texSlots = [
+            'map', 'alphaMap', 'aoMap', 'bumpMap', 'displacementMap',
+            'emissiveMap', 'lightMap', 'metalnessMap', 'normalMap',
+            'roughnessMap', 'specularMap'
+          ];
+          mats.forEach(m => {
+            if (!m) return;
+            texSlots.forEach(slot => {
+              if (m[slot] && typeof m[slot].dispose === 'function') {
+                texturesToDispose.add(m[slot]);
+              }
+            });
+            m.dispose();
+          });
         }
       });
+      texturesToDispose.forEach(tex => tex.dispose());
       this.activeModel = null;
+    }
+    if (this.clippingEngine) {
+      this.clippingEngine.clearModel();
     }
     this.categoryStates.clear();
     const container = document.querySelector('.legend-container');
@@ -1289,6 +1334,7 @@ class BIMViewerApp {
     const box = new THREE.Box3().setFromObject(this.activeModel);
     if (!box.isEmpty()) {
       this.clippingEngine.setBounds(box);
+      this.clippingEngine.setModel(this.activeModel);
       
       const center = new THREE.Vector3();
       box.getCenter(center);
@@ -1414,7 +1460,7 @@ class BIMViewerApp {
       this.setFarClip(neededFar, true);
     }
 
-    const fov = this.camera.fov * (Math.PI / 180);
+    const fov = (this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * (Math.PI / 180);
     let cameraDist = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 0.95;
     cameraDist = Math.max(cameraDist, 22);
     
@@ -1426,6 +1472,20 @@ class BIMViewerApp {
     
     this.pivotPoint.copy(center);
     this.showPivotIndicator(center);
+
+    if (this.camera && this.camera.isOrthographicCamera) {
+      const width = this.canvas.clientWidth || window.innerWidth;
+      const height = this.canvas.clientHeight || window.innerHeight;
+      const aspect = width / (height || 1);
+      const halfH = maxDim * 0.65;
+      const halfW = halfH * aspect;
+      this.orthographicCamera.left = -halfW;
+      this.orthographicCamera.right = halfW;
+      this.orthographicCamera.top = halfH;
+      this.orthographicCamera.bottom = -halfH;
+      this.orthographicCamera.zoom = 1.0;
+      this.orthographicCamera.updateProjectionMatrix();
+    }
 
     if (immediate) {
       this.camera.position.copy(targetCam);
@@ -1473,28 +1533,60 @@ class BIMViewerApp {
   setView(preset) {
     if (!this.activeModel) return;
     const box = new THREE.Box3().setFromObject(this.activeModel);
+    if (box.isEmpty()) return;
     const center = new THREE.Vector3();
     box.getCenter(center);
     const size = new THREE.Vector3();
     box.getSize(size);
-    const dist = Math.max(size.x, size.y, size.z) * 1.5;
+    const maxDim = Math.max(size.x, size.y, size.z, 10);
+    
+    const fov = (this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * (Math.PI / 180);
+    const aspect = (this.perspectiveCamera ? this.perspectiveCamera.aspect : 1) || 1;
+    
+    let viewW = maxDim, viewH = maxDim;
+    if (preset === 'plan') {
+      viewW = size.x;
+      viewH = size.z;
+    } else if (preset === 'north' || preset === 'south') {
+      viewW = size.x;
+      viewH = size.y;
+    } else if (preset === 'east' || preset === 'west') {
+      viewW = size.z;
+      viewH = size.y;
+    }
+
+    const distH = (viewH / 2) / Math.tan(fov / 2);
+    const distW = (viewW / 2) / (Math.tan(fov / 2) * aspect);
+    const dist = Math.max(distH, distW, 10) * 1.35;
+    
+    if (this.camera && this.camera.isOrthographicCamera) {
+      const neededH = Math.max(viewH, viewW / aspect) * 1.35;
+      const halfH = neededH / 2.0;
+      const halfW = halfH * aspect;
+      this.orthographicCamera.left = -halfW;
+      this.orthographicCamera.right = halfW;
+      this.orthographicCamera.top = halfH;
+      this.orthographicCamera.bottom = -halfH;
+      this.orthographicCamera.zoom = 1.0;
+      this.orthographicCamera.updateProjectionMatrix();
+    }
     
     let pos = new THREE.Vector3();
     switch (preset) {
-      case 'plan': // Top-down
+      case 'plan': // Top-down (strictly vertical along -Y)
         pos.set(center.x, center.y + dist, center.z + 0.001);
         break;
-      case 'north':
-        pos.set(center.x, center.y + dist * 0.35, center.z - dist);
+      case 'north': // North elevation (strictly along +Z axis, horizontal at center.y)
+        pos.set(center.x, center.y, center.z - dist);
         break;
-      case 'south':
-        pos.set(center.x, center.y + dist * 0.35, center.z + dist);
+      case 'south': // South elevation (strictly along -Z axis, horizontal at center.y)
+        pos.set(center.x, center.y, center.z + dist);
         break;
-      case 'east':
-        pos.set(center.x + dist, center.y + dist * 0.35, center.z);
+      case 'east': // East elevation (strictly along -X axis, horizontal at center.y)
+        pos.set(center.x + dist, center.y, center.z);
         break;
-      case 'west':
-        pos.set(center.x - dist, center.y + dist * 0.35, center.z);
+      case 'west': // West elevation (strictly along +X axis, horizontal at center.y)
+        pos.set(center.x - dist, center.y, center.z);
         break;
       case 'iso':
       default:
@@ -1502,6 +1594,98 @@ class BIMViewerApp {
         break;
     }
     this.tweenCamera(pos, center);
+  }
+  
+  // ----------------------------------------------------
+  // CAMERA PROJECTION (Perspective <-> Orthographic)
+  // ----------------------------------------------------
+  toggleCameraProjection() {
+    if (this.cameraProjection === 'perspective') {
+      this.setCameraProjection('orthographic');
+    } else {
+      this.setCameraProjection('perspective');
+    }
+  }
+
+  setCameraProjection(mode) {
+    if (mode === this.cameraProjection) return;
+
+    const width = this.canvas.clientWidth || window.innerWidth;
+    const height = this.canvas.clientHeight || window.innerHeight;
+    const aspect = width / (height || 1);
+
+    const pos = this.camera.position.clone();
+    const quat = this.camera.quaternion.clone();
+    const target = this.controls && this.controls.target ? this.controls.target.clone() : this.pivotPoint.clone();
+    const dist = Math.max(pos.distanceTo(target), 5.0);
+
+    if (mode === 'orthographic') {
+      // Calculate visible frustum height at target plane from perspective FOV
+      const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
+      const targetHeight = 2.0 * dist * Math.tan(fovRad / 2.0);
+      const targetWidth = targetHeight * aspect;
+
+      this.orthographicCamera.left = -targetWidth / 2.0;
+      this.orthographicCamera.right = targetWidth / 2.0;
+      this.orthographicCamera.top = targetHeight / 2.0;
+      this.orthographicCamera.bottom = -targetHeight / 2.0;
+      this.orthographicCamera.near = 0.5;
+      this.orthographicCamera.far = this.visibleDistance;
+      this.orthographicCamera.zoom = 1.0;
+
+      this.orthographicCamera.position.copy(pos);
+      this.orthographicCamera.quaternion.copy(quat);
+      this.orthographicCamera.updateProjectionMatrix();
+
+      this.camera = this.orthographicCamera;
+      this.cameraProjection = 'orthographic';
+      showToast(I18N.t('switchedToOrtho'), 'info');
+    } else {
+      // From Orthographic to Perspective:
+      // Match visible height at target plane to preserve scale without jump
+      const orthoH = (this.orthographicCamera.top - this.orthographicCamera.bottom) / (this.orthographicCamera.zoom || 1.0);
+      const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
+      const neededDist = Math.max(orthoH / (2.0 * Math.tan(fovRad / 2.0)), 2.0);
+
+      const viewDir = new THREE.Vector3().subVectors(pos, target).normalize();
+      if (viewDir.lengthSq() < 0.001) viewDir.set(0, 0, 1);
+      const newPos = target.clone().addScaledVector(viewDir, neededDist);
+
+      this.perspectiveCamera.aspect = aspect;
+      this.perspectiveCamera.near = 0.5;
+      this.perspectiveCamera.far = this.visibleDistance;
+      this.perspectiveCamera.position.copy(newPos);
+      this.perspectiveCamera.quaternion.copy(quat);
+      this.perspectiveCamera.updateProjectionMatrix();
+
+      this.camera = this.perspectiveCamera;
+      this.cameraProjection = 'perspective';
+      showToast(I18N.t('switchedToPersp'), 'info');
+    }
+
+    if (this.controls && this.controls.target) {
+      this.controls.target.copy(target);
+    }
+    if (this.compass3d) {
+      this.compass3d.update();
+    }
+
+    this.updateCameraProjUI();
+  }
+
+  updateCameraProjUI() {
+    const btn = document.getElementById('btn-view-proj') || document.getElementById('btn-view-fit');
+    if (!btn) return;
+    const isOrtho = this.cameraProjection === 'orthographic';
+    if (isOrtho) {
+      btn.textContent = I18N.t('camProjOrtho');
+      btn.title = I18N.t('camProjOrthoTitle');
+      btn.classList.add('active');
+    } else {
+      btn.textContent = I18N.t('camProjPersp');
+      btn.title = I18N.t('camProjPerspTitle');
+      btn.classList.remove('active');
+    }
   }
   
   // Build Collapsible Interactive Hierarchy Tree in Left Sidebar
@@ -1594,6 +1778,15 @@ class BIMViewerApp {
         this.selectElement(mesh);
         document.querySelectorAll('.tree-leaf-item').forEach(el => el.classList.remove('selected'));
         leaf.classList.add('selected');
+      });
+
+      leaf.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.selectElement(mesh);
+        document.querySelectorAll('.tree-leaf-item').forEach(el => el.classList.remove('selected'));
+        leaf.classList.add('selected');
+        this.showContextMenu(e.clientX, e.clientY);
       });
 
       leaf.addEventListener('dblclick', (e) => {
@@ -1711,6 +1904,12 @@ class BIMViewerApp {
         expander.classList.toggle('collapsed', isCollapsed);
       });
 
+      head.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showGroupContextMenu(e.clientX, e.clientY, name, meshes);
+      });
+
       // Populate child leaf items
       meshes.forEach(mesh => {
         const { leaf, chk } = createElementLeaf(mesh, updateMasterState);
@@ -1794,6 +1993,12 @@ class BIMViewerApp {
         expander.classList.toggle('collapsed', isCollapsed);
       });
 
+      head.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showGroupContextMenu(e.clientX, e.clientY, localizedName || catName, meshes);
+      });
+
       meshes.forEach(mesh => {
         const { leaf, chk } = createElementLeaf(mesh, updateCategoryMaster);
         childCheckboxes.push(chk);
@@ -1854,6 +2059,12 @@ class BIMViewerApp {
         if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
         const isCollapsed = childrenContainer.classList.toggle('collapsed');
         expander.classList.toggle('collapsed', isCollapsed);
+      });
+
+      head.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showGroupContextMenu(e.clientX, e.clientY, lvlName, meshes);
       });
 
       meshes.forEach(mesh => {
@@ -3027,8 +3238,28 @@ class BIMViewerApp {
     // Screen occupancy fraction along tighter dimension:
     // (2 * radius) / (2 * D * tan(fov / 2) * min(1, aspect)) = 0.5
     // => D = (2 * radius) / (tan(fov / 2) * min(1, aspect))
-    const fovRad = (this.camera.fov * Math.PI) / 180;
-    const aspect = this.camera.aspect || 1;
+    if (this.camera && this.camera.isOrthographicCamera) {
+      const width = this.canvas.clientWidth || window.innerWidth;
+      const height = this.canvas.clientHeight || window.innerHeight;
+      const aspect = width / (height || 1);
+      const minAspect = Math.min(1, aspect);
+      const halfH = (radius / minAspect) * 2.0;
+      const halfW = halfH * aspect;
+      this.orthographicCamera.left = -halfW;
+      this.orthographicCamera.right = halfW;
+      this.orthographicCamera.top = halfH;
+      this.orthographicCamera.bottom = -halfH;
+      this.orthographicCamera.zoom = 1.0;
+      this.orthographicCamera.updateProjectionMatrix();
+
+      const targetCam = center.clone().addScaledVector(viewDir, 25.0);
+      this.showPivotIndicator(center);
+      this.tweenCamera(targetCam, center);
+      return;
+    }
+
+    const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
+    const aspect = (this.perspectiveCamera ? this.perspectiveCamera.aspect : 1) || 1;
     const minAspect = Math.min(1, aspect);
     const targetDist = Math.max((2 * radius) / (Math.tan(fovRad / 2) * minAspect), 1.0);
 
@@ -4344,9 +4575,16 @@ class BIMViewerApp {
     if (width <= 0 || height <= 0) return;
 
     const aspect = width / height;
-    if (Math.abs(this.camera.aspect - aspect) > 0.0001) {
-      this.camera.aspect = aspect;
-      this.camera.updateProjectionMatrix();
+    if (this.perspectiveCamera) {
+      this.perspectiveCamera.aspect = aspect;
+      this.perspectiveCamera.updateProjectionMatrix();
+    }
+    if (this.orthographicCamera) {
+      const orthoH = (this.orthographicCamera.top - this.orthographicCamera.bottom);
+      const orthoW = orthoH * aspect;
+      this.orthographicCamera.left = -orthoW / 2;
+      this.orthographicCamera.right = orthoW / 2;
+      this.orthographicCamera.updateProjectionMatrix();
     }
     
     const canvas = this.renderer.domElement;
@@ -4606,11 +4844,12 @@ class BIMViewerApp {
     const menu = document.getElementById('context-menu');
     if (!menu) return;
 
+    this.contextGroupMeshes = null;
     const hasSelection = !!this.selectedMesh;
 
     // Toggle menu items according to selection state:
     // When no object is selected: show Show All, Zoom to Global, Reset Initial View
-    // When an object is selected: show Hide, Isolate, Zoom to, Section Box
+    // When an object is selected: show Hide, Isolate, Zoom to, Section Box / Move Section Plane/Box to Here
     const itemShowAll = document.getElementById('menu-show-all');
     const itemZoomGlobal = document.getElementById('menu-zoom-global');
     const itemResetView = document.getElementById('menu-reset-view');
@@ -4619,7 +4858,18 @@ class BIMViewerApp {
     const itemIsolate = document.getElementById('menu-isolate');
     const itemZoomTo = document.getElementById('menu-zoom-to');
     const itemSectionBox = document.getElementById('menu-section-box');
+    const itemMoveSecHere = document.getElementById('menu-move-sec-here');
+    const itemMoveSecHereText = document.getElementById('menu-move-sec-here-text');
     const itemDivider = document.getElementById('menu-selected-divider');
+
+    // Group items - hide on single selection context menu
+    ['menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    const isSecEnabled = this.clippingEngine && this.clippingEngine.enabled;
+    const isSecBox = isSecEnabled && this.clippingEngine.mode === 'box';
 
     if (hasSelection) {
       if (itemShowAll) itemShowAll.style.display = 'none';
@@ -4630,7 +4880,20 @@ class BIMViewerApp {
       if (itemHide) itemHide.style.display = 'flex';
       if (itemIsolate) itemIsolate.style.display = 'flex';
       if (itemZoomTo) itemZoomTo.style.display = 'flex';
-      if (itemSectionBox) itemSectionBox.style.display = 'flex';
+
+      if (isSecEnabled) {
+        if (itemSectionBox) itemSectionBox.style.display = 'none';
+        if (itemMoveSecHere) {
+          itemMoveSecHere.style.display = 'flex';
+          if (itemMoveSecHereText) {
+            itemMoveSecHereText.textContent = isSecBox ? 
+              I18N.t('menuMoveSectionBoxToHere') : I18N.t('menuMoveSectionPlaneToHere');
+          }
+        }
+      } else {
+        if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+        if (itemSectionBox) itemSectionBox.style.display = 'flex';
+      }
     } else {
       if (itemShowAll) itemShowAll.style.display = 'flex';
       if (itemZoomGlobal) itemZoomGlobal.style.display = 'flex';
@@ -4641,12 +4904,10 @@ class BIMViewerApp {
       if (itemIsolate) itemIsolate.style.display = 'none';
       if (itemZoomTo) itemZoomTo.style.display = 'none';
       if (itemSectionBox) itemSectionBox.style.display = 'none';
+      if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
     }
 
     // Sectioning Context Menu Items
-    const isSecEnabled = this.clippingEngine && this.clippingEngine.enabled;
-    const isSecBox = isSecEnabled && this.clippingEngine.mode === 'box';
-
     const itemToggleSecBox = document.getElementById('menu-toggle-section-box');
     const itemToggleSecBoxText = document.getElementById('menu-toggle-section-box-text');
     const itemToggleSecBoxIcon = document.getElementById('menu-toggle-section-box-icon');
@@ -4654,11 +4915,13 @@ class BIMViewerApp {
     const itemSecDivider = document.getElementById('menu-sectioning-divider');
 
     if (itemToggleSecBox) {
-      if (isSecBox) {
+      if (isSecEnabled) {
         itemToggleSecBox.style.display = 'flex';
-        const isVis = this.clippingEngine.boxHelpersVisible;
+        const isVis = this.clippingEngine.helpersVisible;
         if (itemToggleSecBoxText) {
-          itemToggleSecBoxText.textContent = isVis ? I18N.t('menuHideSectionBox') : I18N.t('menuShowSectionBox');
+          itemToggleSecBoxText.textContent = isVis ? 
+            (isSecBox ? I18N.t('menuHideSectionBox') : I18N.t('menuHideSectionPlane')) : 
+            (isSecBox ? I18N.t('menuShowSectionBox') : I18N.t('menuShowSectionPlane'));
         }
         if (itemToggleSecBoxIcon) {
           itemToggleSecBoxIcon.innerHTML = isVis ? 
@@ -4679,6 +4942,98 @@ class BIMViewerApp {
     }
 
     // Position menu within viewport bounds
+    const vRect = this.container.getBoundingClientRect();
+    let left = clientX - vRect.left;
+    let top = clientY - vRect.top;
+
+    menu.style.display = 'flex';
+    const mWidth = menu.offsetWidth || 180;
+    const mHeight = menu.offsetHeight || 160;
+
+    if (left + mWidth > vRect.width - 12) {
+      left = vRect.width - mWidth - 12;
+    }
+    if (top + mHeight > vRect.height - 12) {
+      top = vRect.height - mHeight - 12;
+    }
+
+    menu.style.left = `${Math.max(8, left)}px`;
+    menu.style.top = `${Math.max(8, top)}px`;
+  }
+
+  showGroupContextMenu(clientX, clientY, groupName, meshes) {
+    const menu = document.getElementById('context-menu');
+    if (!menu || !meshes || !meshes.length) return;
+
+    this.contextGroupMeshes = meshes;
+
+    // Hide single-element and root empty selection items
+    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    // Show group actions
+    const itemGroupIsolate = document.getElementById('menu-group-isolate');
+    if (itemGroupIsolate) itemGroupIsolate.style.display = 'flex';
+
+    const itemGroupHide = document.getElementById('menu-group-hide');
+    if (itemGroupHide) itemGroupHide.style.display = 'flex';
+
+    const itemGroupZoom = document.getElementById('menu-group-zoom');
+    if (itemGroupZoom) itemGroupZoom.style.display = 'flex';
+
+    const isSecEnabled = this.clippingEngine && this.clippingEngine.enabled;
+    const isSecBox = isSecEnabled && this.clippingEngine.mode === 'box';
+
+    const itemMoveSecHere = document.getElementById('menu-move-sec-here');
+    const itemMoveSecHereText = document.getElementById('menu-move-sec-here-text');
+    const itemGroupSecBox = document.getElementById('menu-group-sec-box');
+
+    if (isSecEnabled) {
+      if (itemGroupSecBox) itemGroupSecBox.style.display = 'none';
+      if (itemMoveSecHere) {
+        itemMoveSecHere.style.display = 'flex';
+        if (itemMoveSecHereText) {
+          itemMoveSecHereText.textContent = isSecBox ? 
+            I18N.t('menuMoveSectionBoxToHere') : I18N.t('menuMoveSectionPlaneToHere');
+        }
+      }
+    } else {
+      if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+      if (itemGroupSecBox) itemGroupSecBox.style.display = 'flex';
+    }
+
+    // Sectioning controls
+    const itemToggleSecBox = document.getElementById('menu-toggle-section-box');
+    const itemToggleSecBoxText = document.getElementById('menu-toggle-section-box-text');
+    const itemToggleSecBoxIcon = document.getElementById('menu-toggle-section-box-icon');
+    const itemResetSecRot = document.getElementById('menu-reset-sec-rot');
+    const itemSecDivider = document.getElementById('menu-sectioning-divider');
+
+    if (itemToggleSecBox) {
+      if (isSecEnabled) {
+        itemToggleSecBox.style.display = 'flex';
+        const isVis = this.clippingEngine.helpersVisible;
+        if (itemToggleSecBoxText) {
+          itemToggleSecBoxText.textContent = isVis ? 
+            (isSecBox ? I18N.t('menuHideSectionBox') : I18N.t('menuHideSectionPlane')) : 
+            (isSecBox ? I18N.t('menuShowSectionBox') : I18N.t('menuShowSectionPlane'));
+        }
+        if (itemToggleSecBoxIcon) {
+          itemToggleSecBoxIcon.innerHTML = isVis ? 
+            '<path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>' :
+            '<path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>';
+        }
+      } else {
+        itemToggleSecBox.style.display = 'none';
+      }
+    }
+
+    if (itemResetSecRot) itemResetSecRot.style.display = isSecEnabled ? 'flex' : 'none';
+    if (itemSecDivider) itemSecDivider.style.display = (isSecBox || isSecEnabled) ? 'block' : 'none';
+
+    // Position menu
     const vRect = this.container.getBoundingClientRect();
     let left = clientX - vRect.left;
     let top = clientY - vRect.top;
@@ -4788,14 +5143,65 @@ class BIMViewerApp {
       };
     }
 
+    const btnMoveSecHere = document.getElementById('menu-move-sec-here');
+    if (btnMoveSecHere) {
+      btnMoveSecHere.onclick = () => {
+        this.hideContextMenu();
+        const target = this.selectedMesh || this.contextGroupMeshes;
+        if (target) {
+          this.moveSectionToTarget(target);
+        }
+      };
+    }
+
+    const btnGroupIsolate = document.getElementById('menu-group-isolate');
+    if (btnGroupIsolate) {
+      btnGroupIsolate.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextGroupMeshes) {
+          this.isolateGroup(this.contextGroupMeshes);
+        }
+      };
+    }
+
+    const btnGroupHide = document.getElementById('menu-group-hide');
+    if (btnGroupHide) {
+      btnGroupHide.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextGroupMeshes) {
+          this.hideGroup(this.contextGroupMeshes);
+        }
+      };
+    }
+
+    const btnGroupZoom = document.getElementById('menu-group-zoom');
+    if (btnGroupZoom) {
+      btnGroupZoom.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextGroupMeshes) {
+          this.zoomToGroup(this.contextGroupMeshes);
+        }
+      };
+    }
+
+    const btnGroupSecBox = document.getElementById('menu-group-sec-box');
+    if (btnGroupSecBox) {
+      btnGroupSecBox.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextGroupMeshes) {
+          this.fitSectionBoxToTarget(this.contextGroupMeshes);
+        }
+      };
+    }
+
     const btnToggleSecBox = document.getElementById('menu-toggle-section-box');
     if (btnToggleSecBox) {
       btnToggleSecBox.onclick = () => {
         this.hideContextMenu();
-        if (this.clippingEngine && this.clippingEngine.enabled && this.clippingEngine.mode === 'box') {
-          const nowVis = this.clippingEngine.toggleBoxHelpersVisible();
+        if (this.clippingEngine && this.clippingEngine.enabled) {
+          const nowVis = this.clippingEngine.toggleHelpersVisible();
           this.syncSectionUI();
-          showToast(nowVis ? I18N.t('secBoxShownMsg') : I18N.t('secBoxHiddenMsg'), 'info');
+          showToast(nowVis ? I18N.t('secHelpersShownMsg') : I18N.t('secHelpersHiddenMsg'), 'info');
         }
       };
     }
@@ -4813,41 +5219,150 @@ class BIMViewerApp {
     }
   }
 
-  applySectionBox(mesh) {
-    if (!mesh) return;
-    
-    // Compute world bounding box of selected element
-    const elemBox = new THREE.Box3().setFromObject(mesh);
-    if (elemBox.isEmpty()) return;
+  computeBoundsFromTarget(target) {
+    const box = new THREE.Box3();
+    if (Array.isArray(target)) {
+      target.forEach(m => {
+        if (m && m.isMesh) {
+          box.expandByObject(m);
+        }
+      });
+    } else if (target && target.isMesh) {
+      box.setFromObject(target);
+    }
+    return box;
+  }
 
-    // Enable sectioning with Section Box mode
+  isBoxInFrustum(box) {
+    if (!box || box.isEmpty() || !this.camera) return true;
+    const frustum = new THREE.Frustum();
+    const projScreenMatrix = new THREE.Matrix4();
+    projScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projScreenMatrix);
+    return frustum.intersectsBox(box);
+  }
+
+  zoomToBox(box) {
+    if (!box || box.isEmpty() || !this.camera || !this.controls) return;
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    const radius = Math.max(sphere.radius, 0.5);
+
+    const viewDir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+    if (viewDir.lengthSq() < 0.0001) {
+      this.camera.getWorldDirection(viewDir).negate();
+    } else {
+      viewDir.normalize();
+    }
+
+    if (this.camera && this.camera.isOrthographicCamera) {
+      const width = this.canvas.clientWidth || window.innerWidth;
+      const height = this.canvas.clientHeight || window.innerHeight;
+      const aspect = width / (height || 1);
+      const minAspect = Math.min(1, aspect);
+      const halfH = (radius / minAspect) * 2.0;
+      const halfW = halfH * aspect;
+      this.orthographicCamera.left = -halfW;
+      this.orthographicCamera.right = halfW;
+      this.orthographicCamera.top = halfH;
+      this.orthographicCamera.bottom = -halfH;
+      this.orthographicCamera.zoom = 1.0;
+      this.orthographicCamera.updateProjectionMatrix();
+
+      const targetCam = center.clone().addScaledVector(viewDir, 25.0);
+      this.showPivotIndicator(center);
+      this.tweenCamera(targetCam, center);
+      return;
+    }
+
+    const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
+    const aspect = (this.perspectiveCamera ? this.perspectiveCamera.aspect : 1) || 1;
+    const minAspect = Math.min(1, aspect);
+    const targetDist = Math.max((2 * radius) / (Math.tan(fovRad / 2) * minAspect), 1.0);
+
+    const targetCam = center.clone().addScaledVector(viewDir, targetDist);
+    this.showPivotIndicator(center);
+    this.tweenCamera(targetCam, center);
+  }
+
+  zoomToGroup(meshes) {
+    if (!meshes || !meshes.length) return;
+    const box = this.computeBoundsFromTarget(meshes);
+    this.zoomToBox(box);
+  }
+
+  isolateGroup(meshes) {
+    if (!this.activeModel || !meshes || !meshes.length) return;
+    const meshSet = new Set(meshes);
+    this.activeModel.traverse(obj => {
+      if (obj.isMesh) {
+        obj.visible = meshSet.has(obj);
+      }
+    });
+    showToast(I18N.t('menuIsolateGroup'), 'info');
+  }
+
+  hideGroup(meshes) {
+    if (!this.activeModel || !meshes || !meshes.length) return;
+    meshes.forEach(m => {
+      if (m && m.isMesh) m.visible = false;
+    });
+    if (this.selectedMesh && !this.selectedMesh.visible) {
+      this.clearSelection();
+    }
+    showToast(I18N.t('menuHideGroup'), 'info');
+  }
+
+  moveSectionToTarget(target) {
+    if (!this.clippingEngine || !this.clippingEngine.enabled) return;
+    const box = this.computeBoundsFromTarget(target);
+    if (box.isEmpty()) return;
+
+    if (this.clippingEngine.mode === 'plane') {
+      this.clippingEngine.movePlaneToTarget(box);
+    } else {
+      this.clippingEngine.setBoxFromBounds(box, 0.08);
+    }
+
+    if (!this.isBoxInFrustum(box)) {
+      this.zoomToBox(box);
+    }
+
+    this.syncSectionUI();
+  }
+
+  fitSectionBoxToTarget(target) {
+    if (!this.clippingEngine) return;
+    const box = this.computeBoundsFromTarget(target);
+    if (box.isEmpty()) return;
+
     this.clippingEngine.enabled = true;
     this.clippingEngine.mode = 'box';
-    this.clippingEngine.setBoxFromBounds(elemBox, 0.15);
+    this.clippingEngine.setBoxFromBounds(box, 0.08);
     this.clippingEngine.update();
 
-    // Sync Section Tab UI
+    if (!this.isBoxInFrustum(box)) {
+      this.zoomToBox(box);
+    }
+
     this.syncSectionUI();
 
     const secActive = document.getElementById('sec-active-chk');
     if (secActive) secActive.checked = true;
 
-    const secMode = document.getElementById('sec-mode-sel');
-    if (secMode) secMode.value = 'box';
-
-    const planeCtrl = document.getElementById('sec-plane-controls');
-    if (planeCtrl) planeCtrl.style.display = 'none';
-
-    const boxCtrl = document.getElementById('sec-box-controls');
-    if (boxCtrl) boxCtrl.style.display = 'flex';
-
-    // Highlight Section tool in navbar and open Section tab
     const btnSection = document.getElementById('btn-tool-section');
     if (btnSection) btnSection.classList.add('active');
     const sb = document.getElementById('left-sidebar');
     if (sb) sb.classList.remove('hidden');
     this.switchLeftTab('tab-section-content');
+  }
 
+  applySectionBox(mesh) {
+    if (!mesh) return;
+    this.fitSectionBoxToTarget(mesh);
     const elemName = (mesh.userData && (mesh.userData.element || mesh.userData.rawCategory)) || mesh.name || "Element";
     showToast(I18N.t('sectionBoxApplied').replace('{name}', elemName), 'success');
   }
@@ -4866,12 +5381,26 @@ class BIMViewerApp {
     const boxSnapChk = document.getElementById('sec-box-snap-chk');
     if (boxSnapChk) boxSnapChk.checked = this.clippingEngine.rotationSnap5Deg;
 
-    // Sync Section Box visibility toggle button
-    const boxToggleVisBtn = document.getElementById('sec-box-toggle-vis-btn');
-    if (boxToggleVisBtn) {
-      boxToggleVisBtn.textContent = this.clippingEngine.boxHelpersVisible ? 
-        I18N.t('menuHideSectionBox') : I18N.t('menuShowSectionBox');
-    }
+    // Sync Mode segmented control buttons & sub-panels
+    const curMode = this.clippingEngine.mode;
+    const modeBtnPlane = document.getElementById('sec-mode-btn-plane');
+    const modeBtnBox = document.getElementById('sec-mode-btn-box');
+    if (modeBtnPlane) modeBtnPlane.classList.toggle('active', curMode === 'plane');
+    if (modeBtnBox) modeBtnBox.classList.toggle('active', curMode === 'box');
+
+    const planeCtrl = document.getElementById('sec-plane-controls');
+    if (planeCtrl) planeCtrl.style.display = curMode === 'plane' ? 'flex' : 'none';
+    const boxCtrl = document.getElementById('sec-box-controls');
+    if (boxCtrl) boxCtrl.style.display = curMode === 'box' ? 'flex' : 'none';
+
+    // Sync Section Axis segmented control buttons
+    const curAxis = this.clippingEngine.planeAxis;
+    const axisBtnX = document.getElementById('sec-axis-btn-x');
+    const axisBtnY = document.getElementById('sec-axis-btn-y');
+    const axisBtnZ = document.getElementById('sec-axis-btn-z');
+    if (axisBtnX) axisBtnX.classList.toggle('active', curAxis === 'X');
+    if (axisBtnY) axisBtnY.classList.toggle('active', curAxis === 'Y');
+    if (axisBtnZ) axisBtnZ.classList.toggle('active', curAxis === 'Z');
 
     if (this.clippingEngine.mode === 'box') {
       const r = this.clippingEngine.boxRanges;
@@ -4907,15 +5436,50 @@ class BIMViewerApp {
       }
     }
 
+    // Sync Show Section Plane / Box toggle checkbox
+    const helpersChk = document.getElementById('sec-show-helpers-chk');
+    if (helpersChk) helpersChk.checked = this.clippingEngine.helpersVisible;
+
+    // Sync Section Box visibility button text if present
+    const boxVisBtn = document.getElementById('sec-box-toggle-vis-btn');
+    if (boxVisBtn) {
+      boxVisBtn.textContent = this.clippingEngine.helpersVisible ? I18N.t('menuHideSectionBox') : I18N.t('menuShowSectionBox');
+    }
+
+    // Sync Cut-away Wireframe toggle checkbox
+    const wireChk = document.getElementById('sec-wireframe-chk');
+    if (wireChk) wireChk.checked = this.clippingEngine.showCutawayWireframe;
+
     // Sync clipping planes to edge line materials
     if (this.activeModel && this.clippingEngine) {
-      const planes = this.clippingEngine.enabled ? this.clippingEngine.clippingPlanes : [];
+      const activePlanes = this.clippingEngine.enabled ? this.clippingEngine.clippingPlanes : [];
+      const edgePlanes = (this.clippingEngine.enabled && !this.clippingEngine.showCutawayWireframe) ? activePlanes : [];
       this.activeModel.traverse(obj => {
         if (obj.isMesh && obj.userData && obj.userData.edgeLines && obj.userData.edgeLines.material) {
-          obj.userData.edgeLines.material.clippingPlanes = planes;
+          obj.userData.edgeLines.material.clippingPlanes = edgePlanes;
           obj.userData.edgeLines.material.needsUpdate = true;
         }
       });
+    }
+
+    this.updateClippingModeBtnWidths();
+  }
+
+  updateClippingModeBtnWidths() {
+    const btnPlane = document.getElementById('sec-mode-btn-plane');
+    const btnBox = document.getElementById('sec-mode-btn-box');
+    if (!btnPlane || !btnBox) return;
+
+    btnPlane.style.width = 'auto';
+    btnBox.style.width = 'auto';
+
+    const wPlane = Math.ceil(btnPlane.getBoundingClientRect().width);
+    const wBox = Math.ceil(btnBox.getBoundingClientRect().width);
+    const maxW = Math.max(wPlane, wBox);
+
+    if (maxW > 0) {
+      btnPlane.style.width = `${maxW}px`;
+      btnBox.style.width = `${maxW}px`;
     }
   }
 
@@ -4982,6 +5546,34 @@ class BIMViewerApp {
     this.pivotPoint.copy(hitPoint);
     this.showPivotIndicator(this.pivotPoint);
 
+    if (this.camera && this.camera.isOrthographicCamera) {
+      // Zoom scale factor for Orthographic Camera
+      const factor = e.deltaY < 0 ? 1.15 : (1.0 / 1.15);
+      const oldZoom = this.camera.zoom;
+      const newZoom = THREE.MathUtils.clamp(oldZoom * factor, 0.005, 500);
+      const effectiveFactor = newZoom / oldZoom;
+      this.camera.zoom = newZoom;
+      this.camera.updateProjectionMatrix();
+
+      // Zoom towards cursor hitPoint in camera plane
+      const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+      const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+      const toHit = new THREE.Vector3().subVectors(hitPoint, this.camera.position);
+      const shiftFactor = 1.0 - 1.0 / effectiveFactor;
+      const shiftX = toHit.dot(camRight) * shiftFactor;
+      const shiftY = toHit.dot(camUp) * shiftFactor;
+      const delta = new THREE.Vector3().addScaledVector(camRight, shiftX).addScaledVector(camUp, shiftY);
+      this.camera.position.add(delta);
+      if (this.controls && this.controls.target) {
+        this.controls.target.add(delta);
+      }
+
+      if (this.compass3d) {
+        this.compass3d.update();
+      }
+      return;
+    }
+
     // Zoom scale factor: scroll UP (deltaY < 0) = zoom in, scroll DOWN (deltaY > 0) = zoom out
     const factor = e.deltaY < 0 ? 0.85 : (1.0 / 0.85);
 
@@ -5031,6 +5623,8 @@ class BIMViewerApp {
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       I18N.toggleLanguage();
       this.buildHierarchyTree();
+      this.updateClippingModeBtnWidths();
+      this.updateCameraProjUI();
       if (this.selectedMesh) {
         this.selectElement(this.selectedMesh);
       } else {
@@ -5059,7 +5653,12 @@ class BIMViewerApp {
     document.getElementById('btn-view-south').onclick = () => this.setView('south');
     document.getElementById('btn-view-east').onclick = () => this.setView('east');
     document.getElementById('btn-view-west').onclick = () => this.setView('west');
-    document.getElementById('btn-view-fit').onclick = () => this.fitView();
+    
+    const btnProj = document.getElementById('btn-view-proj') || document.getElementById('btn-view-fit');
+    if (btnProj) {
+      btnProj.onclick = () => this.toggleCameraProjection();
+    }
+    this.updateCameraProjUI();
     
     // 5. Tool Toggles in Navbar
     const btnSection = document.getElementById('btn-tool-section');
@@ -5607,18 +6206,52 @@ class BIMViewerApp {
       }
       this.syncSectionUI();
     };
+
+    const ensureSectioningActive = () => {
+      if (!this.clippingEngine.enabled) {
+        this.clippingEngine.enabled = true;
+        this.clippingEngine.update();
+        if (secActive) secActive.checked = true;
+      }
+    };
+
+    const secShowHelpersChk = document.getElementById('sec-show-helpers-chk');
+    if (secShowHelpersChk) {
+      secShowHelpersChk.onchange = () => {
+        ensureSectioningActive();
+        this.clippingEngine.setHelpersVisible(secShowHelpersChk.checked);
+        this.syncSectionUI();
+        showToast(secShowHelpersChk.checked ? I18N.t('secHelpersShownMsg') : I18N.t('secHelpersHiddenMsg'), 'info');
+      };
+    }
+
+    const secWireframeChk = document.getElementById('sec-wireframe-chk');
+    if (secWireframeChk) {
+      secWireframeChk.onchange = () => {
+        this.clippingEngine.showCutawayWireframe = secWireframeChk.checked;
+        this.syncSectionUI();
+      };
+    }
     
-    const secMode = document.getElementById('sec-mode-sel');
-    secMode.onchange = () => {
-      this.clippingEngine.mode = secMode.value;
-      document.getElementById('sec-plane-controls').style.display = secMode.value === 'plane' ? 'flex' : 'none';
-      document.getElementById('sec-box-controls').style.display = secMode.value === 'box' ? 'flex' : 'none';
+    const setClippingMode = (mode) => {
+      ensureSectioningActive();
+      this.clippingEngine.mode = mode;
       this.clippingEngine.update();
       if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
         this.clearSelection();
       }
       this.syncSectionUI();
     };
+
+    const modeBtnPlane = document.getElementById('sec-mode-btn-plane');
+    if (modeBtnPlane) modeBtnPlane.onclick = () => setClippingMode('plane');
+    const modeBtnBox = document.getElementById('sec-mode-btn-box');
+    if (modeBtnBox) modeBtnBox.onclick = () => setClippingMode('box');
+
+    const secModeSel = document.getElementById('sec-mode-sel');
+    if (secModeSel) {
+      secModeSel.onchange = () => setClippingMode(secModeSel.value);
+    }
     
     // Box range sliders
     const keyMap = {
@@ -5630,6 +6263,7 @@ class BIMViewerApp {
       const el = document.getElementById(id);
       if (el) {
         el.oninput = () => {
+          ensureSectioningActive();
           this.clippingEngine.boxRanges[prop] = parseFloat(el.value);
           this.clippingEngine.setFromBoxRanges(this.clippingEngine.boxRanges);
           this.syncSectionUI();
@@ -5640,6 +6274,7 @@ class BIMViewerApp {
     const boxResetBtn = document.getElementById('sec-box-reset-btn');
     if (boxResetBtn) {
       boxResetBtn.onclick = () => {
+        ensureSectioningActive();
         this.clippingEngine.boxQuaternion.identity();
         this.clippingEngine.boxRanges = { minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1 };
         ['sec-box-minx', 'sec-box-miny', 'sec-box-minz'].forEach(id => {
@@ -5659,9 +6294,10 @@ class BIMViewerApp {
     const boxToggleVisBtn = document.getElementById('sec-box-toggle-vis-btn');
     if (boxToggleVisBtn) {
       boxToggleVisBtn.onclick = () => {
-        const nowVis = this.clippingEngine.toggleBoxHelpersVisible();
+        ensureSectioningActive();
+        const nowVis = this.clippingEngine.toggleHelpersVisible();
         this.syncSectionUI();
-        showToast(nowVis ? I18N.t('secBoxShownMsg') : I18N.t('secBoxHiddenMsg'), 'info');
+        showToast(nowVis ? I18N.t('secHelpersShownMsg') : I18N.t('secHelpersHiddenMsg'), 'info');
       };
     }
 
@@ -5669,6 +6305,7 @@ class BIMViewerApp {
     const boxRotSlider = document.getElementById('sec-box-rot-slider');
     if (boxRotSlider) {
       boxRotSlider.oninput = () => {
+        ensureSectioningActive();
         const deg = parseFloat(boxRotSlider.value);
         this.clippingEngine.setBoxRotationAzimuth(deg);
         this.syncSectionUI();
@@ -5678,6 +6315,7 @@ class BIMViewerApp {
     const boxRotCcw = document.getElementById('sec-box-rot-ccw');
     if (boxRotCcw) {
       boxRotCcw.onclick = () => {
+        ensureSectioningActive();
         let cur = this.clippingEngine.getBoxRotationAzimuth();
         cur = (cur - 45 + 360) % 360;
         this.clippingEngine.setBoxRotationAzimuth(cur);
@@ -5688,6 +6326,7 @@ class BIMViewerApp {
     const boxRotCw = document.getElementById('sec-box-rot-cw');
     if (boxRotCw) {
       boxRotCw.onclick = () => {
+        ensureSectioningActive();
         let cur = this.clippingEngine.getBoxRotationAzimuth();
         cur = (cur + 45) % 360;
         this.clippingEngine.setBoxRotationAzimuth(cur);
@@ -5729,66 +6368,73 @@ class BIMViewerApp {
       };
     }
     
-    const secAxis = document.getElementById('sec-axis-sel');
-    secAxis.onchange = () => {
-      this.clippingEngine.setPlaneAxis(secAxis.value);
+    const setPlaneAxis = (axis) => {
+      ensureSectioningActive();
+      this.clippingEngine.setPlaneAxis(axis);
       this.syncSectionUI();
     };
+
+    const axisBtnX = document.getElementById('sec-axis-btn-x');
+    if (axisBtnX) axisBtnX.onclick = () => setPlaneAxis('X');
+    const axisBtnY = document.getElementById('sec-axis-btn-y');
+    if (axisBtnY) axisBtnY.onclick = () => setPlaneAxis('Y');
+    const axisBtnZ = document.getElementById('sec-axis-btn-z');
+    if (axisBtnZ) axisBtnZ.onclick = () => setPlaneAxis('Z');
+
+    const secAxis = document.getElementById('sec-axis-sel');
+    if (secAxis) {
+      secAxis.onchange = () => setPlaneAxis(secAxis.value);
+    }
     
     const secOffset = document.getElementById('sec-offset-slider');
-    secOffset.oninput = () => {
-      this.clippingEngine.planeOffset = parseFloat(secOffset.value);
-      this.clippingEngine.setPlaneAxis(this.clippingEngine.planeAxis);
-      this.syncSectionUI();
-    };
+    if (secOffset) {
+      secOffset.oninput = () => {
+        ensureSectioningActive();
+        this.clippingEngine.planeOffset = parseFloat(secOffset.value);
+        this.clippingEngine.setPlaneAxis(this.clippingEngine.planeAxis);
+        this.syncSectionUI();
+      };
+    }
     
     const secInvert = document.getElementById('sec-invert-btn');
-    secInvert.onclick = () => {
-      this.clippingEngine.planeInvert = !this.clippingEngine.planeInvert;
-      this.clippingEngine.updatePlaneFromState();
-      this.syncSectionUI();
-    };
+    if (secInvert) {
+      secInvert.onclick = () => {
+        ensureSectioningActive();
+        this.clippingEngine.planeInvert = !this.clippingEngine.planeInvert;
+        this.clippingEngine.updatePlaneFromState();
+        this.syncSectionUI();
+      };
+    }
     
     document.getElementById('sec-reset-btn').onclick = () => {
       this.clippingEngine.reset();
       secActive.checked = false;
       secOffset.value = 0.5;
-      if (secAxis) secAxis.value = 'Z';
       this.syncSectionUI();
     };
 
     // Section Plane Orientation Alignment Buttons
     const planeAlignZ = document.getElementById('sec-plane-align-z');
     if (planeAlignZ) {
-      planeAlignZ.onclick = () => {
-        this.clippingEngine.setPlaneAxis('Z');
-        if (secAxis) secAxis.value = 'Z';
-        this.syncSectionUI();
-      };
+      planeAlignZ.onclick = () => setPlaneAxis('Z');
     }
     const planeAlignX = document.getElementById('sec-plane-align-x');
     if (planeAlignX) {
-      planeAlignX.onclick = () => {
-        this.clippingEngine.setPlaneAxis('X');
-        if (secAxis) secAxis.value = 'X';
-        this.syncSectionUI();
-      };
+      planeAlignX.onclick = () => setPlaneAxis('X');
     }
     const planeAlignY = document.getElementById('sec-plane-align-y');
     if (planeAlignY) {
-      planeAlignY.onclick = () => {
-        this.clippingEngine.setPlaneAxis('Y');
-        if (secAxis) secAxis.value = 'Y';
-        this.syncSectionUI();
-      };
+      planeAlignY.onclick = () => setPlaneAxis('Y');
     }
     const planeRotReset = document.getElementById('sec-plane-rot-reset');
     if (planeRotReset) {
       planeRotReset.onclick = () => {
+        ensureSectioningActive();
         this.clippingEngine.resetPlaneRotation();
         this.syncSectionUI();
       };
-    };
+    }
+    this.updateClippingModeBtnWidths();
     
     // 10. Solar Controls
     const lightMode = document.getElementById('light-mode-sel');
@@ -5871,6 +6517,9 @@ class BIMViewerApp {
       c.classList.toggle('active', c.id === tabContentId);
     });
     this.setupSidebarTabsScroll();
+    if (tabContentId === 'tab-section-content') {
+      this.updateClippingModeBtnWidths();
+    }
   }
   
   updateSolarUI() {
@@ -5904,7 +6553,7 @@ class BIMViewerApp {
       this.updateSolarUI();
     }
     if (this.solarEngine && this.solarEngine.setCamera) {
-      this.solarEngine.setCamera(this.camera);
+      this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
     }
     
     // Billboards & True 3D Compass
@@ -5940,8 +6589,18 @@ class BIMViewerApp {
       const targetH = Math.floor(ch * pr);
       const canvas = this.renderer.domElement;
       if (canvas.width !== targetW || canvas.height !== targetH) {
-        this.camera.aspect = cw / ch;
-        this.camera.updateProjectionMatrix();
+        const aspect = cw / ch;
+        if (this.perspectiveCamera) {
+          this.perspectiveCamera.aspect = aspect;
+          this.perspectiveCamera.updateProjectionMatrix();
+        }
+        if (this.orthographicCamera) {
+          const orthoH = (this.orthographicCamera.top - this.orthographicCamera.bottom);
+          const orthoW = orthoH * aspect;
+          this.orthographicCamera.left = -orthoW / 2;
+          this.orthographicCamera.right = orthoW / 2;
+          this.orthographicCamera.updateProjectionMatrix();
+        }
         this.renderer.setSize(cw, ch);
       }
     }

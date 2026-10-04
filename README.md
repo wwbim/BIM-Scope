@@ -92,6 +92,8 @@ This updates:
 ├── sync_mirror.py           # Deliverables mirror sync script
 ├── BIMScope.html            # Standalone single-file viewer
 ├── index.html               # GitHub Pages live entrypoint
+├── CHANGELOG.md             # Formal release changelog (v1.YYMMDDHHMM)
+├── FEATURES.md              # Unified feature matrix & backlog pool
 ├── .gitignore               # Git ignore rules
 └── README.md                # Project documentation
 ```
