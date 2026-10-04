@@ -350,6 +350,21 @@ html, body {
   border-color: rgba(56, 189, 248, 0.6) transparent transparent transparent;
 }
 
+/* 3D VIEWPORT WATERMARK LOGO */
+.viewport-watermark-logo {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  width: 32px;
+  height: 32px;
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 25;
+  user-select: none;
+  -webkit-user-drag: none;
+  object-fit: contain;
+}
+
 /* TRUE 3D COMPASS GIZMO */
 #compass-container {
   position: absolute;

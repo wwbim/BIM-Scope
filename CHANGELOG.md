@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 38 分钟 (27.64 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 22 分钟** (2026-09-29 22:17 至 2026-10-04 21:40)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **12,890 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 43 分钟 (27.73 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 27 分钟** (2026-09-29 22:17 至 2026-10-04 21:45)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **12,987 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,16 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~21:40 (共 3 个时段) | 8h 37m (8.62h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~21:45 (共 3 个时段) | 8h 42m (8.70h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+---
+
+## [v1.2610042146] - 2026-10-04 21:46
+
+### 视觉与品牌呈现 / Visual & Brand Identity
+- **3D 视口左下角轻量水印徽标 / Viewport Watermark Logo (Bottom-Left Corner)**
+  - **中文**: 在 3D 主视口左下角无缝嵌入用户专属 WW Monogram 徽标，设定为 32px 物理尺寸与 20% 半透明度（`opacity: 0.2`），优雅对称呼应右下角 3D 罗盘。配置 `pointer-events: none` 与 `user-select: none`，确保所有鼠标交互（场景旋转 Orbit、平移 Pan、缩放 Zoom、构件拾取 Raycasting、右键菜单 Context Menu 及测量标定）零阻碍、完全无感穿透点击。采用 Base64 Data URI 原生内嵌，严格保持 100% 离线单文件架构。
+  - **English**: Seamlessly embedded the user's custom WW monogram logo in the bottom-left corner of the 3D viewport canvas, sized at exactly 32px by 32px with 20% subtle opacity (`opacity: 0.2`) to symmetrically balance the 3D compass on the bottom right. Strictly configured with `pointer-events: none` and `user-select: none` to guarantee 100% click-through transparency, ensuring mouse orbit navigation, panning, zooming, raycast selection, context menus, and measurements operate completely unimpeded. Embedded via Base64 Data URI to uphold single-file zero-server offline portability.
+
 ---
 
 ## [v1.2610042140] - 2026-10-04 21:40

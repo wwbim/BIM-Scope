@@ -54,6 +54,9 @@ with open(os.path.join(SRC_DIR, "demo_model.js"), "r", encoding="utf-8") as f:
 with open(os.path.join(SRC_DIR, "icon_red_b64.txt"), "r", encoding="utf-8") as f:
     icon_red_b64 = f.read().strip()
 
+with open(os.path.join(SRC_DIR, "logo_ww_b64.txt"), "r", encoding="utf-8") as f:
+    logo_ww_b64 = f.read().strip()
+
 with open(os.path.join(SRC_DIR, "app.js"), "r", encoding="utf-8") as f:
     app_js = f.read()
 
@@ -523,6 +526,9 @@ html_content = f"""<!DOCTYPE html>
       <section id="viewport-container">
         <canvas id="canvas3d"></canvas>
         
+        <!-- Viewport Watermark Logo (Bottom-Left) -->
+        <img class="viewport-watermark-logo" src="{logo_ww_b64}" alt="WW Logo" width="32" height="32" draggable="false">
+
         <!-- Compass Orientation Gizmo (True 3D WebGL) -->
         <div id="compass-container" title="3D Compass: Click N/S/E/W/TOP or Drag to Orbit">
           <canvas id="compass-canvas3d" width="110" height="110"></canvas>
