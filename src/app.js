@@ -966,7 +966,7 @@ class BIMViewerApp {
     // Scan activeModel for all category groups
     const catMap = new Map();
     this.activeModel.traverse(obj => {
-      if (obj.isMesh && obj.userData) {
+      if (this.isModelElementMesh(obj) && obj.userData) {
         const cat = obj.userData.rawCategory || obj.userData.category || "Structure";
         if (!catMap.has(cat)) catMap.set(cat, []);
         catMap.get(cat).push(obj);
@@ -1768,7 +1768,7 @@ class BIMViewerApp {
     const levelMap = new Map();
     
     this.activeModel.traverse(obj => {
-      if (obj.isMesh && obj.userData) {
+      if (this.isModelElementMesh(obj) && obj.userData) {
         const sName = obj.userData.structure || "Model Structure";
         if (!structureMap.has(sName)) structureMap.set(sName, []);
         structureMap.get(sName).push(obj);
@@ -2141,8 +2141,29 @@ class BIMViewerApp {
     });
   }
 
+  isModelElementMesh(obj) {
+    if (!obj || !obj.isMesh) return false;
+    if (obj === this.grid || obj === this.highlightBox) return false;
+    if (obj.name === 'EdgeLines' || (obj.userData && obj.userData.isEdgeLine)) return false;
+    if (obj.userData && (obj.userData.isGizmo || obj.userData.isStencilHelper || 
+        obj.userData.isBoxHelper || obj.userData.isPlaneHelperMesh || 
+        obj.userData.isPivotHelper || obj.userData.isHighlightOverlay || 
+        obj.userData.isHoverOverlay || obj.userData.isCapHelper)) {
+      return false;
+    }
+    let curr = obj.parent;
+    while (curr) {
+      if (curr.userData && (curr.userData.isStencilGroup || curr.userData.isGizmo || 
+          curr.userData.isHighlightOverlay || curr.userData.isHoverOverlay)) {
+        return false;
+      }
+      curr = curr.parent;
+    }
+    return true;
+  }
+
   isPickableElement(obj) {
-    if (!obj || !obj.isMesh || obj.visible === false) return false;
+    if (!this.isModelElementMesh(obj) || obj.visible === false) return false;
     if (obj === this.grid || obj === this.highlightBox) return false;
     if (obj.name === 'EdgeLines' || (obj.userData && obj.userData.isEdgeLine)) return false;
     
@@ -3435,7 +3456,7 @@ class BIMViewerApp {
 
     if (rootObject) {
       rootObject.traverse(obj => {
-        if (obj.isMesh && obj.geometry) {
+        if (this.isModelElementMesh(obj) && obj.geometry) {
           totalMeshes++;
           const geom = obj.geometry;
           if (geom.index) {
@@ -4620,7 +4641,7 @@ class BIMViewerApp {
     let vertCount = 0;
     if (this.activeModel) {
       this.activeModel.traverse(obj => {
-        if (obj.isMesh && obj.geometry) {
+        if (this.isModelElementMesh(obj) && obj.geometry) {
           const geom = obj.geometry;
           if (geom.index) {
             triCount += geom.index.count / 3;
