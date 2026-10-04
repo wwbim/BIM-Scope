@@ -868,23 +868,15 @@ size_mb = os.path.getsize(OUTPUT_HTML) / (1024 * 1024)
 print(f"Successfully compiled standalone HTML viewer: {OUTPUT_HTML} ({size_mb:.2f} MB)")
 print(f"Also created mirror copy at: {INDEX_HTML}")
 
-# Auto-distribute to Deliverables folders if present
-potential_deliverables_dirs = [
-    os.path.abspath(os.path.join(BASE_DIR, "..", "Deliverables")),
-    r"H:\我的云端硬盘\Software Develop\Deliverables",
-    r"H:\我的云端硬盘\Software Develop\BIM Scope\Deliverables"
-]
-
-copied_destinations = set()
-for d_dir in potential_deliverables_dirs:
-    if os.path.exists(d_dir) and os.path.isdir(d_dir) and d_dir not in copied_destinations:
-        shutil.copy2(OUTPUT_HTML, os.path.join(d_dir, "BIMScope.html"))
-        shutil.copy2(INDEX_HTML, os.path.join(d_dir, "index.html"))
-        changelog_path = os.path.join(BASE_DIR, "CHANGELOG.md")
-        features_path = os.path.join(BASE_DIR, "FEATURES.md")
-        if os.path.exists(changelog_path):
-            shutil.copy2(changelog_path, os.path.join(d_dir, "CHANGELOG.md"))
-        if os.path.exists(features_path):
-            shutil.copy2(features_path, os.path.join(d_dir, "FEATURES.md"))
-        copied_destinations.add(d_dir)
-        print(f"Exported deliverable to: {d_dir}")
+# Auto-distribute to Deliverables folder (sibling of Project)
+deliverables_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "Deliverables"))
+os.makedirs(deliverables_dir, exist_ok=True)
+shutil.copy2(OUTPUT_HTML, os.path.join(deliverables_dir, "BIMScope.html"))
+shutil.copy2(INDEX_HTML, os.path.join(deliverables_dir, "index.html"))
+changelog_path = os.path.join(BASE_DIR, "CHANGELOG.md")
+features_path = os.path.join(BASE_DIR, "FEATURES.md")
+if os.path.exists(changelog_path):
+    shutil.copy2(changelog_path, os.path.join(deliverables_dir, "CHANGELOG.md"))
+if os.path.exists(features_path):
+    shutil.copy2(features_path, os.path.join(deliverables_dir, "FEATURES.md"))
+print(f"Exported deliverable to: {deliverables_dir}")
