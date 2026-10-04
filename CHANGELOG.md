@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 02 分钟 (27.04 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 22 小时 46 分钟** (2026-09-29 22:17 至 2026-10-04 21:04)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **12,577 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 03 分钟 (27.06 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 22 小时 47 分钟** (2026-09-29 22:17 至 2026-10-04 21:05)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **12,597 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,12 +26,15 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~21:04 (共 3 个时段) | 8h 00m (8.01h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~21:05 (共 3 个时段) | 8h 02m (8.04h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
 ---
 
-## [v1.2610042101] - 2026-10-04 21:01
+## [v1.2610042105] - 2026-10-04 21:05
 
-### 优化与改进 / Improved
+### 新增与改进 / Added & Improved
+- **项目累计总工时自动化精算与记录 / Automated Cumulative Development Time Tracking**
+  - **中文**: 建立基于真实工程步骤与时间戳日志的工时精算模型（45分钟闲置阈值切片），精确统计项目自创建以来的累计有效开发工时（27.04 小时，跨 13 个活跃冲刺），并深度整合至单文件打包管线，实现每次发布自动精算、同步更新。
+  - **English**: Integrated an automated engineering telemetry model calculating active development hours (27.04 hours across 13 sprints, 45-min idle cutoff) from granular transcript logs. Hooked directly into the compilation pipeline to guarantee automated re-calculation upon every build.
 - **悬停高亮轻微提亮且不改变原色 / Subtle Additive Brightness Boost for Hovered Elements**
   - **中文**: 重构鼠标指向构件时的悬停着色策略。移除原有的生硬青蓝色蒙版（Cyan Overlay），改用基于构件自身真实色彩与纹理的加法混合模式（`THREE.AdditiveBlending`），在严格保持构件自身色相（Hue）和饱和度（Saturation）的前提下，仅施加轻微的柔和光晕提亮（Lightness Boost，透明度 16%，半透明构件 6%），消除刺眼高亮，观感沉稳柔和。
   - **English**: Overhauled hover highlight visual feedback. Replaced harsh cyan wash overlay with an additive blending overlay (`THREE.AdditiveBlending`) derived strictly from the element's authentic base color and texture map. Fully preserves the element's natural hue and saturation while imparting a gentle, sophisticated luminance lift (16% opacity, 6% for transparent elements) without color distortion.
