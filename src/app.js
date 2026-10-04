@@ -5037,7 +5037,8 @@ class BIMViewerApp {
         }
       }
 
-      if (this.isOrbiting || this.isPanning || this.isGizmoDragging || this.isMeasureMode) {
+      const ctxMenu = document.getElementById('context-menu');
+      if (this.isOrbiting || this.isPanning || this.isGizmoDragging || this.isMeasureMode || (ctxMenu && ctxMenu.style.display === 'flex')) {
         this.clearHoverOverlay();
         return;
       }
@@ -5232,22 +5233,11 @@ class BIMViewerApp {
   }
 
   handleContextMenu(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-    const valid = intersects.filter(hit => this.isPickableElement(hit.object));
-
-    if (valid.length > 0) {
-      if (this.selectedMesh !== valid[0].object) {
-        this.selectElement(valid[0].object, valid[0].point);
-      }
-    } else {
-      this.clearSelection();
-    }
-
+    // Right click does not alter or change element selection:
+    // It strictly preserves the existing selection (if any), ensuring actions
+    // apply only to intentionally selected elements without cursor offset misclicks.
+    // If no element is selected, it displays the root/global context menu.
+    this.clearHoverOverlay();
     this.showContextMenu(e.clientX, e.clientY);
   }
 

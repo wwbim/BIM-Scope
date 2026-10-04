@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **28 小时 18 分钟 (28.32 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 0 小时 03 分钟** (2026-09-29 22:17 至 2026-10-04 22:20)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,465 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **28 小时 23 分钟 (28.39 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 0 小时 07 分钟** (2026-09-29 22:17 至 2026-10-04 22:25)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,537 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,35 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~22:20 (共 3 个时段) | 9h 17m (9.29h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~22:25 (共 3 个时段) | 9h 22m (9.37h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+---
+
+## [v1.2610042226] - 2026-10-04 22:26
+
+### 交互优化与右键操作逻辑 / Interaction Refinement & Context Menu Logic
+- **右键上下文菜单不改变构件选中状态 / Context Menu Preserves Component Selection**
+  - **中文**: 彻底重构 3D 视口右键菜单（Context Menu）操作逻辑。移除此前在右键按下时强制对鼠标落点进行射线拾取、并自动改选鼠标下构件（或空白处取消选中）的旧逻辑，改为**右键操作完全不改变构件的选中状态**。用户先前无论是在视口中左键选定还是在左侧层级树中选中的构件，在视口任意位置（甚至临近构件或空白处）点击右键均严格针对当前已选构件弹出「隐藏」、「隔离」、「聚焦（Zoom to）」及「局部剖切盒」等操作，彻底避免因鼠标轻微偏移误选邻近构件或丢失选中的问题。若当前无任何构件被选中，在画面任意处点击右键均呈现视口全局菜单（「显示全部」、「全景居中」、「重置初始视图」），交互更加符合专业 CAD/BIM 直觉。
+  - **English**: Completely refactored the 3D viewport right-click context menu interaction logic. Removed the legacy behavior where right-clicking performed raycasting under the cursor and forcefully mutated or cleared component selection. Right-clicking now strictly preserves the active selection state without alteration. All context actions (Hide, Isolate, Zoom to, Section Box) reliably target the user's intentionally selected element even if the right-click occurs near adjacent meshes or in blank space. If no element is selected, right-clicking anywhere consistently presents the global canvas actions (Show All, Fit to Model, Reset View), eliminating unintended selection changes caused by cursor drift.
+
+---
+
+## [v1.2610042220] - 2026-10-04 22:20
+
+### 视图导航历史与撤销/重做引擎 / View History & Undo/Redo Engine
+- **50 步视图导航历史栈（Undo / Redo）与同款圆角导航按钮组 / 50-Step Camera Navigation History Stack & Matching Rounded Button Group**
+  - **中文**: 
+    1. 在 3D 视口上方快速视图工具区的 `Persp` 按钮右侧新增一对紧凑视图导航历史按钮——「上一视图（Undo Navigation）」与「下一视图（Redo Navigation）」，封装在同款风格圆角矩形边框（`.btn-group`）内，保持视觉层级与交互语言高度统一。
+    2. 采用高效、无性能损耗的 50 步轻量化历史栈引擎（单步快照仅 ~150 字节，50 步仅占约 7.5 KB 内存）。
+    3. 全面覆盖并自动记录用户各类视角操作：鼠标左键轨道旋转（Orbit）、右键/中键平移（Pan）、滚轮游标缩放（Wheel Zoom，300ms 去抖聚合）、视角预设切换（Iso, Plan, N, S, E, W）、透视/正交切换（Persp/Ortho）、右键与检查器聚焦（Zoom to）、全景居中（Fit View）以及 3D 罗盘立方体旋转交互。
+    4. 支持按键快捷键 `Alt+ArrowLeft`（后退/上一视图）与 `Alt+ArrowRight`（前进/下一视图），遵循主流建筑 CAD / BIM（Revit、ACC）操作直觉。
+    5. 实现 350ms 平滑相机补间动画与状态防抖、历史分叉智能修剪（分支导航时清空多余前进未来）、首尾边界自动灰显禁用（`.tool-btn:disabled` 半透明且拦截点击），并在中英文切换时即时同步工具提示文案。
+  - **English**:
+    1. Added a pair of compact View History navigation buttons—"Previous View (Undo Navigation)" and "Next View (Redo Navigation)"—immediately to the right of the `Persp` projection button within `#nav-center-views`. Styled in an identical rounded rectangular group frame (`.btn-group`, 28px height, 5px border-radius, 2px inset padding) for pixel-perfect design alignment.
+    2. Implemented a zero-overhead 50-step circular camera snapshot stack (~150 bytes per snapshot, ~7.5 KB total memory footprint).
+    3. Automatically tracks and debounces all camera interactions: orbit rotation, right/middle-button panning, cursor-guided wheel zooming (coalesced via 300ms debounce timer), preset view jumps (Iso, Plan, N, S, E, W), projection switching (Persp/Ortho), right-click & Inspector Zoom-to framing, Fit View resets, and 3D compass cube interactions.
+    4. Wired standard CAD/BIM keyboard shortcuts `Alt+ArrowLeft` and `Alt+ArrowRight` for fluid keyboard-driven viewpoint traversal.
+    5. Equipped with 350ms cubic easing tween transitions, animation cancellation protection against overlapping clicks, intelligent branch pruning upon fresh navigation, reactive disabled states at stack boundaries, and dynamic bilingual tooltips across English and Chinese.
+
 ---
 
 ## [v1.2610042205] - 2026-10-04 22:05
