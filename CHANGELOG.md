@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 51 分钟 (27.86 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 35 分钟** (2026-09-29 22:17 至 2026-10-04 21:53)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,115 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 58 分钟 (27.97 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 42 分钟** (2026-09-29 22:17 至 2026-10-04 21:59)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,191 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,16 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~21:53 (共 3 个时段) | 8h 49m (8.83h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~21:59 (共 3 个时段) | 8h 56m (8.94h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+---
+
+## [v1.2610042200] - 2026-10-04 22:00
+
+### 界面重构与矢量图标升级 / UI Refinement & Vector Icons
+- **Persp 斜向透视立方体图标与同款圆角矩形框 / Oblique Perspective Cube Icon & Matching Rounded Frame**
+  - **中文**: 将透视按钮（Persp / 透视）的图标升级为具有真实建筑两点透视景深感的斜向透视立方体矢量图标（中脊垂直前凸，顶面及底面斜向两侧灭点汇聚延伸，与 Ortho 的等距平行轴测立方体形成直观、强烈的透视与正交对比）。同时为 Persp/Ortho 投影切换按钮配备与旁边工程视角预设组（Iso, Plan, N, S, E, W）完全同款同尺寸的圆角矩形框（`.btn-group`，外高 28px、内高 22px、5px 圆角、2px 边距内衬），实现顶栏控件风格的高度统一与像素级对齐。
+  - **English**: Upgraded the Perspective toggle (Persp / 透视) SVG icon to an oblique 2-point perspective wireframe cube, featuring a prominent foreground vertical leading edge and dynamic convergence towards lateral vanishing points. This creates an immediate, intuitive visual contrast with Ortho's parallel isometric cube. Enclosed the Persp/Ortho toggle within an identical rounded rectangular group frame (`.btn-group`, 28px height, 5px border-radius, 2px inset), ensuring full visual parity with the adjacent quick view preset bar.
+
 ---
 
 ## [v1.2610042155] - 2026-10-04 21:55

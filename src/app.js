@@ -1715,12 +1715,9 @@ class BIMViewerApp {
       </svg>
     ` : `
       <svg class="proj-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3.5" width="18" height="17" rx="0.5" />
-        <rect x="8.5" y="8.5" width="7" height="7" rx="0.5" />
-        <line x1="3" y1="3.5" x2="8.5" y2="8.5" />
-        <line x1="21" y1="3.5" x2="15.5" y2="8.5" />
-        <line x1="21" y1="20.5" x2="15.5" y2="15.5" />
-        <line x1="3" y1="20.5" x2="8.5" y2="15.5" />
+        <polygon points="12 2 20.5 6 12 9 3.5 6" />
+        <polyline points="3.5 6 3.5 14.5 12 22.5 20.5 14.5 20.5 6" />
+        <line x1="12" y1="9" x2="12" y2="22.5" />
       </svg>
     `;
     
