@@ -3389,19 +3389,20 @@ class BIMViewerApp {
       viewDir.normalize();
     }
 
-    // Distance calculation so object occupies ~50% (half) of the viewport:
+    // Distance calculation so object occupies ~70% of the viewport:
     // Screen height at distance D is H = 2 * D * tan(fov / 2).
     // Screen width at distance D is W = H * aspect = 2 * D * tan(fov / 2) * aspect.
     // Object diameter is 2 * radius.
     // Screen occupancy fraction along tighter dimension:
-    // (2 * radius) / (2 * D * tan(fov / 2) * min(1, aspect)) = 0.5
-    // => D = (2 * radius) / (tan(fov / 2) * min(1, aspect))
+    // (2 * radius) / (2 * D * tan(fov / 2) * min(1, aspect)) = 0.70
+    // => D = (radius / 0.70) / (tan(fov / 2) * min(1, aspect))
+    const zoomFraction = 0.70;
     if (this.camera && this.camera.isOrthographicCamera) {
       const width = this.canvas.clientWidth || window.innerWidth;
       const height = this.canvas.clientHeight || window.innerHeight;
       const aspect = width / (height || 1);
       const minAspect = Math.min(1, aspect);
-      const halfH = (radius / minAspect) * 2.0;
+      const halfH = (radius / minAspect) / zoomFraction;
       const halfW = halfH * aspect;
       this.orthographicCamera.left = -halfW;
       this.orthographicCamera.right = halfW;
@@ -3419,7 +3420,7 @@ class BIMViewerApp {
     const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
     const aspect = (this.perspectiveCamera ? this.perspectiveCamera.aspect : 1) || 1;
     const minAspect = Math.min(1, aspect);
-    const targetDist = Math.max((2 * radius) / (Math.tan(fovRad / 2) * minAspect), 1.0);
+    const targetDist = Math.max((radius / zoomFraction) / (Math.tan(fovRad / 2) * minAspect), 1.0);
 
     const targetCam = center.clone().addScaledVector(viewDir, targetDist);
     this.showPivotIndicator(center);
@@ -5475,12 +5476,13 @@ class BIMViewerApp {
       viewDir.normalize();
     }
 
+    const zoomFraction = 0.70;
     if (this.camera && this.camera.isOrthographicCamera) {
       const width = this.canvas.clientWidth || window.innerWidth;
       const height = this.canvas.clientHeight || window.innerHeight;
       const aspect = width / (height || 1);
       const minAspect = Math.min(1, aspect);
-      const halfH = (radius / minAspect) * 2.0;
+      const halfH = (radius / minAspect) / zoomFraction;
       const halfW = halfH * aspect;
       this.orthographicCamera.left = -halfW;
       this.orthographicCamera.right = halfW;
@@ -5498,7 +5500,7 @@ class BIMViewerApp {
     const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
     const aspect = (this.perspectiveCamera ? this.perspectiveCamera.aspect : 1) || 1;
     const minAspect = Math.min(1, aspect);
-    const targetDist = Math.max((2 * radius) / (Math.tan(fovRad / 2) * minAspect), 1.0);
+    const targetDist = Math.max((radius / zoomFraction) / (Math.tan(fovRad / 2) * minAspect), 1.0);
 
     const targetCam = center.clone().addScaledVector(viewDir, targetDist);
     this.showPivotIndicator(center);

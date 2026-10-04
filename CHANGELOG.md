@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 58 分钟 (27.97 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 42 分钟** (2026-09-29 22:17 至 2026-10-04 21:59)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,191 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **28 小时 03 分钟 (28.06 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 47 分钟** (2026-09-29 22:17 至 2026-10-04 22:05)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,247 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,16 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~21:59 (共 3 个时段) | 8h 56m (8.94h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~22:05 (共 3 个时段) | 9h 01m (9.03h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+---
+
+## [v1.2610042205] - 2026-10-04 22:05
+
+### 视角与构件聚焦优化 / Viewport & Component Framing
+- **右键 Zoom to 构件聚焦比例提升至 70% / Increased Zoom to Component Occupancy to 70%**
+  - **中文**: 将右键菜单「聚焦到构件（Zoom to）」及检查器「全景居中（Zoom to Element / Group）」的视口画面占比从原先的 50% 显著提升至 70%。透视模式（Perspective）与正交模式（Orthographic）均严格以构件 3D 外接球直径占视口较窄维度（垂直高度）70% 为基准精确推算相机视线推进距离与正交视锥半高。构件特写更大、建筑细节更清晰，上下保留 15% 紧凑舒适的留白空间。
+  - **English**: Upgraded the right-click "Zoom to" and Inspector framing occupancy ratio from 50% to 70%. In both Perspective and Orthographic camera modes, the target distance and frustum bounds are computed so the component's 3D bounding sphere diameter occupies 70% of the tighter viewport dimension (screen height). Produces closer, more detailed component inspection with balanced 15% breathing margins.
+
 ---
 
 ## [v1.2610042200] - 2026-10-04 22:00
