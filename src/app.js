@@ -501,6 +501,7 @@ class BIMViewerApp {
     this.labelsOpacity = 1.0;
     this.billboardElements = [];
     this.activeModel = null;
+    this.modelOpacity = 1.0;
     this.fps = 60;
     this.lastFrameTime = performance.now();
     this.frameCount = 0;
@@ -866,11 +867,31 @@ class BIMViewerApp {
         (sourceMat.userData && Boolean(sourceMat.userData.originalTransparent)) || 
         (sourceMat.opacity !== undefined && sourceMat.opacity < 0.85)
       ) : false;
-      const op = isTrans ? 0.08 : (this.hoverOpacity || 0.20);
+
+      // Maintain exact color hue & saturation, gently boosting brightness via Additive Blending
+      let hoverColor;
+      if (sourceMat && sourceMat.color) {
+        hoverColor = sourceMat.color.clone();
+        const hsl = { h: 0, s: 0, l: 0 };
+        hoverColor.getHSL(hsl);
+        if (hsl.s > 0.05) {
+          // Chromatic component: retain exact hue & saturation, gently boost lightness for luminance lift
+          hsl.l = Math.min(0.85, Math.max(0.35, hsl.l * 1.15));
+          hoverColor.setHSL(hsl.h, hsl.s, hsl.l);
+        } else {
+          // Achromatic component (gray/black/white): gentle neutral brightness lift
+          const gray = Math.min(0.70, Math.max(0.32, hsl.l + 0.22));
+          hoverColor.setRGB(gray, gray, gray);
+        }
+      } else {
+        hoverColor = new THREE.Color(0.5, 0.5, 0.5);
+      }
+
       const overlayMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(this.highlightColor || 0x38bdf8),
+        color: hoverColor,
+        blending: THREE.AdditiveBlending,
         transparent: true,
-        opacity: op,
+        opacity: isTrans ? 0.06 : 0.16,
         depthTest: true,
         depthWrite: false,
         polygonOffset: true,
@@ -880,6 +901,12 @@ class BIMViewerApp {
         clippingPlanes: planes,
         clipShadows: true
       });
+      if (sourceMat && sourceMat.map) {
+        overlayMat.map = sourceMat.map;
+      }
+      if (sourceMat && sourceMat.vertexColors) {
+        overlayMat.vertexColors = true;
+      }
       if (sourceMat && sourceMat.alphaMap) {
         overlayMat.alphaMap = sourceMat.alphaMap;
         overlayMat.alphaTest = sourceMat.alphaTest !== undefined ? sourceMat.alphaTest : 0.5;
@@ -2378,12 +2405,32 @@ class BIMViewerApp {
       this.activeInspectorTab = 'overview';
     }
 
+    let elemOpacityVal = 100;
+    if (mesh) {
+      const targetMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      if (targetMat) {
+        if (targetMat.userData && targetMat.userData.elemOrigOpacity !== undefined) {
+          elemOpacityVal = Math.round((targetMat.opacity / targetMat.userData.elemOrigOpacity) * 100);
+        } else if (targetMat.opacity !== undefined) {
+          elemOpacityVal = Math.round(targetMat.opacity * 100);
+        }
+        elemOpacityVal = Math.max(10, Math.min(100, elemOpacityVal));
+      }
+    }
+
     const titleName = meta.element || meta.name || mesh.name || 'Unnamed Element';
     content.innerHTML = `
       <div class="element-highlight-card">
         <div class="element-title-row">
           <div class="category-dot" style="background:${colorHex}"></div>
           <div class="element-title" title="${this.escapeHtml(titleName)}">${this.escapeHtml(titleName)}</div>
+        </div>
+        <div class="element-opacity-control">
+          <div class="element-opacity-header">
+            <span class="element-opacity-label" data-i18n="elemOpacity">${I18N.t('elemOpacity')}</span>
+            <span class="element-opacity-val" id="elem-opacity-val">${elemOpacityVal}%</span>
+          </div>
+          <input type="range" min="10" max="100" step="1" value="${elemOpacityVal}" class="range-slider element-opacity-slider" id="elem-opacity-slider">
         </div>
         <div class="action-row">
           <button class="action-btn" id="btn-zoom-elem">${I18N.t('zoomTo')}</button>
@@ -2426,6 +2473,16 @@ class BIMViewerApp {
     content.scrollTop = 0;
 
     // Wire actions
+    const elemOpSlider = content.querySelector('#elem-opacity-slider');
+    const elemOpVal = content.querySelector('#elem-opacity-val');
+    if (elemOpSlider && elemOpVal) {
+      elemOpSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        elemOpVal.textContent = `${val}%`;
+        this.setElementOpacity(mesh, val);
+      });
+    }
+
     document.getElementById('btn-zoom-elem').onclick = () => this.zoomToElement(mesh);
     document.getElementById('btn-isolate-elem').onclick = () => this.isolateElement(mesh);
     document.getElementById('btn-hide-elem').onclick = () => {
@@ -2470,6 +2527,54 @@ class BIMViewerApp {
     }
     const btnInspect = document.getElementById('btn-tool-inspect');
     if (btnInspect) btnInspect.classList.add('active');
+  }
+
+  setElementOpacity(mesh, opacityPercent) {
+    if (!mesh) return;
+    const alpha = opacityPercent / 100;
+    mesh.traverse((obj) => {
+      if (obj.isMesh && obj.material && (!obj.userData || (!obj.userData.isGizmo && !obj.userData.isHighlightOverlay && !obj.userData.isHoverOverlay && !obj.userData.isPivotHelper))) {
+        const updateMat = (mat) => {
+          if (!mat) return;
+          if (!mat.userData) mat.userData = {};
+          if (mat.userData.elemOrigOpacity === undefined) {
+            mat.userData.elemOrigOpacity = mat.opacity !== undefined ? mat.opacity : 1.0;
+            mat.userData.elemOrigTransparent = Boolean(mat.transparent);
+            mat.userData.elemOrigDepthWrite = mat.depthWrite !== undefined ? mat.depthWrite : true;
+          }
+          if (opacityPercent >= 100) {
+            mat.opacity = mat.userData.elemOrigOpacity;
+            mat.transparent = mat.userData.elemOrigTransparent;
+            mat.depthWrite = mat.userData.elemOrigDepthWrite;
+          } else {
+            mat.transparent = true;
+            mat.opacity = alpha * mat.userData.elemOrigOpacity;
+            mat.depthWrite = (mat.opacity >= 0.95);
+          }
+          mat.needsUpdate = true;
+        };
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(updateMat);
+        } else {
+          updateMat(obj.material);
+        }
+      }
+    });
+    if (this.highlightOverlayGroup) {
+      const baseHighlightOp = this.highlightOpacity || 0.65;
+      const targetOverlayOp = (opacityPercent / 100) * baseHighlightOp;
+      this.highlightOverlayGroup.traverse((obj) => {
+        if (obj.isMesh && obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(m => { if (m) { m.opacity = targetOverlayOp; m.needsUpdate = true; } });
+          } else {
+            obj.material.opacity = targetOverlayOp;
+            obj.material.needsUpdate = true;
+          }
+        }
+      });
+    }
+    this.needsRender = true;
   }
 
   // Setup direct wheel scrolling, inner shadows, and chevrons for Left Sidebar tabs
@@ -3367,6 +3472,8 @@ class BIMViewerApp {
       `<tr><td class="prop-label">${I18N.t('propTotalVertices')}</td><td class="prop-value">${fmtNum(stats.totalVertices)}</td></tr>`
     ];
 
+    const modelOpacityPercent = Math.round((this.modelOpacity !== undefined ? this.modelOpacity : 1.0) * 100);
+
     content.innerHTML = `
       <div class="model-info-container">
         <!-- Top Hint Banner -->
@@ -3382,6 +3489,13 @@ class BIMViewerApp {
           <div class="element-title-row">
             <div class="category-dot" style="background:#38bdf8"></div>
             <div class="element-title" title="${this.escapeHtml(info.fileName)}">${this.escapeHtml(info.fileName)}</div>
+          </div>
+          <div class="element-opacity-control">
+            <div class="element-opacity-header">
+              <span class="element-opacity-label" data-i18n="elemOpacity">${I18N.t('elemOpacity')}</span>
+              <span class="element-opacity-val" id="model-opacity-val">${modelOpacityPercent}%</span>
+            </div>
+            <input type="range" min="10" max="100" step="1" value="${modelOpacityPercent}" class="range-slider element-opacity-slider" id="model-opacity-slider">
           </div>
           <div class="action-row">
             <button class="action-btn" id="btn-copy-model-info" title="Copy summary">📋 ${I18N.t('copySummary')}</button>
@@ -3569,8 +3683,55 @@ class BIMViewerApp {
       };
     }
 
+    // Wire model opacity slider
+    const modelOpSlider = content.querySelector('#model-opacity-slider');
+    const modelOpVal = content.querySelector('#model-opacity-val');
+    if (modelOpSlider && modelOpVal) {
+      modelOpSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        modelOpVal.textContent = `${val}%`;
+        this.setModelOpacity(val);
+      });
+    }
+
     // Attach hover copy buttons to all values and wire accordion toggles & group copy
     this.setupInspectorCopyAndAccordion(content);
+  }
+
+  setModelOpacity(opacityPercent) {
+    this.modelOpacity = opacityPercent / 100;
+    const targetModel = this.activeModel || this.currentModel;
+    if (!targetModel) return;
+
+    targetModel.traverse((obj) => {
+      if (obj.isMesh && obj.material && (!obj.userData || (!obj.userData.isGizmo && !obj.userData.isHighlightOverlay && !obj.userData.isHoverOverlay && !obj.userData.isPivotHelper && !obj.userData.isBoxHelper && !obj.userData.isPlaneHelperMesh))) {
+        const updateMat = (mat) => {
+          if (!mat) return;
+          if (!mat.userData) mat.userData = {};
+          if (mat.userData.origModelOpacity === undefined) {
+            mat.userData.origModelOpacity = mat.opacity !== undefined ? mat.opacity : 1.0;
+            mat.userData.origModelTransparent = Boolean(mat.transparent);
+            mat.userData.origModelDepthWrite = mat.depthWrite !== undefined ? mat.depthWrite : true;
+          }
+          if (opacityPercent >= 100) {
+            mat.opacity = mat.userData.origModelOpacity;
+            mat.transparent = mat.userData.origModelTransparent;
+            mat.depthWrite = mat.userData.origModelDepthWrite;
+          } else {
+            mat.transparent = true;
+            mat.opacity = (opacityPercent / 100) * mat.userData.origModelOpacity;
+            mat.depthWrite = (mat.opacity >= 0.95);
+          }
+          mat.needsUpdate = true;
+        };
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(updateMat);
+        } else {
+          updateMat(obj.material);
+        }
+      }
+    });
+    this.needsRender = true;
   }
   
   // Performance Safeguard & File Handling

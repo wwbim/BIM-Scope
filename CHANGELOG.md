@@ -11,6 +11,21 @@ This document records all formal version iterations and major changes of BIMScop
 
 ---
 
+## [v1.2610042101] - 2026-10-04 21:01
+
+### 优化与改进 / Improved
+- **悬停高亮轻微提亮且不改变原色 / Subtle Additive Brightness Boost for Hovered Elements**
+  - **中文**: 重构鼠标指向构件时的悬停着色策略。移除原有的生硬青蓝色蒙版（Cyan Overlay），改用基于构件自身真实色彩与纹理的加法混合模式（`THREE.AdditiveBlending`），在严格保持构件自身色相（Hue）和饱和度（Saturation）的前提下，仅施加轻微的柔和光晕提亮（Lightness Boost，透明度 16%，半透明构件 6%），消除刺眼高亮，观感沉稳柔和。
+  - **English**: Overhauled hover highlight visual feedback. Replaced harsh cyan wash overlay with an additive blending overlay (`THREE.AdditiveBlending`) derived strictly from the element's authentic base color and texture map. Fully preserves the element's natural hue and saturation while imparting a gentle, sophisticated luminance lift (16% opacity, 6% for transparent elements) without color distortion.
+- **检查器操作栏动态对齐透明度滑动条 / Dynamically Aligned Continuous Opacity Slider**
+  - **中文**: 在右侧构件检查器（Inspector）中，在模型档案（Model Profile）与选中构件（Selected Element）卡片的操作按钮上方新增连续透明度调节滑动条（10% ~ 100%）。滑动条最右侧与下方“复制概要 / 全景居中 / 导出 JSON”3个按钮的最右边缘保持像素级动态对齐，侧边栏宽度改变时自适应缩放；支持实时透视建筑内部构造。
+  - **English**: Introduced a continuous opacity adjustment slider (10% to 100%) in the right inspector panel directly above the action button row ("Copy Summary / Fit View / Export JSON" for model profile, and navigation buttons for selected components). The rightmost edge of the slider is dynamically and pixel-perfectly aligned with the right boundary of the button group across all sidebar widths, offering fluid real-time transparency inspection into building interiors.
+- **项目目录结构规范化重组 / Project Workspace Directory Structure Consolidation**
+  - **中文**: 将工作区完整归拢至 `H:\我的云端硬盘\Software Develop\BIM Scope\` 专属项目根目录下，保留核心代码库 `Project` 与独立离线交付目录 `Deliverables`，清理父级目录冗余副本与历史同步脚本。
+  - **English**: Consolidated the active repository into the dedicated project root `H:\我的云端硬盘\Software Develop\BIM Scope\`, maintaining the active Git repo `Project` and offline release folder `Deliverables`, eliminating root-level folder redundancy and obsolete mirror scripts.
+
+---
+
 ## [v1.2610041950] - 2026-10-04 19:50
 
 ### 新增功能 / Added

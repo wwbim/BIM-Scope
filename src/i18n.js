@@ -165,6 +165,7 @@ const I18N = {
       // Model Profile & Metadata
       modelProfile: "Model Profile",
       modelInfoTip: "No element selected. Click any 3D element to inspect component properties.",
+      elemOpacity: "Opacity",
       copySummary: "Copy Summary",
       fitView: "Fit View",
       exportJson: "Export JSON",
@@ -512,6 +513,7 @@ const I18N = {
       // Model Profile & Metadata
       modelProfile: "模型档案",
       modelInfoTip: "未选择元件 · 点击三维图元可查看独立构件属性",
+      elemOpacity: "透明度 (Opacity)",
       copySummary: "复制概要",
       fitView: "全景居中",
       exportJson: "导出 JSON",

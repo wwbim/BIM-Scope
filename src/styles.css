@@ -1049,6 +1049,45 @@ input:checked + .slider:before {
   text-overflow: ellipsis;
 }
 
+.element-opacity-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.element-opacity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.element-opacity-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  user-select: none;
+}
+
+.element-opacity-val {
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.element-opacity-slider {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  display: block;
+}
+
 .action-row {
   display: flex;
   gap: 6px;
