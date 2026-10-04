@@ -239,6 +239,29 @@ html, body {
   gap: 5px;
 }
 
+.btn-group .tool-btn#btn-view-undo,
+.btn-group .tool-btn#btn-view-redo {
+  padding: 0 6px;
+  min-width: 26px;
+  justify-content: center;
+}
+
+.btn-group .tool-btn:disabled,
+.tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+svg.nav-arrow-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
+  flex-shrink: 0;
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
 .tool-btn {
   background: transparent;
   border: none;
@@ -2581,6 +2604,21 @@ input:checked + .slider:before {
               <line x1="12" y1="9" x2="12" y2="22.5" />
             </svg>
             <span class="proj-text" id="btn-view-proj-text" data-i18n="camProjPersp">Persp</span>
+          </button>
+        </div>
+
+        <div class="btn-group" id="view-history-group">
+          <button class="tool-btn" id="btn-view-undo" title="Previous View (Undo Navigation)" data-i18n-title="viewUndoTitle" disabled>
+            <svg class="nav-arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 14 4 9l5-5"/>
+              <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
+            </svg>
+          </button>
+          <button class="tool-btn" id="btn-view-redo" title="Next View (Redo Navigation)" data-i18n-title="viewRedoTitle" disabled>
+            <svg class="nav-arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 14 5-5-5-5"/>
+              <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/>
+            </svg>
           </button>
         </div>
       </div>
@@ -12501,6 +12539,8 @@ const I18N = {
       camProjOrtho: "Ortho",
       camProjPerspTitle: "Perspective View (Click to switch to Orthogonal)",
       camProjOrthoTitle: "Orthogonal View (Click to switch to Perspective)",
+      viewUndoTitle: "Previous View (Undo Navigation)",
+      viewRedoTitle: "Next View (Redo Navigation)",
       switchedToOrtho: "Switched to Orthogonal View",
       switchedToPersp: "Switched to Perspective View",
       toolMeasure: "Measure",
@@ -12849,6 +12889,8 @@ const I18N = {
       camProjOrtho: "正交",
       camProjPerspTitle: "透视视图（点击切换为正交）",
       camProjOrthoTitle: "正交视图（点击切换为透视）",
+      viewUndoTitle: "上一视图 (撤销视角导航)",
+      viewRedoTitle: "下一视图 (重做视角导航)",
       switchedToOrtho: "已切换为正交视图",
       switchedToPersp: "已切换为透视视图",
       toolMeasure: "测量",
@@ -20643,6 +20685,8 @@ class True3DCompass {
           const isTop = Math.abs(camPos.x - target.x) < 2 && Math.abs(camPos.z - target.z) < 2;
           this.app.setView(isTop ? 'iso' : 'plan');
         }
+      } else if (this.isDragging && this.hasDragged) {
+        this.app.pushViewSnapshot();
       }
       this.isDragging = false;
       this.hasDragged = false;
@@ -20734,6 +20778,15 @@ class BIMViewerApp {
     this.panStartY = 0;
     this.isRightDragging = false;
     this.rightDownPos = { x: 0, y: 0 };
+    this.panMoved = false;
+
+    // View History Engine (50 steps undo / redo)
+    this.viewHistory = [];
+    this.historyIndex = -1;
+    this.maxViewHistory = 50;
+    this.isNavigatingViewHistory = false;
+    this.viewWheelDebounceTimer = null;
+    this.cameraTweenRaf = null;
 
     // Grid Helper
     this.grid = new THREE.GridHelper(800, 80, 0x1f2e46, 0x131a28);
@@ -21673,6 +21726,7 @@ class BIMViewerApp {
     this.updateBottomLegend();
     this.updateStats();
     this.fitView();
+    this.initViewHistory();
     
     showToast(I18N.t('loadingTitle') + " - " + I18N.t('solarDayMsg'), 'success');
   }
@@ -21795,19 +21849,34 @@ class BIMViewerApp {
       this.controls.target.copy(center);
       this.camera.lookAt(center);
       if (this.compass3d) this.compass3d.update();
+      if (!this.isNavigatingViewHistory) {
+        this.pushViewSnapshot();
+      }
     } else {
       this.tweenCamera(targetCam, center);
     }
   }
   
   // Camera tween helper
-  tweenCamera(targetPos, targetLookAt, duration = 400) {
+  tweenCamera(targetPos, targetLookAt, duration = 400, onComplete = null, startZoom = null, targetZoom = null) {
+    if (this.cameraTweenRaf) {
+      cancelAnimationFrame(this.cameraTweenRaf);
+      this.cameraTweenRaf = null;
+    }
     this.pivotPoint.copy(targetLookAt);
     if (duration === 0) {
       this.camera.position.copy(targetPos);
       this.controls.target.copy(targetLookAt);
       this.camera.lookAt(targetLookAt);
+      if (startZoom !== null && targetZoom !== null && this.orthographicCamera) {
+        this.orthographicCamera.zoom = targetZoom;
+        this.orthographicCamera.updateProjectionMatrix();
+      }
       if (this.compass3d) this.compass3d.update();
+      if (onComplete) onComplete();
+      if (!this.isNavigatingViewHistory) {
+        this.pushViewSnapshot();
+      }
       return;
     }
     const startPos = this.camera.position.clone();
@@ -21823,13 +21892,23 @@ class BIMViewerApp {
       this.camera.position.lerpVectors(startPos, targetPos, ease);
       this.controls.target.lerpVectors(startTarget, targetLookAt, ease);
       this.camera.lookAt(this.controls.target);
+      if (startZoom !== null && targetZoom !== null && this.orthographicCamera) {
+        this.orthographicCamera.zoom = THREE.MathUtils.lerp(startZoom, targetZoom, ease);
+        this.orthographicCamera.updateProjectionMatrix();
+      }
       if (this.compass3d) this.compass3d.update();
       
       if (progress < 1.0) {
-        requestAnimationFrame(animateCam);
+        this.cameraTweenRaf = requestAnimationFrame(animateCam);
+      } else {
+        this.cameraTweenRaf = null;
+        if (onComplete) onComplete();
+        if (!this.isNavigatingViewHistory) {
+          this.pushViewSnapshot();
+        }
       }
     };
-    requestAnimationFrame(animateCam);
+    this.cameraTweenRaf = requestAnimationFrame(animateCam);
   }
   
   // View Presets
@@ -21974,6 +22053,9 @@ class BIMViewerApp {
     }
 
     this.updateCameraProjUI();
+    if (!this.isNavigatingViewHistory) {
+      this.pushViewSnapshot();
+    }
   }
 
   updateCameraProjUI() {
@@ -22020,6 +22102,142 @@ class BIMViewerApp {
       const midX = (vpRect.left - navRect.left) + vpRect.width / 2;
       navCenter.style.left = `${midX}px`;
     }
+  }
+
+  // ----------------------------------------------------
+  // VIEW HISTORY ENGINE (50-Step Undo / Redo Stack)
+  // ----------------------------------------------------
+  captureViewSnapshot() {
+    if (!this.camera || !this.controls) return null;
+    const isOrtho = this.cameraProjection === 'orthographic' || !!this.camera.isOrthographicCamera;
+    return {
+      projection: isOrtho ? 'orthographic' : 'perspective',
+      position: [this.camera.position.x, this.camera.position.y, this.camera.position.z],
+      target: [this.controls.target.x, this.controls.target.y, this.controls.target.z],
+      orthoParams: isOrtho && this.orthographicCamera ? {
+        left: this.orthographicCamera.left,
+        right: this.orthographicCamera.right,
+        top: this.orthographicCamera.top,
+        bottom: this.orthographicCamera.bottom,
+        zoom: this.orthographicCamera.zoom
+      } : null
+    };
+  }
+
+  isViewSnapshotEqual(s1, s2) {
+    if (!s1 || !s2) return false;
+    if (s1.projection !== s2.projection) return false;
+    const eps = 0.05;
+    for (let i = 0; i < 3; i++) {
+      if (Math.abs(s1.position[i] - s2.position[i]) > eps) return false;
+      if (Math.abs(s1.target[i] - s2.target[i]) > eps) return false;
+    }
+    if (s1.projection === 'orthographic' && s1.orthoParams && s2.orthoParams) {
+      if (Math.abs(s1.orthoParams.zoom - s2.orthoParams.zoom) > 0.01) return false;
+      if (Math.abs(s1.orthoParams.top - s2.orthoParams.top) > eps) return false;
+    }
+    return true;
+  }
+
+  pushViewSnapshot() {
+    if (this.isNavigatingViewHistory) return;
+    const currentSnap = this.captureViewSnapshot();
+    if (!currentSnap) return;
+
+    if (this.viewHistory.length > 0 && this.historyIndex >= 0 && this.historyIndex < this.viewHistory.length) {
+      const topSnap = this.viewHistory[this.historyIndex];
+      if (this.isViewSnapshotEqual(topSnap, currentSnap)) {
+        return;
+      }
+    }
+
+    // Branching from a past step: discard redo history
+    if (this.historyIndex < this.viewHistory.length - 1) {
+      this.viewHistory = this.viewHistory.slice(0, this.historyIndex + 1);
+    }
+
+    this.viewHistory.push(currentSnap);
+
+    // Limit to maxViewHistory (50 steps)
+    if (this.viewHistory.length > this.maxViewHistory) {
+      this.viewHistory.shift();
+    }
+    this.historyIndex = this.viewHistory.length - 1;
+
+    this.updateViewHistoryUI();
+  }
+
+  restoreViewSnapshot(snapshot, duration = 350) {
+    if (!snapshot) return;
+    this.isNavigatingViewHistory = true;
+
+    if (snapshot.projection !== this.cameraProjection) {
+      this.setCameraProjection(snapshot.projection);
+    }
+
+    const isOrtho = snapshot.projection === 'orthographic';
+    let targetZoom = null;
+    let startZoom = null;
+
+    if (isOrtho && snapshot.orthoParams && this.orthographicCamera) {
+      this.orthographicCamera.left = snapshot.orthoParams.left;
+      this.orthographicCamera.right = snapshot.orthoParams.right;
+      this.orthographicCamera.top = snapshot.orthoParams.top;
+      this.orthographicCamera.bottom = snapshot.orthoParams.bottom;
+      startZoom = this.orthographicCamera.zoom;
+      targetZoom = snapshot.orthoParams.zoom;
+    }
+
+    const targetPos = new THREE.Vector3(...snapshot.position);
+    const targetLookAt = new THREE.Vector3(...snapshot.target);
+
+    this.tweenCamera(targetPos, targetLookAt, duration, () => {
+      this.isNavigatingViewHistory = false;
+      if (isOrtho && targetZoom !== null && this.orthographicCamera) {
+        this.orthographicCamera.zoom = targetZoom;
+        this.orthographicCamera.updateProjectionMatrix();
+      }
+    }, startZoom, targetZoom);
+  }
+
+  undoView() {
+    if (this.historyIndex <= 0) return;
+    this.historyIndex--;
+    const snapshot = this.viewHistory[this.historyIndex];
+    this.restoreViewSnapshot(snapshot);
+    this.updateViewHistoryUI();
+  }
+
+  redoView() {
+    if (this.historyIndex >= this.viewHistory.length - 1) return;
+    this.historyIndex++;
+    const snapshot = this.viewHistory[this.historyIndex];
+    this.restoreViewSnapshot(snapshot);
+    this.updateViewHistoryUI();
+  }
+
+  updateViewHistoryUI() {
+    const btnUndo = document.getElementById('btn-view-undo');
+    const btnRedo = document.getElementById('btn-view-redo');
+    if (btnUndo) {
+      btnUndo.disabled = this.historyIndex <= 0;
+      btnUndo.title = I18N.t('viewUndoTitle');
+    }
+    if (btnRedo) {
+      btnRedo.disabled = this.historyIndex >= this.viewHistory.length - 1;
+      btnRedo.title = I18N.t('viewRedoTitle');
+    }
+  }
+
+  initViewHistory() {
+    this.viewHistory = [];
+    this.historyIndex = -1;
+    const snap = this.captureViewSnapshot();
+    if (snap) {
+      this.viewHistory.push(snap);
+      this.historyIndex = 0;
+    }
+    this.updateViewHistoryUI();
   }
   
   // Build Collapsible Interactive Hierarchy Tree in Left Sidebar
@@ -25174,6 +25392,11 @@ class BIMViewerApp {
     // Pointer events for ACC Virtual Pivot Orbiting (Left click drag), Selection, Section Gizmo, and Native Pan (Right/Middle drag)
     this.canvas.addEventListener('pointerdown', (e) => {
       this.clearHoverOverlay();
+      if (this.cameraTweenRaf) {
+        cancelAnimationFrame(this.cameraTweenRaf);
+        this.cameraTweenRaf = null;
+        this.isNavigatingViewHistory = false;
+      }
       if (e.button === 0) { // Left click
         // Check if clicking Section Gizmo (highest priority)
         if (this.clippingEngine && this.clippingEngine.enabled) {
@@ -25202,6 +25425,7 @@ class BIMViewerApp {
         }
       } else if (e.button === 2 || e.button === 1) { // Right or middle click: Pan
         this.isPanning = true;
+        this.panMoved = false;
         this.panStartX = e.clientX;
         this.panStartY = e.clientY;
         if (e.button === 2) {
@@ -25233,6 +25457,9 @@ class BIMViewerApp {
       } else if (this.isPanning) {
         const dx = e.clientX - this.panStartX;
         const dy = e.clientY - this.panStartY;
+        if (Math.hypot(dx, dy) > 2) {
+          this.panMoved = true;
+        }
         this.panStartX = e.clientX;
         this.panStartY = e.clientY;
         if (this.rightDownPos && Math.hypot(e.clientX - this.rightDownPos.x, e.clientY - this.rightDownPos.y) > 3) {
@@ -25251,14 +25478,17 @@ class BIMViewerApp {
         return;
       }
       if (e.button === 0 && this.isOrbiting) {
+        const wasOrbitMoved = this.orbitMoved;
         this.isOrbiting = false;
-        if (!this.orbitMoved) {
+        if (!wasOrbitMoved) {
           // Precise click on canvas without dragging -> element selection
           const rect = this.canvas.getBoundingClientRect();
           if (e.clientX >= rect.left && e.clientX <= rect.right &&
               e.clientY >= rect.top && e.clientY <= rect.bottom) {
             this.handleCanvasClick(e);
           }
+        } else {
+          this.pushViewSnapshot();
         }
         if (this.pivotHelper) {
           if (this.pivotTimeout) clearTimeout(this.pivotTimeout);
@@ -25268,7 +25498,12 @@ class BIMViewerApp {
         }
       }
       if (e.button === 2 || e.button === 1) {
+        const wasPanning = this.isRightDragging || (this.isPanning && this.panMoved);
         this.isPanning = false;
+        this.panMoved = false;
+        if (wasPanning) {
+          this.pushViewSnapshot();
+        }
       }
     });
 
@@ -25564,6 +25799,13 @@ class BIMViewerApp {
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.hideContextMenu();
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this.undoView();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        this.redoView();
+      }
     });
 
     this.canvas.addEventListener('wheel', () => this.hideContextMenu(), { passive: true });
@@ -26007,6 +26249,13 @@ class BIMViewerApp {
   handleWheelZoom(e) {
     if (e.cancelable) e.preventDefault();
 
+    if (this.viewWheelDebounceTimer) {
+      clearTimeout(this.viewWheelDebounceTimer);
+    }
+    this.viewWheelDebounceTimer = setTimeout(() => {
+      this.pushViewSnapshot();
+    }, 300);
+
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -26119,6 +26368,7 @@ class BIMViewerApp {
       this.buildHierarchyTree();
       this.updateClippingModeBtnWidths();
       this.updateCameraProjUI();
+      this.updateViewHistoryUI();
       if (this.selectedMesh) {
         this.selectElement(this.selectedMesh);
       } else {
@@ -26153,6 +26403,16 @@ class BIMViewerApp {
       btnProj.onclick = () => this.toggleCameraProjection();
     }
     this.updateCameraProjUI();
+
+    const btnUndo = document.getElementById('btn-view-undo');
+    if (btnUndo) {
+      btnUndo.onclick = () => this.undoView();
+    }
+    const btnRedo = document.getElementById('btn-view-redo');
+    if (btnRedo) {
+      btnRedo.onclick = () => this.redoView();
+    }
+    this.updateViewHistoryUI();
     this.updateViewportCenterNav();
     
     // 5. Tool Toggles in Navbar (safely guarded)

@@ -226,6 +226,29 @@ html, body {
   gap: 5px;
 }
 
+.btn-group .tool-btn#btn-view-undo,
+.btn-group .tool-btn#btn-view-redo {
+  padding: 0 6px;
+  min-width: 26px;
+  justify-content: center;
+}
+
+.btn-group .tool-btn:disabled,
+.tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+svg.nav-arrow-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
+  flex-shrink: 0;
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
 .tool-btn {
   background: transparent;
   border: none;

@@ -128,6 +128,21 @@ html_content = f"""<!DOCTYPE html>
             <span class="proj-text" id="btn-view-proj-text" data-i18n="camProjPersp">Persp</span>
           </button>
         </div>
+
+        <div class="btn-group" id="view-history-group">
+          <button class="tool-btn" id="btn-view-undo" title="Previous View (Undo Navigation)" data-i18n-title="viewUndoTitle" disabled>
+            <svg class="nav-arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 14 4 9l5-5"/>
+              <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
+            </svg>
+          </button>
+          <button class="tool-btn" id="btn-view-redo" title="Next View (Redo Navigation)" data-i18n-title="viewRedoTitle" disabled>
+            <svg class="nav-arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 14 5-5-5-5"/>
+              <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="nav-right">
