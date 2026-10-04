@@ -73,6 +73,7 @@ html, body {
 
 /* TOP NAVBAR */
 #top-navbar {
+  position: relative;
   height: var(--header-height);
   background: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-color);
@@ -161,7 +162,7 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(780px, 48vw);
+  max-width: min(300px, 20vw);
   cursor: default;
 }
 
@@ -169,6 +170,58 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Dynamic View Controls above 3D Viewport */
+.nav-center-views {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.standalone-proj-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 4px 10px;
+  gap: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.standalone-proj-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.standalone-proj-btn.active {
+  background: var(--accent-blue);
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.standalone-proj-btn svg.proj-icon,
+.proj-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+  flex-shrink: 0;
+  fill: none !important;
+  stroke: currentColor !important;
 }
 
 .btn-group {
@@ -1009,7 +1062,7 @@ input:checked + .slider:before {
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--accent);
-  min-width: 40px;
+  min-width: 46px;
   text-align: left;
   flex-shrink: 0;
   letter-spacing: -0.3px;

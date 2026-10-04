@@ -1705,14 +1705,48 @@ class BIMViewerApp {
     const btn = document.getElementById('btn-view-proj') || document.getElementById('btn-view-fit');
     if (!btn) return;
     const isOrtho = this.cameraProjection === 'orthographic';
+    
+    const svgIcon = isOrtho ? `
+      <svg class="proj-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2.5 20.5 7.4 20.5 16.6 12 21.5 3.5 16.6 3.5 7.4" />
+        <line x1="12" y1="12" x2="12" y2="21.5" />
+        <line x1="12" y1="12" x2="3.5" y2="7.4" />
+        <line x1="12" y1="12" x2="20.5" y2="7.4" />
+      </svg>
+    ` : `
+      <svg class="proj-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3.5" width="18" height="17" rx="0.5" />
+        <rect x="8.5" y="8.5" width="7" height="7" rx="0.5" />
+        <line x1="3" y1="3.5" x2="8.5" y2="8.5" />
+        <line x1="21" y1="3.5" x2="15.5" y2="8.5" />
+        <line x1="21" y1="20.5" x2="15.5" y2="15.5" />
+        <line x1="3" y1="20.5" x2="8.5" y2="15.5" />
+      </svg>
+    `;
+    
+    const labelText = isOrtho ? I18N.t('camProjOrtho') : I18N.t('camProjPersp');
+    const titleText = isOrtho ? I18N.t('camProjOrthoTitle') : I18N.t('camProjPerspTitle');
+
+    btn.title = titleText;
+    btn.innerHTML = `${svgIcon}<span class="proj-text" id="btn-view-proj-text">${labelText}</span>`;
+    
     if (isOrtho) {
-      btn.textContent = I18N.t('camProjOrtho');
-      btn.title = I18N.t('camProjOrthoTitle');
       btn.classList.add('active');
     } else {
-      btn.textContent = I18N.t('camProjPersp');
-      btn.title = I18N.t('camProjPerspTitle');
       btn.classList.remove('active');
+    }
+  }
+
+  updateViewportCenterNav() {
+    const vp = document.getElementById('viewport-container');
+    const navCenter = document.getElementById('nav-center-views');
+    const topNav = document.getElementById('top-navbar');
+    if (!vp || !navCenter || !topNav) return;
+    const vpRect = vp.getBoundingClientRect();
+    const navRect = topNav.getBoundingClientRect();
+    if (vpRect.width > 0) {
+      const midX = (vpRect.left - navRect.left) + vpRect.width / 2;
+      navCenter.style.left = `${midX}px`;
     }
   }
   
@@ -4767,6 +4801,9 @@ class BIMViewerApp {
     if (this.setupInspectorTabsScroll && this.selectedMesh) {
       this.setupInspectorTabsScroll();
     }
+    if (this.updateViewportCenterNav) {
+      this.updateViewportCenterNav();
+    }
   }
 
   initEventListeners() {
@@ -5821,21 +5858,26 @@ class BIMViewerApp {
       btnProj.onclick = () => this.toggleCameraProjection();
     }
     this.updateCameraProjUI();
+    this.updateViewportCenterNav();
     
-    // 5. Tool Toggles in Navbar
+    // 5. Tool Toggles in Navbar (safely guarded)
     const btnSection = document.getElementById('btn-tool-section');
-    btnSection.onclick = () => {
-      this.switchLeftTab('tab-section-content');
-      btnSection.classList.toggle('active');
-    };
+    if (btnSection) {
+      btnSection.onclick = () => {
+        this.switchLeftTab('tab-section-content');
+        btnSection.classList.toggle('active');
+      };
+    }
     
     const btnSolar = document.getElementById('btn-tool-solar');
-    btnSolar.onclick = () => {
-      this.switchLeftTab('tab-light-content');
-      btnSolar.classList.toggle('active');
-    };
+    if (btnSolar) {
+      btnSolar.onclick = () => {
+        this.switchLeftTab('tab-light-content');
+        btnSolar.classList.toggle('active');
+      };
+    }
     
-    // 5b. Camera Tool in Navbar
+    // 5b. Camera Tool in Navbar (safely guarded)
     const btnCamera = document.getElementById('btn-tool-camera');
     if (btnCamera) {
       btnCamera.onclick = () => {
@@ -5848,8 +5890,6 @@ class BIMViewerApp {
             sb.classList.remove('hidden');
             sb.classList.remove('collapsed');
           }
-          const bt = document.getElementById('btn-tool-tree');
-          if (bt) bt.classList.add('active');
         }
         this.switchLeftTab('tab-camera-content');
       };
@@ -6059,6 +6099,9 @@ class BIMViewerApp {
         }
       };
     }
+    if (lsb) {
+      lsb.addEventListener('transitionend', () => this.onContainerResize());
+    }
 
     // Drag-to-resize handle on right edge of Left Sidebar
     if (lResizer && lsb) {
@@ -6153,6 +6196,7 @@ class BIMViewerApp {
           setTimeout(() => this.setupInspectorTabsScroll(), 250);
         }
       }
+      this.onContainerResize();
     };
     this.toggleInspectorCollapse = toggleInspectorCollapse;
 
@@ -6174,6 +6218,9 @@ class BIMViewerApp {
           toggleInspectorCollapse(false);
         }
       };
+    }
+    if (rsb) {
+      rsb.addEventListener('transitionend', () => this.onContainerResize());
     }
 
     // Drag-to-resize handle on left edge of Inspector

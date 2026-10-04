@@ -389,8 +389,8 @@ const I18N = {
       tabCamera: "相机视距",
       
       cameraTitle: "相机视角与最远视距",
-      viewDistLabel: "视距",
-      viewDistTitle: "可视距离控制",
+      viewDistLabel: "视野范围",
+      viewDistTitle: "视野可视距离控制",
       viewDistance: "可视距离",
       farClipPlane: "最远截面剪切 (Far Plane)",
       fogTitle: "景深大气雾效",

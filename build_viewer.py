@@ -104,61 +104,36 @@ html_content = f"""<!DOCTYPE html>
         </div>
       </div>
       
-      <div class="nav-right">
-        <!-- View Presets Group -->
-        <div class="btn-group">
+      <!-- CENTER: View Presets & Standalone Persp/Ortho Button (Dynamically centered over 3D Viewport) -->
+      <div class="nav-center-views" id="nav-center-views">
+        <div class="btn-group view-presets-group">
           <button class="tool-btn" id="btn-view-iso" data-i18n="viewIso" title="Isometric View">Iso</button>
           <button class="tool-btn" id="btn-view-plan" data-i18n="viewPlan" title="Top Plan View">Plan</button>
           <button class="tool-btn" id="btn-view-north" data-i18n="viewNorth" title="North Elevation">N</button>
           <button class="tool-btn" id="btn-view-south" data-i18n="viewSouth" title="South Elevation">S</button>
           <button class="tool-btn" id="btn-view-east" data-i18n="viewEast" title="East Elevation">E</button>
           <button class="tool-btn" id="btn-view-west" data-i18n="viewWest" title="West Elevation">W</button>
-          <button class="tool-btn" id="btn-view-proj" data-i18n="camProjPersp" title="Perspective View (Click to switch to Orthogonal)">Persp</button>
         </div>
         
-        <!-- Visible Distance Slider Control -->
-        <div class="nav-dist-box" title="Camera Visible Distance / 可视距离调节">
-          <svg class="nav-dist-icon" viewBox="0 0 24 24">
-            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+        <button class="tool-btn standalone-proj-btn" id="btn-view-proj" title="Perspective View (Click to switch to Orthogonal)">
+          <svg class="proj-icon" id="btn-view-proj-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3.5" width="18" height="17" rx="0.5" />
+            <rect x="8.5" y="8.5" width="7" height="7" rx="0.5" />
+            <line x1="3" y1="3.5" x2="8.5" y2="8.5" />
+            <line x1="21" y1="3.5" x2="15.5" y2="8.5" />
+            <line x1="21" y1="20.5" x2="15.5" y2="15.5" />
+            <line x1="3" y1="20.5" x2="8.5" y2="15.5" />
           </svg>
-          <span class="nav-dist-label" data-i18n="viewDistLabel">Dist:</span>
-          <span class="nav-dist-text" id="nav-dist-display">5 km</span>
-          <input type="range" class="nav-dist-slider" id="nav-dist-slider" min="200" max="10000" step="100" value="5000" title="Visible Distance (200m - 10km)">
-        </div>
+          <span class="proj-text" id="btn-view-proj-text" data-i18n="camProjPersp">Persp</span>
+        </button>
+      </div>
 
-        <div class="divider"></div>
-        
+      <div class="nav-right">
         <!-- Tools Group -->
-        <div class="btn-group">
-          <button class="tool-btn" id="btn-tool-measure" data-i18n="toolMeasure" title="Distance Measure Tool">
-            <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h3v8z"/></svg>
-            Measure
-          </button>
-          <button class="tool-btn" id="btn-tool-section" data-i18n="toolSection" title="Section / Clipping Plane">
-            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-8 14l-4-4h3V7h2v6h3l-4 4z"/></svg>
-            Section
-          </button>
-          <button class="tool-btn" id="btn-tool-solar" data-i18n="toolSolar" title="Solar & Lighting Simulation">
-            <svg viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
-            Lighting
-          </button>
-          <button class="tool-btn" id="btn-tool-camera" data-i18n="toolCamera" title="Camera & Distance Settings">
-            <svg viewBox="0 0 24 24"><path d="M9.4 10.5l4.77-8.26C13.47 2.09 12.75 2 12 2c-2.4 0-4.6.85-6.32 2.25l3.66 6.35.06-.1zM21.54 9c-.92-2.92-3.15-5.26-6-6.34L11.88 9h9.66zm.26 1h-7.49l.29.5 4.76 8.25C21 16.97 22 14.61 22 12c0-.69-.07-1.35-.2-2zM8.54 12l-3.9-6.75C3.01 7.03 2 9.39 2 12c0 .69.07 1.35.2 2h7.49l-1.15-2zm-1.89 3.25L2.46 15c.92 2.92 3.15 5.26 6 6.34l3.66-6.34h-5.47zm8.01.75l-4.77 8.26c.7.15 1.42.24 2.17.24 2.4 0 4.6-.85 6.32-2.25l-3.66-6.35-.06.1z"/></svg>
-            Camera
-          </button>
-          <button class="tool-btn" id="btn-tool-labels" data-i18n="toolLabels" title="Toggle 3D Structure Labels">
-            <svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg>
-            Labels
-          </button>
-          <button class="tool-btn active" id="btn-tool-tree" data-i18n="toolTree" title="Toggle Left Model Hierarchy">
-            <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-            Model
-          </button>
-          <button class="tool-btn active" id="btn-tool-inspect" data-i18n="toolInspect" title="Toggle Right Inspector">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-            Inspect
-          </button>
-        </div>
+        <button class="tool-btn" id="btn-tool-measure" data-i18n="toolMeasure" title="Distance Measure Tool">
+          <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h3v8z"/></svg>
+          Measure
+        </button>
         
         <div class="divider"></div>
         
@@ -676,6 +651,18 @@ html_content = f"""<!DOCTYPE html>
               <span class="pref-inline-label" data-i18n="edgeOpacity">Edge Intensity</span>
               <input type="range" min="10" max="100" step="5" value="65" class="range-slider pref-fixed-slider" id="edge-opacity-slider">
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
+            </div>
+          </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
+          <!-- Visible Distance Slider (Dist) -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row">
+              <span class="pref-inline-label" data-i18n="viewDistLabel" style="font-weight:600;color:var(--text-bright)">Dist</span>
+              <input type="range" min="200" max="10000" step="100" value="5000" class="range-slider pref-fixed-slider" id="nav-dist-slider" title="Camera Visible Distance / 视野可视距离调节 (200m - 10km)">
+              <span class="pref-inline-val" id="nav-dist-display">5 km</span>
             </div>
           </div>
 

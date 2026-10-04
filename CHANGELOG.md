@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 14 分钟 (27.24 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 22 小时 58 分钟** (2026-09-29 22:17 至 2026-10-04 21:15)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **12,644 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **27 小时 38 分钟 (27.64 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **4 天 23 小时 22 分钟** (2026-09-29 22:17 至 2026-10-04 21:40)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **12,890 Steps** (跨 13 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,25 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~21:15 (共 3 个时段) | 8h 12m (8.21h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+| **2026-10-04** | 10:02~10:34, 19:23~21:40 (共 3 个时段) | 8h 37m (8.62h) | 正交/透视无缝切换、NSEW 轴向立面图、检查器动态对齐透明度滑块、原色加法微光悬停 / Ortho/Persp toggle, axis-aligned NSEW views, dynamic opacity slider, subtle additive hover glow |
+---
+
+## [v1.2610042140] - 2026-10-04 21:40
+
+### 界面重构与优化 / UI Revamp & UX Enhancements
+- **顶部工具栏层级精简与去重 / Top Toolbar Hierarchy Simplification & De-duplication**
+  - **中文**: 移除顶部导航栏中与侧边栏功能重复且层级不一致的 6 个面板展开按钮（Section, Lighting, Camera, Labels, Model, Inspector），恢复顶栏轻量清爽布局；左侧模型树与右侧检查器完整保留原生停靠/折叠（Dock/Collapse）按钮。
+  - **English**: Removed 6 redundant top toolbar panel toggles (Section, Lighting, Camera, Labels, Model, Inspector) whose hierarchies conflicted with sidebar tabs and dock toggles, establishing a clean, focused header while preserving dedicated sidebar dock/collapse buttons.
+- **快速视角居中排列与 3D 视口自适应对齐 / Viewport-Centered Dynamic View Preset Bar**
+  - **中文**: 将工程视角快捷按钮（Iso、Plan、N、S、E、W）保留在顶部栏，并在水平方向上严格对照 3D 视口（Viewport）物理中心动态实时居中排列。当左侧或右侧侧边栏折叠、展开或鼠标拖拽改变面板宽度时，视角工具栏自适应平滑追踪新视口中心，确保始终居于 3D 场景正上方。
+  - **English**: Retained quick camera view presets (Iso, Plan, N, S, E, W) in the top navbar and dynamically aligned their horizontal center to the exact geometric midpoint of the 3D viewport canvas. The bar smoothly tracks and realigns in real-time as left/right sidebars resize or collapse.
+- **独立正交/透视投影按钮与线框矢量图标 / Standalone Projection Toggle & Architectural Wireframe Icons**
+  - **中文**: 将正交/透视切换从视角方向按钮组中独立解耦为单独按钮（`Persp` / `Ortho`，中文为 `透视` / `正交`）。设计并配备了高辨识度的工程线框 SVG 图标：透视模式下呈现具强烈景深汇聚感的一点透视立方体（Converging Perspective Cube），正交模式下呈现各边严格等距平行的轴测立方体（Parallel Isometric Cube），随中英双语与高亮活动状态无缝切换。
+  - **English**: Decoupled the projection mode toggle from the directional presets into an independent button. Outfitted with high-contrast architectural wireframe SVG vector icons: a converging 1-point perspective tunnel cube for Perspective mode, and a strictly parallel isometric cube for Orthographic mode, supporting instant bilingual switching.
+- **视野范围 (Dist) 滑动条迁移至检查器第一组 / Relocated Visible Distance Slider to Inspector Card**
+  - **中文**: 将原顶栏的视野范围（Dist）读数与滑动条移至右侧检查器（Inspector）首组偏好卡片中，置于 3D 标签（3D Labels）正上方。滑动条排版与宽度严格参照已有控件对齐（115px 规范宽度与等宽数值），与左侧相机面板及快捷距离预设双向实时联动。
+  - **English**: Relocated the camera visible distance (Dist) readout and slider into the inspector preferences card directly above 3D Labels. Slider width and layout strictly follow the established 115px standard, operating in full bidirectional synchronization with camera settings.
+
 ---
 
 ## [v1.2610042105] - 2026-10-04 21:05
