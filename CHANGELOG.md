@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **29 小时 10 分钟 (29.18 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 21 小时 25 分钟** (2026-09-29 22:17 至 2026-10-05 19:42)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,020 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **29 小时 26 分钟 (29.44 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 21 小时 40 分钟** (2026-09-29 22:17 至 2026-10-05 19:58)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,177 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,24 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~19:42 | 0h 37m (0.63h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~19:58 | 0h 53m (0.89h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610052000] - 2026-10-05 20:00
+
+### 左右面板标签栏鼠标滚轮滚动防回弹修复 / Left & Right Panel Tabs Mouse-Wheel Scroll Stability Fix
+- **标签栏鼠标滚轮横向滚动定位与防自动回弹 / Scroll-Position Retention & Anti-Springback**
+  - **中文**:
+    1. **事件冒泡误触发链阻断**: 排查并修复了侧边栏过渡结束事件（`transitionend`）冒泡导致视口重算的问题。原代码中遮罩阴影渐变（`.tabs-edge-shadow`）与箭头控件的 CSS `opacity` 过渡在滚轮滚动产生溢出时结束并向上传递至 `#left-sidebar` 与 `#right-sidebar`，误触发了 `onContainerResize()`；现已严格限制仅对侧边栏容器自身的展开/折叠（`width`/`transform`）进行重算。
+    2. **滚动位置防重置与关注逻辑解耦**: 将“根据活动标签自动滚入视野”（`scrollActiveSidebarTabIntoView` / `scrollActiveInspectorTabIntoView`）与“滚轮事件监听及阴影指示计算”（`setupSidebarTabsScroll` / `updateSidebarTabsOverflow`）完全解耦。鼠标滚轮浏览其他标签栏、窗体缩放或侧边栏拉伸时仅更新边缘阴影和翻页箭头指示，绝不重置用户滚轮滚到的任意横向偏移位置。
+    3. **移除全局 CSS smooth 滚动冲突**: 移除 `.sidebar-tabs-nav` 与 `.inspector-tabs-nav` 容器上的全局 `scroll-behavior: smooth`，杜绝连续鼠标滚轮刻度累加时由于中间平滑补间动画位置滞后造成的滚轮卡顿与位置截断；而箭头按钮点击与标签切换继续保持专属平滑滚入动画。
+    4. **双向滚轮与触控板自适应**: 统一支持鼠标滚轮垂直轴（`deltaY`）及触控板水平手势（`deltaX`）平滑横向滚动，并在左右两面板均经真实浏览器测试保持零回弹。
+  - **English**:
+    1. **Transitionend Bubbling Isolation**: Fixed an issue where CSS `opacity` transitions on inner tabs edge shadows (`.tabs-edge-shadow`) and chevron buttons bubbled `transitionend` events up to `#left-sidebar` and `#right-sidebar`, inadvertently triggering `onContainerResize()`. Now strictly guards `transitionend` handlers to only react to sidebar container's own `width` or `transform` transitions.
+    2. **Decoupled Active Tab Focus from Generic Scroll & Overflow Updates**: Separated `scrollActiveSidebarTabIntoView` / `scrollActiveInspectorTabIntoView` from regular overflow and resize updates. Scrolling with mouse wheel or resizing panels will stably retain the user's horizontal scroll offset without snapping back to tab 0.
+    3. **Eliminated CSS Smooth-Scroll Wheel Interference**: Removed `scroll-behavior: smooth` from `.sidebar-tabs-nav` and `.inspector-tabs-nav` to eliminate frame throttling and position truncation during rapid mouse wheel ticks, while preserving silky programmatic smooth transitions on chevron clicks and tab switching.
+    4. **Dual-Axis Wheel & Trackpad Support**: Enhanced horizontal scroll responsiveness for both mouse vertical wheels (`deltaY`) and trackpad swipe gestures (`deltaX`) across left and right panels.
+
 ---
 
 ## [v1.2610051945] - 2026-10-05 19:45

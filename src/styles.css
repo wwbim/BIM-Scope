@@ -1429,7 +1429,6 @@ input:checked + .slider:before {
   gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
-  scroll-behavior: smooth;
   align-items: flex-end;
   box-sizing: border-box;
 }

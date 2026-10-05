@@ -1442,7 +1442,6 @@ input:checked + .slider:before {
   gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
-  scroll-behavior: smooth;
   align-items: flex-end;
   box-sizing: border-box;
 }
@@ -27008,13 +27007,14 @@ class BIMViewerApp {
         btn.classList.add('active');
         content.scrollTop = 0;
         this.renderInspectorTabContent(key, mesh, clickPoint || this.lastClickPoint);
-        this.setupInspectorTabsScroll();
+        this.scrollActiveInspectorTabIntoView();
       });
     });
 
     // Render active tab content
     this.renderInspectorTabContent(this.activeInspectorTab, mesh, clickPoint || this.lastClickPoint);
     this.setupInspectorTabsScroll();
+    this.scrollActiveInspectorTabIntoView();
 
     // Ensure Right Sidebar is visible and expanded
     const rsb = document.getElementById('right-sidebar');
@@ -27084,6 +27084,39 @@ class BIMViewerApp {
     this.needsRender = true;
   }
 
+  // Update inner shadows and chevrons visibility based on current Left Sidebar scroll position
+  updateSidebarTabsOverflow() {
+    const container = document.getElementById('sidebar-tabs-container');
+    const nav = document.getElementById('sidebar-tabs-nav');
+    if (!container || !nav) return;
+    const sl = nav.scrollLeft;
+    const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    const hasLeft = sl > 3;
+    const hasRight = sl < maxScroll - 3;
+    container.classList.toggle('has-overflow-left', hasLeft);
+    container.classList.toggle('has-overflow-right', hasRight);
+  }
+
+  // Scroll active Left Sidebar tab into view (smooth)
+  scrollActiveSidebarTabIntoView() {
+    const nav = document.getElementById('sidebar-tabs-nav');
+    if (!nav) return;
+    const activeBtn = nav.querySelector('.tab-btn.active');
+    if (!activeBtn) return;
+    const CLEARANCE = 42;
+    const bRect = activeBtn.getBoundingClientRect();
+    const nRect = nav.getBoundingClientRect();
+    const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    if (bRect.left < nRect.left + CLEARANCE) {
+      const desired = (bRect.left - nRect.left) + nav.scrollLeft - CLEARANCE;
+      nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'smooth' });
+    } else if (bRect.right > nRect.right - CLEARANCE) {
+      const desired = (bRect.right - nRect.left) + nav.scrollLeft - nav.clientWidth + CLEARANCE;
+      nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'smooth' });
+    }
+    setTimeout(() => this.updateSidebarTabsOverflow(), 350);
+  }
+
   // Setup direct wheel scrolling, inner shadows, and chevrons for Left Sidebar tabs
   setupSidebarTabsScroll() {
     const container = document.getElementById('sidebar-tabs-container');
@@ -27092,31 +27125,26 @@ class BIMViewerApp {
     const chevronRight = document.getElementById('sidebar-tabs-chevron-right');
     if (!container || !nav) return;
 
-    const updateOverflow = () => {
-      const sl = nav.scrollLeft;
-      const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
-      const hasLeft = sl > 3;
-      const hasRight = sl < maxScroll - 3;
-      container.classList.toggle('has-overflow-left', hasLeft);
-      container.classList.toggle('has-overflow-right', hasRight);
-    };
-
-    // 1. Wheel directly scrolls horizontally
+    // 1. Wheel directly scrolls horizontally without resetting position
     container.onwheel = (e) => {
       if (nav.scrollWidth > nav.clientWidth) {
-        e.preventDefault();
-        nav.scrollLeft += e.deltaY * 0.8;
-        updateOverflow();
+        const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (Math.abs(delta) > 0) {
+          e.preventDefault();
+          const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+          nav.scrollLeft = Math.max(0, Math.min(maxScroll, nav.scrollLeft + delta * 0.8));
+          this.updateSidebarTabsOverflow();
+        }
       }
     };
 
     // 2. Scroll event
-    nav.onscroll = updateOverflow;
+    nav.onscroll = () => this.updateSidebarTabsOverflow();
 
     // 3. ResizeObserver
     if (window.ResizeObserver) {
       if (!this._sidebarTabsResizeObserver) {
-        this._sidebarTabsResizeObserver = new ResizeObserver(updateOverflow);
+        this._sidebarTabsResizeObserver = new ResizeObserver(() => this.updateSidebarTabsOverflow());
       }
       this._sidebarTabsResizeObserver.observe(nav);
     }
@@ -27155,28 +27183,46 @@ class BIMViewerApp {
           nav.scrollBy({ left: -120, behavior: 'smooth' });
         }
       }
-      setTimeout(updateOverflow, 350);
+      setTimeout(() => this.updateSidebarTabsOverflow(), 350);
     };
 
     if (chevronLeft) chevronLeft.onclick = () => scrollToNextTab('left');
     if (chevronRight) chevronRight.onclick = () => scrollToNextTab('right');
 
-    // Ensure active tab is comfortably in view beyond chevrons
-    const activeBtn = nav.querySelector('.tab-btn.active');
-    if (activeBtn) {
-      const bRect = activeBtn.getBoundingClientRect();
-      const nRect = nav.getBoundingClientRect();
-      const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
-      if (bRect.left < nRect.left + CLEARANCE) {
-        const desired = (bRect.left - nRect.left) + nav.scrollLeft - CLEARANCE;
-        nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'auto' });
-      } else if (bRect.right > nRect.right - CLEARANCE) {
-        const desired = (bRect.right - nRect.left) + nav.scrollLeft - nav.clientWidth + CLEARANCE;
-        nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'auto' });
-      }
-    }
+    this.updateSidebarTabsOverflow();
+  }
 
-    updateOverflow();
+  // Update inner shadows and chevrons visibility based on current Inspector scroll position
+  updateInspectorTabsOverflow() {
+    const container = document.getElementById('inspector-tabs-container');
+    const nav = document.getElementById('inspector-tabs-nav');
+    if (!container || !nav) return;
+    const sl = nav.scrollLeft;
+    const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    const hasLeft = sl > 3;
+    const hasRight = sl < maxScroll - 3;
+    container.classList.toggle('has-overflow-left', hasLeft);
+    container.classList.toggle('has-overflow-right', hasRight);
+  }
+
+  // Scroll active Inspector tab into view (smooth)
+  scrollActiveInspectorTabIntoView() {
+    const nav = document.getElementById('inspector-tabs-nav');
+    if (!nav) return;
+    const activeBtn = nav.querySelector('.inspector-tab-btn.active');
+    if (!activeBtn) return;
+    const CLEARANCE = 42;
+    const bRect = activeBtn.getBoundingClientRect();
+    const nRect = nav.getBoundingClientRect();
+    const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    if (bRect.left < nRect.left + CLEARANCE) {
+      const desired = (bRect.left - nRect.left) + nav.scrollLeft - CLEARANCE;
+      nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'smooth' });
+    } else if (bRect.right > nRect.right - CLEARANCE) {
+      const desired = (bRect.right - nRect.left) + nav.scrollLeft - nav.clientWidth + CLEARANCE;
+      nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'smooth' });
+    }
+    setTimeout(() => this.updateInspectorTabsOverflow(), 350);
   }
 
   // Setup direct wheel scrolling, inner shadows, and chevrons for Inspector tabs
@@ -27187,31 +27233,26 @@ class BIMViewerApp {
     const chevronRight = document.getElementById('tabs-chevron-right');
     if (!container || !nav) return;
 
-    const updateOverflow = () => {
-      const sl = nav.scrollLeft;
-      const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
-      const hasLeft = sl > 3;
-      const hasRight = sl < maxScroll - 3;
-      container.classList.toggle('has-overflow-left', hasLeft);
-      container.classList.toggle('has-overflow-right', hasRight);
-    };
-
-    // 1. Wheel directly scrolls horizontally
+    // 1. Wheel directly scrolls horizontally without resetting position
     container.onwheel = (e) => {
       if (nav.scrollWidth > nav.clientWidth) {
-        e.preventDefault();
-        nav.scrollLeft += e.deltaY * 0.8;
-        updateOverflow();
+        const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (Math.abs(delta) > 0) {
+          e.preventDefault();
+          const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+          nav.scrollLeft = Math.max(0, Math.min(maxScroll, nav.scrollLeft + delta * 0.8));
+          this.updateInspectorTabsOverflow();
+        }
       }
     };
 
     // 2. Scroll event
-    nav.onscroll = updateOverflow;
+    nav.onscroll = () => this.updateInspectorTabsOverflow();
 
     // 3. ResizeObserver
     if (window.ResizeObserver) {
       if (!this._tabsResizeObserver) {
-        this._tabsResizeObserver = new ResizeObserver(updateOverflow);
+        this._tabsResizeObserver = new ResizeObserver(() => this.updateInspectorTabsOverflow());
       }
       this._tabsResizeObserver.observe(nav);
     }
@@ -27250,29 +27291,13 @@ class BIMViewerApp {
           nav.scrollBy({ left: -120, behavior: 'smooth' });
         }
       }
-      setTimeout(updateOverflow, 350);
+      setTimeout(() => this.updateInspectorTabsOverflow(), 350);
     };
 
     if (chevronLeft) chevronLeft.onclick = () => scrollToNextTab('left');
     if (chevronRight) chevronRight.onclick = () => scrollToNextTab('right');
 
-    // Ensure active tab is comfortably in view beyond chevrons
-    const activeBtn = nav.querySelector('.inspector-tab-btn.active');
-    if (activeBtn) {
-      const bRect = activeBtn.getBoundingClientRect();
-      const nRect = nav.getBoundingClientRect();
-      const maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
-      if (bRect.left < nRect.left + CLEARANCE) {
-        const desired = (bRect.left - nRect.left) + nav.scrollLeft - CLEARANCE;
-        nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'auto' });
-      } else if (bRect.right > nRect.right - CLEARANCE) {
-        const desired = (bRect.right - nRect.left) + nav.scrollLeft - nav.clientWidth + CLEARANCE;
-        nav.scrollTo({ left: Math.max(0, Math.min(maxScroll, desired)), behavior: 'auto' });
-      }
-    }
-
-    // Initial check
-    setTimeout(updateOverflow, 50);
+    this.updateInspectorTabsOverflow();
   }
 
   // Render individual Inspector Tab Pane
@@ -29608,11 +29633,11 @@ class BIMViewerApp {
       this.compass3d.update();
     }
     this.updateBillboards();
-    if (this.setupSidebarTabsScroll) {
-      this.setupSidebarTabsScroll();
+    if (this.updateSidebarTabsOverflow) {
+      this.updateSidebarTabsOverflow();
     }
-    if (this.setupInspectorTabsScroll && this.selectedMesh) {
-      this.setupInspectorTabsScroll();
+    if (this.updateInspectorTabsOverflow && this.selectedMesh) {
+      this.updateInspectorTabsOverflow();
     }
     if (this.updateViewportCenterNav) {
       this.updateViewportCenterNav();
@@ -30946,7 +30971,11 @@ class BIMViewerApp {
       };
     }
     if (lsb) {
-      lsb.addEventListener('transitionend', () => this.onContainerResize());
+      lsb.addEventListener('transitionend', (e) => {
+        if (e.target === lsb && (e.propertyName === 'width' || e.propertyName === 'transform')) {
+          this.onContainerResize();
+        }
+      });
     }
 
     // Drag-to-resize handle on right edge of Left Sidebar
@@ -31066,7 +31095,11 @@ class BIMViewerApp {
       };
     }
     if (rsb) {
-      rsb.addEventListener('transitionend', () => this.onContainerResize());
+      rsb.addEventListener('transitionend', (e) => {
+        if (e.target === rsb && (e.propertyName === 'width' || e.propertyName === 'transform')) {
+          this.onContainerResize();
+        }
+      });
     }
 
     // Drag-to-resize handle on left edge of Inspector
@@ -31107,7 +31140,11 @@ class BIMViewerApp {
         localStorage.setItem('bimscope_inspector_width', this.customInspectorWidth);
         this.onContainerResize();
         if (this.selectedMesh) {
-          this.setupInspectorTabsScroll();
+          if (this.updateInspectorTabsOverflow) {
+            this.updateInspectorTabsOverflow();
+          } else {
+            this.setupInspectorTabsScroll();
+          }
         }
       };
 
@@ -31575,7 +31612,7 @@ class BIMViewerApp {
     document.querySelectorAll('.tab-content').forEach(c => {
       c.classList.toggle('active', c.id === tabContentId);
     });
-    this.setupSidebarTabsScroll();
+    this.scrollActiveSidebarTabIntoView();
     if (tabContentId === 'tab-section-content') {
       this.updateClippingModeBtnWidths();
     }
