@@ -32,6 +32,9 @@ with open(os.path.join(LIB_DIR, "TGALoader.js"), "r", encoding="utf-8") as f:
 with open(os.path.join(LIB_DIR, "FBXLoader.js"), "r", encoding="utf-8") as f:
     fbx_loader_js = f.read()
 
+with open(os.path.join(LIB_DIR, "ColladaLoader.js"), "r", encoding="utf-8") as f:
+    collada_loader_js = f.read()
+
 # Read Source Files
 with open(os.path.join(SRC_DIR, "styles.css"), "r", encoding="utf-8") as f:
     styles_css = f.read()
@@ -161,7 +164,7 @@ html_content = f"""<!DOCTYPE html>
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           Open Model
         </button>
-        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
+        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
     </header>
 
@@ -551,7 +554,7 @@ html_content = f"""<!DOCTYPE html>
         <!-- Drag & Drop Overlay -->
         <div id="dropzone-overlay">
           <svg class="drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC (up to 4.3 add2) or GLB file to view</div>
+          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX or DAE file to view</div>
         </div>
 
         <!-- 3D Viewport Custom Context Menu -->
@@ -613,6 +616,26 @@ html_content = f"""<!DOCTYPE html>
           <div class="context-menu-item" id="menu-reset-sec-rot" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
             <span data-i18n="menuResetSecRot">Reset Sectioning Rotation</span>
+          </div>
+        </div>
+
+        <!-- Animation Player Bar (for DAE, FBX & GLTF models with animations) -->
+        <div id="animation-player-bar" class="anim-player-bar" style="display:none">
+          <button id="anim-btn-play" class="anim-btn" title="Play / Pause" data-i18n-title="animPlayPause">
+            <svg id="anim-icon-play" class="anim-svg" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="anim-icon-pause" class="anim-svg" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <div class="anim-time-container">
+            <span id="anim-time-current">00:00.0</span>
+            <input type="range" id="anim-scrub-slider" min="0" max="100" step="0.05" value="0">
+            <span id="anim-time-total">00:00.0</span>
+          </div>
+          <div class="anim-controls-group">
+            <button id="anim-btn-speed" class="anim-btn anim-badge-btn" title="Playback Speed" data-i18n-title="animSpeed">1.0x</button>
+            <button id="anim-btn-loop" class="anim-btn active" title="Toggle Loop" data-i18n-title="animLoop">
+              <svg class="anim-svg" viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+            </button>
+            <select id="anim-clip-select" class="anim-select" style="display:none" title="Select Clip"></select>
           </div>
         </div>
 
@@ -831,6 +854,9 @@ html_content = f"""<!DOCTYPE html>
   </script>
   <script>
 {fbx_loader_js}
+  </script>
+  <script>
+{collada_loader_js}
   </script>
   <script>
 {i18n_js}

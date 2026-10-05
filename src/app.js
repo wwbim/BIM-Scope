@@ -523,6 +523,17 @@ class BIMViewerApp {
     this.edgeColor = 0x22262b;
     this.edgeOpacity = 0.65;
     
+    // Universal Animation Player Engine (for DAE, FBX & GLTF models)
+    this.animMixer = null;
+    this.animClips = [];
+    this.currentAnimAction = null;
+    this.isAnimPlaying = false;
+    this.isAnimLooping = true;
+    this.isAnimScrubbing = false;
+    this.animPlaybackSpeed = 1.0;
+    this.animClock = new THREE.Clock();
+    this.animDuration = 0;
+
     // Setup 3D orientation compass & category filter states
     this.categoryStates = new Map();
     this.compass3d = new True3DCompass(this);
@@ -1149,6 +1160,7 @@ class BIMViewerApp {
     }
     this.clearBillboards();
     this.clearSelection();
+    this.hideAnimationPlayer();
   }
 
   // Robust Architectural Edge Extractor with coplanar multi-triangle elimination
@@ -3945,10 +3957,10 @@ class BIMViewerApp {
       Array.from(fileOrFiles) : [fileOrFiles];
     if (fileList.length === 0) return;
 
-    // Find primary model file (.ifc, .glb, .gltf, .fbx)
+    // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae)
     const primaryFile = fileList.find(f => {
       const ext = f.name.split('.').pop().toLowerCase();
-      return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx';
+      return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx' || ext === 'dae';
     }) || fileList[0];
 
     const sizeMB = (primaryFile.size / (1024 * 1024)).toFixed(1);
@@ -4183,6 +4195,14 @@ class BIMViewerApp {
           };
           this.renderModelInfoInspector();
 
+          // Animation initialization (GLTF)
+          const animations = (gltf && gltf.animations && gltf.animations.length > 0) ? gltf.animations : [];
+          if (animations && animations.length > 0) {
+            this.initAnimationPlayer(model, animations);
+          } else {
+            this.hideAnimationPlayer();
+          }
+
           this.showProgressModal(false);
         }, (err) => {
           console.error("GLTF Parse Error:", err);
@@ -4337,9 +4357,56 @@ class BIMViewerApp {
       };
       reader.readAsArrayBuffer(mainFile);
 
+    } else if (ext === 'dae') {
+      reader.onload = (e) => {
+        this.updateProgress(I18N.t('stageParsing'), 30);
+        const daeText = e.target.result;
+
+        try {
+          const daeInfo = this.inspectDAE(daeText);
+
+          // Check if there are missing external textures
+          const missingTextures = [];
+          if (daeInfo.textures && daeInfo.textures.length > 0) {
+            daeInfo.textures.forEach(tex => {
+              const res = this.resolveFBXTexture(tex.basename || tex.rawName, blobMap);
+              if (!res || !res.matched) {
+                missingTextures.push(tex);
+              }
+            });
+          }
+
+          if (missingTextures.length > 0) {
+            // Prompt user with interactive texture assembly modal
+            this.showProgressModal(false);
+            this.showTextureModal({ textures: missingTextures }, blobMap, (skipTextures) => {
+              this.showProgressModal(true, I18N.t('stageMeshing'), 60);
+              setTimeout(() => {
+                this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, skipTextures, mainFile);
+              }, 40);
+            });
+          } else {
+            // All textures are provided or no external textures required
+            this.updateProgress(I18N.t('stageMeshing'), 60);
+            setTimeout(() => {
+              this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, false, mainFile);
+            }, 40);
+          }
+        } catch (err) {
+          console.error("DAE Inspection / Load Error:", err);
+          this.showProgressModal(false);
+          showToast("Failed to process DAE: " + err.message, "danger");
+        }
+      };
+      reader.onerror = (err) => {
+        this.showProgressModal(false);
+        showToast("Error reading file: " + err.message, "danger");
+      };
+      reader.readAsText(mainFile);
+
     } else {
       this.showProgressModal(false);
-      showToast("Unsupported file format. Please choose .IFC, .GLB, or .FBX", "danger");
+      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, or .DAE", "danger");
     }
   }
 
@@ -4753,6 +4820,14 @@ class BIMViewerApp {
       };
       this.renderModelInfoInspector();
 
+      // Animation initialization (FBX)
+      const animations = (model && model.animations && model.animations.length > 0) ? model.animations : [];
+      if (animations && animations.length > 0) {
+        this.initAnimationPlayer(model, animations);
+      } else {
+        this.hideAnimationPlayer();
+      }
+
       this.showProgressModal(false);
 
       if (skipTextures) {
@@ -4767,6 +4842,282 @@ class BIMViewerApp {
       console.error("FBX Load Exception:", err);
       this.showProgressModal(false);
       showToast("Error loading FBX model: " + err.message, "danger");
+    }
+  }
+
+  inspectDAE(daeText) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(daeText, "application/xml");
+
+    // Unit & Up Axis
+    let unitMeter = 1.0;
+    const unitNode = xmlDoc.querySelector("asset > unit, unit");
+    if (unitNode && unitNode.hasAttribute("meter")) {
+      unitMeter = parseFloat(unitNode.getAttribute("meter")) || 1.0;
+    }
+    const unitName = (unitNode && unitNode.getAttribute("name")) || "meter";
+
+    let upAxis = "Y_UP";
+    const upAxisNode = xmlDoc.querySelector("asset > up_axis, up_axis");
+    if (upAxisNode && upAxisNode.textContent) {
+      upAxis = upAxisNode.textContent.trim().toUpperCase();
+    }
+
+    // Asset Metadata
+    const authorNode = xmlDoc.querySelector("asset > contributor > author, contributor > author, author");
+    const toolNode = xmlDoc.querySelector("asset > contributor > authoring_tool, contributor > authoring_tool, authoring_tool");
+    const commentsNode = xmlDoc.querySelector("asset > contributor > comments, contributor > comments, comments");
+    const createdNode = xmlDoc.querySelector("asset > created, created");
+    const modifiedNode = xmlDoc.querySelector("asset > modified, modified");
+
+    // Textures
+    const textures = [];
+    const seen = new Set();
+    const imageNodes = xmlDoc.querySelectorAll("library_images > image > init_from, image > init_from");
+    imageNodes.forEach(node => {
+      let raw = node.textContent ? node.textContent.trim() : "";
+      if (raw) {
+        let clean = raw.split('?')[0].split('#')[0];
+        try { clean = decodeURIComponent(clean); } catch(e) {}
+        const basename = clean.split('/').pop().split('\\').pop();
+        if (basename && !seen.has(basename.toLowerCase())) {
+          seen.add(basename.toLowerCase());
+          textures.push({
+            rawName: raw,
+            basename: basename,
+            isEmbedded: false
+          });
+        }
+      }
+    });
+
+    return {
+      unitMeter,
+      unitName,
+      upAxis,
+      author: authorNode ? authorNode.textContent.trim() : null,
+      authoringTool: toolNode ? toolNode.textContent.trim() : null,
+      comments: commentsNode ? commentsNode.textContent.trim() : null,
+      created: createdNode ? createdNode.textContent.trim() : null,
+      modified: modifiedNode ? modifiedNode.textContent.trim() : null,
+      textures
+    };
+  }
+
+  loadDAEModel(daeText, daeInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+    try {
+      this.updateProgress(I18N.t('stageMeshing'), 70);
+      const loader = new THREE.ColladaLoader(manager);
+      
+      // Parse DAE text
+      const collada = loader.parse(daeText, '');
+      const model = collada.scene;
+      model.name = modelName;
+
+      // Coordinate / UpAxis Normalization:
+      // ColladaLoader natively handles Z_UP (-90 deg around X), but not X_UP.
+      if (daeInfo && daeInfo.upAxis === 'X_UP') {
+        model.rotation.z = -Math.PI / 2;
+        model.updateMatrixWorld(true);
+      }
+
+      // Collect all meshes
+      const allMeshes = [];
+      model.traverse(node => {
+        if (node.isMesh) allMeshes.push(node);
+      });
+
+      if (allMeshes.length === 0) {
+        this.showProgressModal(false);
+        showToast("DAE parsed but 0 meshes could be found", "warning");
+        return;
+      }
+
+      // Dual-Mode Hybrid Hierarchy: Check for BIM keywords
+      const bimPattern = /wall|slab|floor|deck|column|pillar|beam|girder|joist|roof|canopy|ceiling|door|gate|curtain|window|glass|glazing|stair|step|railing|parapet|pipe|duct|conduit|hvac|plumb|truss|steel|foundation|footing|pile|furniture|site|terrain|topo|ground|level|storey|story|lvl|1f|2f|3f|4f|地下|地上|层|楼|墙|板|柱|梁|顶|门|窗|梯|栏|管/i;
+
+      let hasBIMKeywords = false;
+      for (const mesh of allMeshes) {
+        const checkStr = `${mesh.name || ''} ${(mesh.parent && mesh.parent.name) || ''} ${(mesh.material && mesh.material.name) || ''}`;
+        if (bimPattern.test(checkStr)) {
+          hasBIMKeywords = true;
+          break;
+        }
+      }
+
+      let meshIndex = 0;
+      const classifyNode = (node, parentStructure = null, parentPath = []) => {
+        const currentPath = [...parentPath];
+        if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
+          currentPath.push(node.name);
+        }
+
+        let structure = parentStructure;
+        if (!structure && node !== model) {
+          if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
+            if (node.name && node.name !== 'Scene') {
+              structure = node.name;
+            }
+          }
+        }
+
+        if (node.isMesh) {
+          meshIndex++;
+          node.castShadow = true;
+          node.receiveShadow = true;
+          if (node.material) {
+            const mats = Array.isArray(node.material) ? node.material : [node.material];
+            mats.forEach(m => {
+              m.side = THREE.DoubleSide; // Critical for SketchUp DAE
+              if (skipTextures) {
+                m.map = null;
+                m.needsUpdate = true;
+              }
+              if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+                m.clippingPlanes = this.clippingEngine.clippingPlanes;
+                m.clipShadows = true;
+              }
+            });
+          }
+
+          // Compute world bounding box for elevation and dimensions
+          const box = new THREE.Box3().setFromObject(node);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+
+          const finalStructure = structure || 
+            (currentPath.length > 1 ? currentPath[0] : (modelName.replace(/\.[^/.]+$/, "") || "Model"));
+
+          let category = 'Component';
+          const allText = [
+            node.name || '',
+            (node.parent && node.parent.name) || '',
+            (node.material && node.material.name) || '',
+            currentPath.join(' ')
+          ].join(' ').toLowerCase();
+
+          if (hasBIMKeywords) {
+            if (/wall|墙/i.test(allText)) category = 'Wall';
+            else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
+            else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
+            else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
+            else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
+            else if (/door|gate|门/i.test(allText)) category = 'Door';
+            else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
+            else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
+            else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
+            else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
+            else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
+            else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
+            else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
+            else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
+            else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
+            else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
+              category = node.parent.name;
+            }
+          } else {
+            if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
+              category = node.parent.name;
+            } else if (node.material && node.material.name) {
+              category = node.material.name;
+            } else {
+              category = finalStructure;
+            }
+          }
+
+          let level = 'Ground Level';
+          const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
+          if (levelMatch) {
+            level = levelMatch[0].toUpperCase();
+          } else {
+            const y = (box.min.y + box.max.y) / 2;
+            if (y < -0.5) level = 'Basement Level';
+            else if (y < 4.0) level = 'Level 1 (Ground)';
+            else if (y < 8.0) level = 'Level 2';
+            else if (y < 12.0) level = 'Level 3';
+            else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
+          }
+
+          let elemName = node.name || '';
+          if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh') {
+            elemName = `${category} #${meshIndex}`;
+          }
+
+          node.userData = {
+            structure: finalStructure,
+            category: category,
+            rawCategory: category,
+            element: elemName,
+            level: level,
+            dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
+            height: `${size.y.toFixed(2)} m`,
+            rlMin: box.min.y.toFixed(2),
+            rlMax: box.max.y.toFixed(2),
+            guid: node.uuid,
+            isDAE: true,
+            nodePath: currentPath
+          };
+        }
+
+        if (node.children && node.children.length > 0) {
+          node.children.forEach(child => classifyNode(child, structure, currentPath));
+        }
+      };
+
+      classifyNode(model);
+
+      this.clearModel();
+      document.getElementById('project-title-text').textContent = modelName;
+      document.getElementById('project-subtitle-text').textContent = `COLLADA: ${modelName}`;
+      this.setModel(model);
+
+      const stats = this.calculateModelStats(model);
+      const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
+        `${(primaryFile.size / 1048576).toFixed(2)} MB` : 
+        (primaryFile && primaryFile.size ? `${(primaryFile.size / 1024).toFixed(1)} KB` : "N/A");
+
+      const unitMeter = (daeInfo && daeInfo.unitMeter) || 1.0;
+      const upAxis = (daeInfo && daeInfo.upAxis) || "Y_UP";
+
+      this.currentModelInfo = {
+        fileName: modelName,
+        format: `COLLADA (.dae)`,
+        schema: `COLLADA (Unit: ${(unitMeter * 100).toFixed(1)} cm, Up: ${upAxis})`,
+        fileSize: sizeStr,
+        filePath: (primaryFile && primaryFile.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
+        lastModified: primaryFile && primaryFile.lastModified ? new Date(primaryFile.lastModified).toLocaleString() : null,
+        loadedTime: new Date().toLocaleString(),
+        originalSoftware: (daeInfo && daeInfo.authoringTool) || "COLLADA Exporter",
+        author: (daeInfo && daeInfo.author) || null,
+        stats: stats
+      };
+      this.renderModelInfoInspector();
+
+      // Animation initialization
+      const animations = (collada && collada.animations && collada.animations.length > 0) ? 
+        collada.animations : 
+        ((collada.scene && collada.scene.animations && collada.scene.animations.length > 0) ? collada.scene.animations : []);
+      
+      if (animations && animations.length > 0) {
+        this.initAnimationPlayer(model, animations);
+      } else {
+        this.hideAnimationPlayer();
+      }
+
+      this.showProgressModal(false);
+
+      if (skipTextures) {
+        showToast(I18N.t('textureToastSkipped') || "Model loaded with solid materials (textures skipped)", 'info');
+      } else {
+        const texCount = (daeInfo && daeInfo.textures) ? daeInfo.textures.length : 0;
+        if (texCount > 0) {
+          showToast(I18N.t('textureToastSuccess', { count: texCount }) || `Model loaded with ${texCount} textures applied`, 'success');
+        }
+      }
+    } catch (err) {
+      console.error("DAE Load Exception:", err);
+      this.showProgressModal(false);
+      showToast("Error loading DAE model: " + err.message, "danger");
     }
   }
   
@@ -6920,6 +7271,9 @@ class BIMViewerApp {
       this.solarEngine.customAmbient = parseFloat(e.target.value);
       this.solarEngine.update();
     };
+
+    // Animation Player UI setup
+    this.initAnimationUI();
   }
   
   switchLeftTab(tabContentId) {
@@ -6947,6 +7301,230 @@ class BIMViewerApp {
     document.getElementById('solar-el-val').textContent = `${res.elevation}°`;
     document.getElementById('solar-status-msg').textContent = res.isDay ? I18N.t('solarDayMsg') : I18N.t('solarNightMsg');
   }
+
+  // ==========================================
+  // UNIVERSAL ANIMATION PLAYER ENGINE
+  // ==========================================
+  initAnimationUI() {
+    const playBtn = document.getElementById('anim-btn-play');
+    if (playBtn) {
+      playBtn.onclick = () => this.toggleAnimationPlay();
+    }
+
+    const speedBtn = document.getElementById('anim-btn-speed');
+    if (speedBtn) {
+      speedBtn.onclick = () => this.cycleAnimationSpeed();
+    }
+
+    const loopBtn = document.getElementById('anim-btn-loop');
+    if (loopBtn) {
+      loopBtn.onclick = () => this.toggleAnimationLoop();
+    }
+
+    const clipSelect = document.getElementById('anim-clip-select');
+    if (clipSelect) {
+      clipSelect.onchange = (e) => {
+        const idx = parseInt(e.target.value, 10);
+        this.playAnimationClip(idx);
+      };
+    }
+
+    const scrubSlider = document.getElementById('anim-scrub-slider');
+    if (scrubSlider) {
+      scrubSlider.addEventListener('input', (e) => {
+        this.onAnimationScrub(parseFloat(e.target.value));
+      });
+      scrubSlider.addEventListener('change', () => {
+        this.onAnimationScrubEnd();
+      });
+      scrubSlider.addEventListener('pointerup', () => {
+        this.onAnimationScrubEnd();
+      });
+    }
+  }
+
+  initAnimationPlayer(model, animations) {
+    if (!animations || animations.length === 0) {
+      this.hideAnimationPlayer();
+      return;
+    }
+
+    // Stop and uncache existing mixer
+    if (this.animMixer) {
+      try {
+        this.animMixer.stopAllAction();
+        this.animMixer.uncacheRoot(this.animMixer.getRoot());
+      } catch (e) {}
+      this.animMixer = null;
+    }
+
+    this.animMixer = new THREE.AnimationMixer(model);
+    this.animClips = animations;
+    this.animPlaybackSpeed = 1.0;
+    this.isAnimLooping = true;
+    this.isAnimScrubbing = false;
+    this.animClock = new THREE.Clock();
+
+    const speedBtn = document.getElementById('anim-btn-speed');
+    if (speedBtn) speedBtn.textContent = '1.0x';
+
+    const loopBtn = document.getElementById('anim-btn-loop');
+    if (loopBtn) loopBtn.classList.add('active');
+
+    const clipSelect = document.getElementById('anim-clip-select');
+    if (clipSelect) {
+      clipSelect.innerHTML = '';
+      animations.forEach((clip, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = clip.name || `Clip ${idx + 1}`;
+        clipSelect.appendChild(opt);
+      });
+      if (animations.length > 1) {
+        clipSelect.style.display = 'inline-block';
+        clipSelect.value = 0;
+      } else {
+        clipSelect.style.display = 'none';
+      }
+    }
+
+    this.showAnimationPlayer();
+    this.playAnimationClip(0);
+  }
+
+  showAnimationPlayer() {
+    const playerBar = document.getElementById('animation-player-bar');
+    if (playerBar) playerBar.style.display = 'flex';
+  }
+
+  hideAnimationPlayer() {
+    if (this.animMixer) {
+      try {
+        this.animMixer.stopAllAction();
+        this.animMixer.uncacheRoot(this.animMixer.getRoot());
+      } catch (e) {}
+      this.animMixer = null;
+    }
+    this.currentAnimAction = null;
+    this.animClips = [];
+    this.isAnimPlaying = false;
+    this.isAnimScrubbing = false;
+    const playerBar = document.getElementById('animation-player-bar');
+    if (playerBar) playerBar.style.display = 'none';
+  }
+
+  playAnimationClip(index) {
+    if (!this.animMixer || !this.animClips || !this.animClips[index]) return;
+    if (this.currentAnimAction) {
+      this.currentAnimAction.stop();
+    }
+
+    const clip = this.animClips[index];
+    this.animDuration = clip.duration || 1.0;
+    this.currentAnimAction = this.animMixer.clipAction(clip);
+    this.currentAnimAction.setLoop(this.isAnimLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+    this.currentAnimAction.clampWhenFinished = true;
+    this.currentAnimAction.reset();
+    this.currentAnimAction.play();
+    this.isAnimPlaying = true;
+    if (this.animClock) this.animClock.getDelta();
+
+    const playIcon = document.getElementById('anim-icon-play');
+    const pauseIcon = document.getElementById('anim-icon-pause');
+    if (playIcon) playIcon.style.display = 'none';
+    if (pauseIcon) pauseIcon.style.display = 'block';
+
+    const totEl = document.getElementById('anim-time-total');
+    if (totEl) totEl.textContent = this.formatAnimTime(this.animDuration);
+    this.updateAnimationTimeDisplay(0, this.animDuration);
+  }
+
+  toggleAnimationPlay() {
+    if (!this.currentAnimAction) return;
+    const playIcon = document.getElementById('anim-icon-play');
+    const pauseIcon = document.getElementById('anim-icon-pause');
+
+    if (this.isAnimPlaying) {
+      this.currentAnimAction.paused = true;
+      this.isAnimPlaying = false;
+      if (playIcon) playIcon.style.display = 'block';
+      if (pauseIcon) pauseIcon.style.display = 'none';
+    } else {
+      if (!this.isAnimLooping && this.currentAnimAction.time >= this.animDuration) {
+        this.currentAnimAction.reset();
+      }
+      this.currentAnimAction.paused = false;
+      this.isAnimPlaying = true;
+      if (this.animClock) this.animClock.getDelta();
+      if (playIcon) playIcon.style.display = 'none';
+      if (pauseIcon) pauseIcon.style.display = 'block';
+    }
+  }
+
+  cycleAnimationSpeed() {
+    const speeds = [0.5, 1.0, 1.5, 2.0];
+    const currIdx = speeds.indexOf(this.animPlaybackSpeed);
+    const nextIdx = (currIdx + 1) % speeds.length;
+    this.animPlaybackSpeed = speeds[nextIdx];
+    const speedBtn = document.getElementById('anim-btn-speed');
+    if (speedBtn) speedBtn.textContent = `${this.animPlaybackSpeed.toFixed(1)}x`;
+  }
+
+  toggleAnimationLoop() {
+    this.isAnimLooping = !this.isAnimLooping;
+    const loopBtn = document.getElementById('anim-btn-loop');
+    if (loopBtn) {
+      if (this.isAnimLooping) loopBtn.classList.add('active');
+      else loopBtn.classList.remove('active');
+    }
+    if (this.currentAnimAction) {
+      this.currentAnimAction.setLoop(this.isAnimLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+    }
+  }
+
+  onAnimationScrub(sliderVal) {
+    if (!this.currentAnimAction || !this.animDuration) return;
+    this.isAnimScrubbing = true;
+    const t = (sliderVal / 100) * this.animDuration;
+    this.currentAnimAction.time = t;
+    if (this.animMixer) {
+      this.animMixer.update(0);
+    }
+    const slider = document.getElementById('anim-scrub-slider');
+    if (slider) slider.value = sliderVal;
+    this.updateAnimationTimeDisplay(t, this.animDuration);
+  }
+
+  onAnimationScrubEnd() {
+    this.isAnimScrubbing = false;
+    if (this.isAnimPlaying && this.animClock) {
+      this.animClock.getDelta();
+    }
+  }
+
+  updateAnimationScrubber(time) {
+    if (this.isAnimScrubbing || !this.animDuration) return;
+    const pct = Math.min(100, Math.max(0, (time / this.animDuration) * 100));
+    const slider = document.getElementById('anim-scrub-slider');
+    if (slider) slider.value = pct;
+    this.updateAnimationTimeDisplay(time, this.animDuration);
+  }
+
+  updateAnimationTimeDisplay(currentSec, totalSec) {
+    const curEl = document.getElementById('anim-time-current');
+    if (curEl) curEl.textContent = this.formatAnimTime(currentSec);
+    const totEl = document.getElementById('anim-time-total');
+    if (totEl) totEl.textContent = this.formatAnimTime(totalSec);
+  }
+
+  formatAnimTime(seconds) {
+    if (isNaN(seconds) || seconds < 0) seconds = 0;
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    const dec = Math.floor((seconds % 1) * 10);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${dec}`;
+  }
+
   
   animate(time) {
     requestAnimationFrame(this.animate);
@@ -6977,6 +7555,27 @@ class BIMViewerApp {
     
     // Dynamic Orbit Pivot Indicator
     this.updatePivotIndicator();
+
+    // Animation Mixer update (for DAE, FBX & GLTF models with animations)
+    if (this.animMixer && this.currentAnimAction) {
+      if (this.isAnimPlaying && !this.isAnimScrubbing) {
+        const delta = this.animClock ? this.animClock.getDelta() : 0.016;
+        this.animMixer.update(delta * this.animPlaybackSpeed);
+        const t = this.isAnimLooping ? 
+          (this.currentAnimAction.time % (this.animDuration || 1)) : 
+          Math.min(this.currentAnimAction.time, this.animDuration);
+        this.updateAnimationScrubber(t);
+
+        // Auto pause at end if not looping
+        if (!this.isAnimLooping && this.currentAnimAction.time >= this.animDuration) {
+          this.isAnimPlaying = false;
+          const playIcon = document.getElementById('anim-icon-play');
+          const pauseIcon = document.getElementById('anim-icon-pause');
+          if (playIcon) playIcon.style.display = 'block';
+          if (pauseIcon) pauseIcon.style.display = 'none';
+        }
+      }
+    }
 
     // Live Camera State Readout (updated when Camera tab is visible)
     const camTab = document.getElementById('tab-camera-content');

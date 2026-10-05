@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **28 小时 31 分钟 (28.53 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 0 小时 15 分钟** (2026-09-29 22:17 至 2026-10-04 22:33)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **13,623 Steps** (跨 13 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **29 小时 10 分钟 (29.18 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 21 小时 25 分钟** (2026-09-29 22:17 至 2026-10-05 19:42)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,020 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -26,7 +26,47 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~22:33 (共 3 个时段) | 9h 29m (9.50h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
+| **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
+| **2026-10-05** | 19:04~19:42 | 0h 37m (0.63h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610051945] - 2026-10-05 19:45
+
+### COLLADA (.dae) 原生支持与通用动画播放器 / Native COLLADA (.dae) Support & Universal Animation Player
+- **原生 COLLADA (.dae) 格式解析与建筑渲染管线 / Native COLLADA (.dae) Format Engine**
+  - **中文**:
+    1. **原生无依赖离线支持**: 集成 Three.js r128 官方 `ColladaLoader.js`，实现对 COLLADA (`.dae`，支持 1.4.1 与 1.5 规范) 三维模型的纯前端离线解析，无需任何后端服务或外部转码。
+    2. **公制比例与坐标轴自动归一化**: 深度提取 DAE `<asset>` 元数据，严格解析 `<unit meter="..."/>` 与 `<up_axis>`（`Z_UP`、`Y_UP`、`X_UP`），自动按真实米制比例缩放并矫正世界坐标系至建筑场景（Y 为高程标高），确保与项目 IFC 及 GLTF/GLB 坐标基准 100% 吻合。
+    3. **双面材质渲染（DoubleSide）与建筑轮廓线**: 针对 Trimble SketchUp、AutoCAD 等导出 DAE 时常见的反面镂空与背面剔除漏光问题，全量强制启用 `THREE.DoubleSide` 渲染；并自动生成特征边缘轮廓线（Architectural Edges），保持手绘施工图般的清晰立体质感。
+    4. **双模混合层级树与语义分类**: 智能识别构件名、材质名及节点路径中的建筑语义关键词（Wall、Slab、Column、Beam、Roof、Door、Window 等），自动归纳进结构、楼层与分类面板；无关键词时无缝回退至 DAE 视觉场景图（Visual Scene Graph）。
+    5. **分离贴图装配模态框**: 复用通用贴图解析器与智能模糊/跨扩展名匹配逻辑，当 DAE 引用外部缺失贴图时即时弹出交互式贴图装配窗口，支持拖拽批量补齐或纯色跳过加载。
+  - **English**:
+    1. **100% Client-Side Offline Support**: Integrated official Three.js r128 `ColladaLoader.js` into the standalone single-file viewer, providing full native loading for COLLADA (`.dae`, 1.4.1 & 1.5) without backend dependencies or server transcoding.
+    2. **True Metric Scale & Up-Axis Normalization**: Accurately parses `<unit meter="..."/>` and `<up_axis>` (`Z_UP`, `Y_UP`, `X_UP`), converting models to authentic metric scale with Y as elevation, guaranteeing seamless alignment with IFC and GLTF models.
+    3. **DoubleSide Material Enforcement & Architectural Edges**: Forces `THREE.DoubleSide` on all DAE materials to eliminate SketchUp back-face culling holes and backface transparency artifacts. Automatically extracts coplanar-filtered architectural contour edge lines.
+    4. **Dual-Mode Hybrid Hierarchy Tree**: Automatically parses architectural keywords (Wall, Slab, Column, Beam, Roof, Door, Window, etc.) into structured BIM categories; gracefully falls back to raw visual scene graph nodes for non-architectural assets.
+    5. **Separated Texture Modal Integration**: Seamlessly connects to the interactive texture assembly modal when external texture files are referenced, supporting multi-batch drag-and-drop resolution or clean solid shaded fallback.
+
+- **通用动画播放器栏（#animation-player-bar，支持 DAE、FBX 与 GLTF） / Universal Animation Player Bar**
+  - **中文**:
+    1. **视口底部悬浮播放器**: 在 3D 视口底部正中（图钉图例上方）设计高品质悬浮胶囊播放条（半透明毛玻璃背景、青色光晕与紧凑流线控件），**同时支持 DAE、FBX 与 GLTF 模型的三维动画与骨骼驱动播放**。
+    2. **智能显隐**: 当模型包含动画剪辑（AnimationClips）时自动优雅滑出显示；对于静态建筑模型（IFC、静态 DAE/FBX/GLTF）自动保持隐藏，绝不遮挡视口。
+    3. **全功能交互控制**:
+       - **播放/暂停切换**: 包含动态 SVG 图标切换与无缝暂停恢复；
+       - **实时进度条与时间游标**: 毫秒级时间读数（`00:02.5 / 00:05.0`），支持鼠标滑块任意拖拽定位（Scrubbing）并在拖拽过程中实时静帧驱动三维模型姿态；
+       - **循环播放切换**: 单击快速切换无限循环（`LoopRepeat`）或单次播放后自动定格静止（`LoopOnce`）；
+       - **四档倍速循环切换**: 单击依次循环切换 `0.5x` -> `1.0x` -> `1.5x` -> `2.0x`；
+       - **多动画片段选择下拉框**: 当模型包含多个动画通道时自动呈现紧凑下拉菜单供用户随时切换片段。
+  - **English**:
+    1. **Bottom-Center Floating Capsule Player**: Positioned at the bottom center of the 3D viewport with frosted glass backdrop, cyan accent glow, and compact layout, natively supporting transform and skeletal animations across **DAE, FBX, and GLTF models**.
+    2. **Intelligent Visibility**: Automatically emerges when an animated model is loaded, and stays completely hidden for static models to preserve an uncluttered viewport canvas.
+    3. **Comprehensive Interactive Controls**:
+       - **Play/Pause Toggle**: Interactive button with animated SVG icon switching and smooth pause resumption;
+       - **Time Scrubber Slider**: Millisecond-accurate timestamp display (`00:02.5 / 00:05.0`) with real-time pose scrubbing during slider dragging;
+       - **Loop Mode Toggle**: Toggles between infinite repeat (`LoopRepeat`) and single-pass clamp (`LoopOnce`);
+       - **Multi-Speed Cycling**: Cycles playback speed across `0.5x`, `1.0x`, `1.5x`, and `2.0x`;
+       - **Multi-Clip Dropdown**: Automatically surfaces a clip selector dropdown when multiple animation tracks exist in the file.
+
 ---
 
 ## [v1.2610042233] - 2026-10-04 22:33
