@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **30 小时 18 分钟 (30.31 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 22 小时 33 分钟** (2026-09-29 22:17 至 2026-10-05 20:50)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,574 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **30 小时 59 分钟 (31.00 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 23 小时 14 分钟** (2026-09-29 22:17 至 2026-10-05 21:32)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,702 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,24 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~20:50 | 1h 45m (1.76h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~21:32 | 2h 27m (2.45h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610052130] - 2026-10-05 21:30
+
+### 左右面板收起按钮原地不动定位与浮动标题平滑滑移动画 / Stationary Sidebar Toggle Buttons & Smooth Floating Title Animations
+- **收起/展开控制按钮绝对坐标锁定与视口浮动标题动效 / Stationary Toggle Anchor & Viewport Floating Title Transitions**
+  - **中文**:
+    1. **左右收起/展开按钮零跳动原地定位**: 消除原先面板收起后按钮因坐标硬编码（`top: 50px`）而向上跳动 6px 的视觉颠簸。重构左右面板头部布局（`.sidebar-header` / `.inspector-header`）为弹性绝对定位，确保无论面板处于展开、过渡中还是完全收起状态，左侧按钮恒定停留在 `(left: 14px, top: 56px)`、右侧按钮恒定停留在 `(right: 14px, top: 56px)`，像素级原地不动。
+    2. **面板标题 3D 视口浮留与对齐**: 面板收起后标题文字不再隐藏，而是优雅浮留在 3D 视口上方。左侧 `MODEL HIERARCHY`（模型层级）停留在左侧按钮右侧 8px 处并保持左对齐；右侧 `INSPECTOR`（构件检查器）停留在右侧按钮左侧 8px 处并保持右对齐。
+    3. **0.25s 同步贝塞尔平滑滑移动画**: 为面板标题加入平滑滑移动画（`cubic-bezier(0.4, 0, 0.2, 1)`），在面板收起过程中，标题文字从面板居中位置平滑无缝地滑移至按钮旁靠泊；展开时亦同步平滑回弹归位至面板中心。
+    4. **高对比度文字阴影与视口穿透**: 标题文字增加复合暗部文本阴影（`0 1px 4px rgba(0, 0, 0, 0.8)` 与微晕），在掠过任意高亮或白色建筑模型表面时均清晰可辨，并设置 `pointer-events: none` 确保不干扰视口内三维交互。
+  - **English**:
+    1. **Stationary Sidebar Toggle Buttons (Zero-Jump Positioning)**: Completely eliminated the 6px upward jump previously caused by hardcoded collapsed offsets. Re-engineered header layouts to maintain exact pixel coordinates (`left/right: 14px, top: 56px`) regardless of whether panels are expanded, transitioning, or collapsed.
+    2. **Persistent Viewport Floating Titles & Alignment**: Sidebar titles remain visible over the 3D viewport when collapsed. Left "MODEL HIERARCHY" docks left-aligned 8px to the right of the left toggle; right "INSPECTOR" docks right-aligned 8px to the left of the right toggle.
+    3. **Synchronous 0.25s Smooth Bezier Slide Animation**: Added synchronized slide transitions (`0.25s cubic-bezier(0.4, 0, 0.2, 1)`) so titles glide between their centered header positions and docked positions beside the toggle buttons during collapse/expand.
+    4. **High-Contrast Text Shadows & Viewport Click-Through**: Enhanced title readability over bright 3D geometry using text drop shadows (`0 1px 4px rgba(0, 0, 0, 0.8)`), with `pointer-events: none` for uninterrupted 3D interaction.
+
 ---
 
 ## [v1.2610052050] - 2026-10-05 20:50
