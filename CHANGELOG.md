@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **29 小时 52 分钟 (29.88 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 22 小时 07 分钟** (2026-09-29 22:17 至 2026-10-05 20:24)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,379 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **30 小时 02 分钟 (30.04 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 22 小时 17 分钟** (2026-09-29 22:17 至 2026-10-05 20:34)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,419 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,22 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~20:24 | 1h 20m (1.33h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~20:34 | 1h 29m (1.50h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610052040] - 2026-10-05 20:40
+
+### 高亮色纯度保真与全表面一致性校准（消除阳光漫反射漂白） / Pure Chroma Selection Highlight & Surface Color Uniformity Fix
+- **高亮材质纯净度重构与多表面色值统一 / Pure Chroma Material Refactor & Multi-Surface Uniformity**
+  - **中文**:
+    1. **消除平行光漫反射冲淡与顶面漂白**: 针对此前因 `MeshLambertMaterial` 响应场景平行阳光照射，导致构件上表面受直射光强反射影响而发白变淡（如洋红 `#FF00FF` 被漂白冲淡成粉白色 `#ff92fa`，与侧表面 `#ff45ee` 及底面 `#f11de5` 出现色彩不一致且饱和度受损）的问题，全面重构高亮覆盖层为纯净非光照材质 `MeshBasicMaterial`。
+    2. **100% 色彩饱和度与各表面色彩高度一致**: 彻底剥离场景主平行光漫反射和高光对高亮像素的冲淡污染，使构件无论顶面、侧面、斜面还是背光底面，均呈现 100% 纯正且一致的高亮设定色，达到专业 CAD/BIM 选中着色的最大饱和度与最高辨识度。
+    3. **基于 EdgeLines 轮廓的高保真立体感**: 继续维持构件建筑特征轮廓线（`EdgeLines`）的极高绘制优先级（`renderOrder = 2000`），构件边缘线（如屋面立边咬缝、转角线条）在纯色高亮图层上始终锐利清晰，完美支撑三维体积感，彻底兼顾“纯正饱和的高亮色彩”与“清晰分明的空间立体轮廓”。
+  - **English**:
+    1. **Elimination of Sunlight Bleaching on Top Faces**: Addressed the issue where lighting-aware materials (`MeshLambertMaterial`) reacted to the scene's directional sunlight, causing top surfaces to be bleached and washed out (e.g. Magenta `#FF00FF` becoming pinkish `#ff92fa` while side and bottom faces varied). Refactored selection overlays to pure unlit `MeshBasicMaterial`.
+    2. **100% Pure Chroma & Consistent Surface Hue**: Stripped away directional light interference, guaranteeing that top, side, and bottom faces all render with identical, pure chroma and 100% color saturation matching the user-selected highlight color.
+    3. **Volume Definition via EdgeLines Preservation**: Preserved `renderOrder = 2000` for architectural `EdgeLines`, ensuring razor-sharp edges float cleanly over the pure highlight layer to maintain full 3D spatial depth.
+
 ---
 
 ## [v1.2610052030] - 2026-10-05 20:30

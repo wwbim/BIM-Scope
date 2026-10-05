@@ -25089,9 +25089,8 @@ class BIMViewerApp {
       const op = isTrans ? Math.min(0.25, this.highlightOpacity * 0.4) : this.highlightOpacity;
       const col = new THREE.Color(this.highlightColor);
       const overlaySide = sourceMat && sourceMat.side !== undefined ? sourceMat.side : THREE.FrontSide;
-      const overlayMat = new THREE.MeshLambertMaterial({
+      const overlayMat = new THREE.MeshBasicMaterial({
         color: col,
-        emissive: col.clone().multiplyScalar(0.22),
         transparent: true,
         opacity: op,
         depthTest: true,
@@ -25151,13 +25150,11 @@ class BIMViewerApp {
   updateHighlightAppearance() {
     if (this.highlightOverlayGroup) {
       const col = new THREE.Color(this.highlightColor);
-      const emissiveCol = col.clone().multiplyScalar(0.22);
       this.highlightOverlayGroup.traverse((obj) => {
         if (obj.isMesh && obj.material) {
           const updateMat = (m) => {
             if (!m) return;
             if (m.color) m.color.copy(col);
-            if (m.emissive) m.emissive.copy(emissiveCol);
             const isTrans = m.userData && m.userData.isTransElement;
             m.opacity = isTrans ? Math.min(0.25, this.highlightOpacity * 0.4) : this.highlightOpacity;
             m.needsUpdate = true;
