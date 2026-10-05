@@ -334,6 +334,25 @@ svg.nav-arrow-icon {
   outline: none;
 }
 
+/* MARQUEE BOX SELECTION */
+.marquee-selection-box {
+  position: absolute;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+  box-sizing: border-box;
+}
+
+.marquee-selection-box.window-selection {
+  border: 1.5px solid #1890ff;
+  background: rgba(24, 144, 255, 0.18);
+}
+
+.marquee-selection-box.crossing-selection {
+  border: 1.5px dashed #52c41a;
+  background: rgba(82, 196, 26, 0.18);
+}
+
 /* 3D BILLBOARD LABELS */
 .billboard-label {
   position: absolute;
@@ -1155,6 +1174,42 @@ input:checked + .slider:before {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* MULTI-SELECTION INSPECTOR BADGES */
+.category-breakdown-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 4px 0;
+}
+
+.category-breakdown-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  color: var(--text-secondary, #cbd5e1);
+  font-family: var(--font-sans, system-ui);
+}
+
+.category-breakdown-pill .pill-count {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent-primary, #38bdf8);
+  border-radius: 6px;
+  padding: 0 4px;
+  font-weight: 600;
+  font-size: 9.5px;
+}
+
+.prop-multiple-val {
+  color: var(--text-muted, #94a3b8);
+  font-style: italic;
+  font-size: 11px;
 }
 
 .element-opacity-control {

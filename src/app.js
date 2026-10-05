@@ -487,6 +487,9 @@ class BIMViewerApp {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
     this.selectedMesh = null;
+    this.selectedMeshes = [];
+    this.isBoxSelecting = false;
+    this.marqueeBoxEl = null;
     this.activeInspectorTab = 'overview';
     this.currentModelInfo = null;
     this.lastClickPoint = null;
@@ -777,11 +780,179 @@ class BIMViewerApp {
     this.highlightBox = new THREE.BoxHelper(new THREE.Mesh(), 0x00e5ff);
     this.highlightBox.visible = false;
     this.scene.add(this.highlightBox);
+    this.initMarqueeHelper();
+  }
+
+  initMarqueeHelper() {
+    if (!this.container) return;
+    let marquee = document.getElementById('viewport-marquee-box');
+    if (!marquee) {
+      marquee = document.createElement('div');
+      marquee.id = 'viewport-marquee-box';
+      marquee.className = 'marquee-selection-box';
+      this.container.appendChild(marquee);
+    }
+    this.marqueeBoxEl = marquee;
+  }
+
+  updateMarqueeBox(startX, startY, currentX, currentY) {
+    if (!this.marqueeBoxEl) {
+      this.initMarqueeHelper();
+    }
+    if (!this.marqueeBoxEl || !this.container) return;
+
+    const cRect = this.container.getBoundingClientRect();
+    const clampedStartX = THREE.MathUtils.clamp(startX, cRect.left, cRect.right);
+    const clampedStartY = THREE.MathUtils.clamp(startY, cRect.top, cRect.bottom);
+    const clampedCurrX = THREE.MathUtils.clamp(currentX, cRect.left, cRect.right);
+    const clampedCurrY = THREE.MathUtils.clamp(currentY, cRect.top, cRect.bottom);
+
+    const left = Math.min(clampedStartX, clampedCurrX) - cRect.left;
+    const top = Math.min(clampedStartY, clampedCurrY) - cRect.top;
+    const width = Math.abs(clampedCurrX - clampedStartX);
+    const height = Math.abs(clampedCurrY - clampedStartY);
+
+    const isWindow = currentX >= startX; // Left-to-right = Window; Right-to-left = Crossing
+
+    this.marqueeBoxEl.className = 'marquee-selection-box ' + (isWindow ? 'window-selection' : 'crossing-selection');
+    this.marqueeBoxEl.style.left = `${left}px`;
+    this.marqueeBoxEl.style.top = `${top}px`;
+    this.marqueeBoxEl.style.width = `${width}px`;
+    this.marqueeBoxEl.style.height = `${height}px`;
+    this.marqueeBoxEl.style.display = 'block';
+  }
+
+  hideMarqueeBox() {
+    if (this.marqueeBoxEl) {
+      this.marqueeBoxEl.style.display = 'none';
+    }
+  }
+
+  finishBoxSelection(e, startX, startY, endX, endY) {
+    if (!this.activeModel) return;
+
+    const isWindow = endX >= startX; // Left-to-right: Window; Right-to-left: Crossing
+    const cRect = this.canvas.getBoundingClientRect();
+    const bx0 = Math.min(startX, endX) - cRect.left;
+    const bx1 = Math.max(startX, endX) - cRect.left;
+    const by0 = Math.min(startY, endY) - cRect.top;
+    const by1 = Math.max(startY, endY) - cRect.top;
+
+    const clippingPlanes = (this.clippingEngine && this.clippingEngine.enabled) ? 
+      (this.clippingEngine.clippingPlanes || []) : [];
+
+    const boxedMeshes = [];
+
+    this.activeModel.traverse((mesh) => {
+      if (!this.isPickableElement(mesh) || !mesh.geometry) return;
+
+      mesh.updateWorldMatrix(true, false);
+      if (!mesh.geometry.boundingBox) {
+        mesh.geometry.computeBoundingBox();
+      }
+      const localBox = mesh.geometry.boundingBox;
+      if (!localBox) return;
+
+      // 8 corners of object's AABB transformed to world space
+      const corners = [
+        new THREE.Vector3(localBox.min.x, localBox.min.y, localBox.min.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.min.x, localBox.min.y, localBox.max.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.min.x, localBox.max.y, localBox.min.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.min.x, localBox.max.y, localBox.max.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.max.x, localBox.min.y, localBox.min.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.max.x, localBox.min.y, localBox.max.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.max.x, localBox.max.y, localBox.min.z).applyMatrix4(mesh.matrixWorld),
+        new THREE.Vector3(localBox.max.x, localBox.max.y, localBox.max.z).applyMatrix4(mesh.matrixWorld)
+      ];
+
+      // Check clipping planes: if completely clipped, ignore
+      if (clippingPlanes.length > 0) {
+        let isFullyClipped = false;
+        for (const plane of clippingPlanes) {
+          if (corners.every(c => plane.distanceToPoint(c) < 0)) {
+            isFullyClipped = true;
+            break;
+          }
+        }
+        if (isFullyClipped) return;
+      }
+
+      // Project corners to canvas screen space
+      let allInsideBox = true;
+      let anyInFront = false;
+      let minSx = Infinity, maxSx = -Infinity;
+      let minSy = Infinity, maxSy = -Infinity;
+
+      for (const c of corners) {
+        const p = c.clone().project(this.camera);
+        if (p.z <= 1.0) {
+          anyInFront = true;
+        }
+        const sx = (p.x * 0.5 + 0.5) * cRect.width;
+        const sy = (-p.y * 0.5 + 0.5) * cRect.height;
+
+        if (sx < minSx) minSx = sx;
+        if (sx > maxSx) maxSx = sx;
+        if (sy < minSy) minSy = sy;
+        if (sy > maxSy) maxSy = sy;
+
+        if (p.z > 1.0 || sx < bx0 || sx > bx1 || sy < by0 || sy > by1) {
+          allInsideBox = false;
+        }
+      }
+
+      if (!anyInFront) return;
+
+      let match = false;
+      if (isWindow) {
+        // Window selection: entire element must be strictly within box
+        match = allInsideBox;
+      } else {
+        // Crossing selection: 2D projected bounding box overlaps selection rectangle
+        match = (minSx <= bx1 && maxSx >= bx0 && minSy <= by1 && maxSy >= by0);
+      }
+
+      if (match) {
+        boxedMeshes.push(mesh);
+      }
+    });
+
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+    const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
+      [...this.selectedMeshes] : 
+      (this.selectedMesh ? [this.selectedMesh] : []);
+
+    let finalMeshes = [];
+    if (isShift) {
+      // Subtract (Difference)
+      const boxedSet = new Set(boxedMeshes);
+      finalMeshes = current.filter(m => !boxedSet.has(m));
+    } else if (isCtrl) {
+      // Union (Add)
+      const set = new Set(current);
+      boxedMeshes.forEach(m => set.add(m));
+      finalMeshes = Array.from(set);
+    } else {
+      // Replace
+      finalMeshes = boxedMeshes;
+    }
+
+    if (finalMeshes.length === 0) {
+      this.clearSelection();
+    } else if (finalMeshes.length === 1) {
+      this.selectElement(finalMeshes[0]);
+    } else {
+      this.selectElements(finalMeshes);
+    }
   }
 
   createHighlightOverlay(target) {
     this.clearHighlightOverlay();
     if (!target) return;
+
+    const targets = Array.isArray(target) ? target : [target];
+    if (targets.length === 0) return;
 
     this.highlightOverlayGroup = new THREE.Group();
     this.highlightOverlayGroup.userData = { isHighlightOverlay: true };
@@ -819,22 +990,24 @@ class BIMViewerApp {
       return overlayMat;
     };
 
-    target.updateWorldMatrix(true, true);
-
-    target.traverse((obj) => {
-      if (obj.isMesh && obj.geometry && (!obj.userData || (!obj.userData.isPivotHelper && !obj.userData.isHighlightOverlay))) {
-        let overlayMat;
-        if (Array.isArray(obj.material)) {
-          overlayMat = obj.material.map(m => createMatFor(m));
-        } else {
-          overlayMat = createMatFor(obj.material);
+    targets.forEach((t) => {
+      if (!t) return;
+      t.updateWorldMatrix(true, true);
+      t.traverse((obj) => {
+        if (obj.isMesh && obj.geometry && (!obj.userData || (!obj.userData.isPivotHelper && !obj.userData.isHighlightOverlay))) {
+          let overlayMat;
+          if (Array.isArray(obj.material)) {
+            overlayMat = obj.material.map(m => createMatFor(m));
+          } else {
+            overlayMat = createMatFor(obj.material);
+          }
+          const overlayMesh = new THREE.Mesh(obj.geometry, overlayMat);
+          overlayMesh.applyMatrix4(obj.matrixWorld);
+          overlayMesh.renderOrder = 1;
+          overlayMesh.userData = { isHighlightOverlay: true };
+          this.highlightOverlayGroup.add(overlayMesh);
         }
-        const overlayMesh = new THREE.Mesh(obj.geometry, overlayMat);
-        overlayMesh.applyMatrix4(obj.matrixWorld);
-        overlayMesh.renderOrder = 1;
-        overlayMesh.userData = { isHighlightOverlay: true };
-        this.highlightOverlayGroup.add(overlayMesh);
-      }
+      });
     });
 
     this.scene.add(this.highlightOverlayGroup);
@@ -887,7 +1060,7 @@ class BIMViewerApp {
   createHoverOverlay(target) {
     this.clearHoverOverlay();
     if (!target) return;
-    if (target === this.selectedMesh) return;
+    if (target === this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.includes(target))) return;
 
     this.hoveredMesh = target;
     this.hoverOverlayGroup = new THREE.Group();
@@ -1979,7 +2152,9 @@ class BIMViewerApp {
     const createElementLeaf = (mesh, onVisibilityChanged) => {
       const leaf = document.createElement('div');
       leaf.className = 'tree-leaf-item';
-      if (this.selectedMesh === mesh) leaf.classList.add('selected');
+      leaf._mesh = mesh;
+      const isSel = (this.selectedMesh === mesh) || (this.selectedMeshes && this.selectedMeshes.includes(mesh));
+      if (isSel) leaf.classList.add('selected');
 
       const leafMat = mesh.material;
       const leafCol = Array.isArray(leafMat) ? (leafMat[0] && leafMat[0].color) : (leafMat && leafMat.color);
@@ -2011,17 +2186,39 @@ class BIMViewerApp {
 
       left.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.selectElement(mesh);
-        document.querySelectorAll('.tree-leaf-item').forEach(el => el.classList.remove('selected'));
-        leaf.classList.add('selected');
+        const isCtrl = e.ctrlKey || e.metaKey;
+        const isShift = e.shiftKey;
+        const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
+          [...this.selectedMeshes] : 
+          (this.selectedMesh ? [this.selectedMesh] : []);
+
+        if (isCtrl) {
+          const idx = current.indexOf(mesh);
+          if (idx >= 0) current.splice(idx, 1);
+          else current.push(mesh);
+          if (current.length === 0) this.clearSelection();
+          else if (current.length === 1) this.selectElement(current[0]);
+          else this.selectElements(current);
+        } else if (isShift) {
+          const idx = current.indexOf(mesh);
+          if (idx >= 0) {
+            current.splice(idx, 1);
+            if (current.length === 0) this.clearSelection();
+            else if (current.length === 1) this.selectElement(current[0]);
+            else this.selectElements(current);
+          }
+        } else {
+          this.selectElement(mesh);
+        }
       });
 
       leaf.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.selectElement(mesh);
-        document.querySelectorAll('.tree-leaf-item').forEach(el => el.classList.remove('selected'));
-        leaf.classList.add('selected');
+        const current = this.selectedMeshes || (this.selectedMesh ? [this.selectedMesh] : []);
+        if (!current.includes(mesh)) {
+          this.selectElement(mesh);
+        }
         this.showContextMenu(e.clientX, e.clientY);
       });
 
@@ -2031,7 +2228,8 @@ class BIMViewerApp {
       });
 
       leaf.addEventListener('pointerenter', () => {
-        if (mesh && mesh.visible && mesh !== this.selectedMesh) {
+        const isSelected = (this.selectedMesh === mesh) || (this.selectedMeshes && this.selectedMeshes.includes(mesh));
+        if (mesh && mesh.visible && !isSelected) {
           this.setHoveredElement(mesh);
         }
       });
@@ -2588,6 +2786,409 @@ class BIMViewerApp {
     };
   }
 
+  syncTreeSelection() {
+    const selectedSet = new Set(this.selectedMeshes || (this.selectedMesh ? [this.selectedMesh] : []));
+    document.querySelectorAll('.tree-leaf-item').forEach(leaf => {
+      if (leaf._mesh) {
+        leaf.classList.toggle('selected', selectedSet.has(leaf._mesh));
+      }
+    });
+  }
+
+  selectElements(meshes) {
+    if (!meshes || meshes.length === 0) {
+      this.clearSelection();
+      return;
+    }
+    if (meshes.length === 1) {
+      this.selectElement(meshes[0]);
+      return;
+    }
+
+    this.selectedMesh = null;
+    this.selectedMeshes = meshes;
+
+    // Set virtual orbit pivot to center of bounding box containing all selected objects
+    const groupBounds = this.computeBoundsFromTarget(meshes);
+    if (!groupBounds.isEmpty()) {
+      groupBounds.getCenter(this.pivotPoint);
+      this.showPivotIndicator(this.pivotPoint);
+    }
+
+    // Show highlight overlay on all selected elements
+    this.clearHoverOverlay();
+    this.createHighlightOverlay(meshes);
+    if (this.highlightBox) this.highlightBox.visible = false;
+
+    // Sync tree selection
+    this.syncTreeSelection();
+
+    // Render multi-selection inspector
+    this.renderMultiSelectionInspector(meshes);
+  }
+
+  computeIntersectedPsets(meshes) {
+    if (!meshes || meshes.length === 0) return [];
+    const firstMesh = meshes[0];
+    const firstPsets = (firstMesh.userData && firstMesh.userData.psets) || [];
+    if (firstPsets.length === 0) return [];
+
+    const resultPsets = [];
+
+    firstPsets.forEach(firstPset => {
+      const psetName = firstPset.name;
+      const allHavePset = meshes.every(m => {
+        const ps = (m.userData && m.userData.psets) || [];
+        return ps.some(p => p.name === psetName);
+      });
+      if (!allHavePset) return;
+
+      const commonProps = [];
+      const firstProps = firstPset.properties || [];
+
+      firstProps.forEach(firstProp => {
+        const propName = firstProp.name;
+        let allHaveProp = true;
+        let isMultiple = false;
+        const refVal = firstProp.value;
+
+        for (let i = 0; i < meshes.length; i++) {
+          const m = meshes[i];
+          const ps = (m.userData && m.userData.psets) || [];
+          const targetPset = ps.find(p => p.name === psetName);
+          if (!targetPset || !targetPset.properties) {
+            allHaveProp = false;
+            break;
+          }
+          const targetProp = targetPset.properties.find(p => p.name === propName);
+          if (!targetProp) {
+            allHaveProp = false;
+            break;
+          }
+          if (targetProp.value !== refVal) {
+            isMultiple = true;
+          }
+        }
+
+        if (allHaveProp) {
+          commonProps.push({
+            name: propName,
+            value: isMultiple ? I18N.t('propMultipleValues') : refVal,
+            isMultiple: isMultiple,
+            type: firstProp.type
+          });
+        }
+      });
+
+      if (commonProps.length > 0) {
+        resultPsets.push({
+          name: psetName,
+          properties: commonProps
+        });
+      }
+    });
+
+    return resultPsets;
+  }
+
+  renderMultiSelectionInspector(meshes) {
+    const content = document.getElementById('inspector-content');
+    if (!content) return;
+
+    // Breakdown tags
+    const catCountMap = new Map();
+    meshes.forEach(m => {
+      const cat = (m.userData && (m.userData.rawCategory || m.userData.category || m.userData.structure)) || m.name || "Element";
+      catCountMap.set(cat, (catCountMap.get(cat) || 0) + 1);
+    });
+    const pillsHtml = Array.from(catCountMap.entries()).map(([cat, count]) => `
+      <span class="category-breakdown-pill">
+        <span>${this.escapeHtml(cat)}</span>
+        <span class="pill-count">${count}</span>
+      </span>
+    `).join('');
+
+    const intersectedPsets = this.computeIntersectedPsets(meshes);
+
+    const tabDefs = [
+      { key: 'overview', label: I18N.t('tabOverview'), icon: 'ℹ️' },
+      { key: 'psets', label: I18N.t('tabPsets'), icon: '📋', badge: (intersectedPsets.length > 0 ? intersectedPsets.length : null) }
+    ];
+
+    if (this.activeInspectorTab !== 'overview' && this.activeInspectorTab !== 'psets') {
+      this.activeInspectorTab = 'overview';
+    }
+
+    content.innerHTML = `
+      <div class="element-highlight-card">
+        <div class="element-title-row">
+          <div class="category-dot" style="background:var(--accent-primary, #38bdf8)"></div>
+          <div class="element-title">${I18N.t('multiSelectTitle').replace('{count}', meshes.length)}</div>
+        </div>
+        <div class="category-breakdown-tags">
+          ${pillsHtml}
+        </div>
+        <div class="element-opacity-control">
+          <div class="element-opacity-header">
+            <span class="element-opacity-label">${I18N.t('batchOpacity')}</span>
+            <span class="element-opacity-val" id="elem-opacity-val">100%</span>
+          </div>
+          <input type="range" min="10" max="100" step="1" value="100" class="range-slider element-opacity-slider" id="elem-opacity-slider">
+        </div>
+        <div class="action-row">
+          <button class="action-btn" id="btn-zoom-elem">${I18N.t('zoomTo')}</button>
+          <button class="action-btn" id="btn-isolate-elem">${I18N.t('isolate')}</button>
+          <button class="action-btn" id="btn-hide-elem">${I18N.t('hide')}</button>
+          <button class="action-btn" id="btn-clear-elem">${I18N.t('clearSel')}</button>
+        </div>
+      </div>
+
+      <div class="inspector-tabs-container" id="inspector-tabs-container">
+        <div class="tabs-edge-shadow shadow-left" id="tabs-shadow-left"></div>
+        <button type="button" class="tabs-chevron-btn chevron-left" id="tabs-chevron-left" title="Scroll left">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M11 2L4 8L11 14Z" />
+          </svg>
+        </button>
+
+        <div class="inspector-tabs-nav" id="inspector-tabs-nav">
+          ${tabDefs.map(t => `
+            <button type="button" class="inspector-tab-btn ${t.key === this.activeInspectorTab ? 'active' : ''}" data-tab="${t.key}">
+              <span>${t.icon}</span>
+              <span>${t.label}</span>
+              ${(t.badge !== null && t.badge !== undefined) ? `<span class="inspector-tab-badge">${t.badge}</span>` : ''}
+            </button>
+          `).join('')}
+        </div>
+
+        <div class="tabs-edge-shadow shadow-right" id="tabs-shadow-right"></div>
+        <button type="button" class="tabs-chevron-btn chevron-right" id="tabs-chevron-right" title="Scroll right">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5 2L12 8L5 14Z" />
+          </svg>
+        </button>
+      </div>
+
+      <div id="inspector-tab-content" class="inspector-tab-pane"></div>
+    `;
+
+    // Wire actions
+    const elemOpSlider = content.querySelector('#elem-opacity-slider');
+    const elemOpVal = content.querySelector('#elem-opacity-val');
+    if (elemOpSlider && elemOpVal) {
+      elemOpSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        elemOpVal.textContent = `${val}%`;
+        this.setElementOpacity(meshes, val);
+      });
+    }
+
+    document.getElementById('btn-zoom-elem').onclick = () => this.zoomToGroup(meshes);
+    document.getElementById('btn-isolate-elem').onclick = () => this.isolateGroup(meshes);
+    document.getElementById('btn-hide-elem').onclick = () => {
+      this.hideGroup(meshes);
+      this.clearSelection();
+    };
+    document.getElementById('btn-clear-elem').onclick = () => this.clearSelection();
+
+    // Wire tabs
+    const tabNav = document.getElementById('inspector-tabs-nav');
+    tabNav.querySelectorAll('.inspector-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-tab');
+        this.activeInspectorTab = key;
+        tabNav.querySelectorAll('.inspector-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.renderMultiSelectTabPane(key, meshes, intersectedPsets);
+      });
+    });
+
+    this.renderMultiSelectTabPane(this.activeInspectorTab, meshes, intersectedPsets);
+    this.setupInspectorTabsScroll();
+
+    // Ensure right sidebar is visible
+    const rsb = document.getElementById('right-sidebar');
+    if (rsb) {
+      rsb.classList.remove('hidden');
+      if (rsb.classList.contains('collapsed')) {
+        this.autoCollapsedRight = false;
+        if (this.toggleInspectorCollapse) {
+          this.toggleInspectorCollapse(true);
+        }
+      }
+    }
+  }
+
+  renderMultiSelectTabPane(tabKey, meshes, intersectedPsets) {
+    const tabPane = document.getElementById('inspector-tab-content');
+    if (!tabPane) return;
+
+    if (tabKey === 'overview') {
+      const getCommonAttr = (getter) => {
+        const first = getter(meshes[0]);
+        const same = meshes.every(m => getter(m) === first);
+        return same ? first : I18N.t('propMultipleValues');
+      };
+
+      const ifcClass = getCommonAttr(m => (m.userData && (m.userData.rawType || m.userData.type)) || 'IFCELEMENT');
+      const discipline = getCommonAttr(m => (m.userData && (m.userData.rawCategory || m.userData.category)) || 'Structure');
+      const structure = getCommonAttr(m => (m.userData && m.userData.structure) || 'N/A');
+      const level = getCommonAttr(m => (m.userData && m.userData.level) || 'N/A');
+
+      const bounds = this.computeBoundsFromTarget(meshes);
+      const size = new THREE.Vector3();
+      bounds.getSize(size);
+      const boundsStr = `${size.x.toFixed(2)}m × ${size.y.toFixed(2)}m × ${size.z.toFixed(2)}m`;
+
+      tabPane.innerHTML = `
+        <div class="pset-card open" style="margin-bottom:8px">
+          <div class="pset-header">
+            <div class="pset-title-group">
+              <span class="pset-arrow">&#9654;</span>
+              <span class="pset-title">${I18N.t('propOverviewGroup')}</span>
+            </div>
+            <div class="pset-header-actions">
+              <span class="pset-count-badge">6</span>
+            </div>
+          </div>
+          <div class="pset-body">
+            <table class="prop-table">
+              <tr>
+                <td class="prop-label">${I18N.t('propTotalElements')}</td>
+                <td class="prop-value"><strong>${meshes.length}</strong></td>
+              </tr>
+              <tr>
+                <td class="prop-label">${I18N.t('propIfcClass')}</td>
+                <td class="prop-value">
+                  ${ifcClass === I18N.t('propMultipleValues') ? 
+                    `<span class="prop-multiple-val">${ifcClass}</span>` : 
+                    `<span class="ifc-class-badge">${this.escapeHtml(ifcClass)}</span>`}
+                </td>
+              </tr>
+              <tr>
+                <td class="prop-label">${I18N.t('propDiscipline')}</td>
+                <td class="prop-value">
+                  ${discipline === I18N.t('propMultipleValues') ? 
+                    `<span class="prop-multiple-val">${discipline}</span>` : 
+                    this.escapeHtml(discipline)}
+                </td>
+              </tr>
+              <tr>
+                <td class="prop-label">${I18N.t('propStructure')}</td>
+                <td class="prop-value">
+                  ${structure === I18N.t('propMultipleValues') ? 
+                    `<span class="prop-multiple-val">${structure}</span>` : 
+                    this.escapeHtml(structure)}
+                </td>
+              </tr>
+              <tr>
+                <td class="prop-label">${I18N.t('propLevel')}</td>
+                <td class="prop-value">
+                  ${level === I18N.t('propMultipleValues') ? 
+                    `<span class="prop-multiple-val">${level}</span>` : 
+                    this.escapeHtml(level)}
+                </td>
+              </tr>
+              <tr>
+                <td class="prop-label">${I18N.t('propCombinedBounds')}</td>
+                <td class="prop-value" style="font-family:var(--font-mono);font-size:11px">${boundsStr}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      `;
+    } else if (tabKey === 'psets') {
+      if (!intersectedPsets || intersectedPsets.length === 0) {
+        tabPane.innerHTML = `<div class="inspector-empty-card">${I18N.t('noCommonPsets')}</div>`;
+        return;
+      }
+
+      tabPane.innerHTML = `
+        <div class="pset-search-box">
+          <input type="text" class="pset-search-input" id="pset-search-input" placeholder="${I18N.t('propFilterPsets')}">
+          <button type="button" class="pset-clear-btn" id="pset-clear-btn">&times;</button>
+        </div>
+
+        <div class="pset-cards-list" id="pset-cards-list">
+          ${intersectedPsets.map((pset, psetIdx) => `
+            <div class="pset-card ${psetIdx < 2 ? 'open' : ''}" data-pset-name="${this.escapeHtml((pset.name || '').toLowerCase())}">
+              <div class="pset-header">
+                <div class="pset-title-group">
+                  <span class="pset-arrow">&#9654;</span>
+                  <span class="pset-title" title="${this.escapeHtml(pset.name)}">${this.escapeHtml(pset.name)}</span>
+                </div>
+                <div class="pset-header-actions">
+                  <span class="pset-count-badge">${pset.properties ? pset.properties.length : 0}</span>
+                </div>
+              </div>
+              <div class="pset-body">
+                <table class="prop-table">
+                  ${(pset.properties || []).map(p => `
+                    <tr class="pset-prop-row" data-search="${this.escapeHtml(((p.name || '') + ' ' + (p.value !== null && p.value !== undefined ? p.value : '')).toLowerCase())}">
+                      <td class="prop-label" style="width:45%">${this.escapeHtml(p.name)}</td>
+                      <td class="prop-value">
+                        ${p.isMultiple ? 
+                          `<span class="prop-multiple-val">${I18N.t('propMultipleValues')}</span>` : 
+                          this.formatPropertyValue(p.value)}
+                        ${p.type ? `<span class="prop-type-tag">${this.escapeHtml(p.type)}</span>` : ''}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </table>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      // Accordion toggles
+      tabPane.querySelectorAll('.pset-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+          if (e.target.closest('.group-copy-btn')) return;
+          const card = header.closest('.pset-card');
+          if (card) card.classList.toggle('open');
+        });
+      });
+
+      // Filter
+      const searchInput = tabPane.querySelector('#pset-search-input');
+      const clearBtn = tabPane.querySelector('#pset-clear-btn');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          const q = e.target.value.trim().toLowerCase();
+          if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+          tabPane.querySelectorAll('.pset-card').forEach(card => {
+            const psetName = card.getAttribute('data-pset-name') || '';
+            let hasMatch = psetName.includes(q);
+            card.querySelectorAll('.pset-prop-row').forEach(row => {
+              const text = row.getAttribute('data-search') || '';
+              if (!q || text.includes(q)) {
+                row.style.display = '';
+                hasMatch = true;
+              } else {
+                row.style.display = 'none';
+              }
+            });
+            if (!q) {
+              card.style.display = '';
+            } else if (hasMatch) {
+              card.style.display = '';
+              card.classList.add('open');
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        });
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchInput.dispatchEvent(new Event('input'));
+          });
+        }
+      }
+    }
+  }
+
   // Element Selection & Inspector
   selectElement(mesh, clickPoint = null) {
     if (!mesh || !this.isPickableElement(mesh)) {
@@ -2595,6 +3196,8 @@ class BIMViewerApp {
       return;
     }
     this.selectedMesh = mesh;
+    this.selectedMeshes = [mesh];
+    this.syncTreeSelection();
     if (clickPoint) {
       this.lastClickPoint = clickPoint.clone();
     }
@@ -2761,34 +3364,38 @@ class BIMViewerApp {
 
   setElementOpacity(mesh, opacityPercent) {
     if (!mesh) return;
+    const meshes = Array.isArray(mesh) ? mesh : [mesh];
     const alpha = opacityPercent / 100;
-    mesh.traverse((obj) => {
-      if (obj.isMesh && obj.material && (!obj.userData || (!obj.userData.isGizmo && !obj.userData.isHighlightOverlay && !obj.userData.isHoverOverlay && !obj.userData.isPivotHelper))) {
-        const updateMat = (mat) => {
-          if (!mat) return;
-          if (!mat.userData) mat.userData = {};
-          if (mat.userData.elemOrigOpacity === undefined) {
-            mat.userData.elemOrigOpacity = mat.opacity !== undefined ? mat.opacity : 1.0;
-            mat.userData.elemOrigTransparent = Boolean(mat.transparent);
-            mat.userData.elemOrigDepthWrite = mat.depthWrite !== undefined ? mat.depthWrite : true;
-          }
-          if (opacityPercent >= 100) {
-            mat.opacity = mat.userData.elemOrigOpacity;
-            mat.transparent = mat.userData.elemOrigTransparent;
-            mat.depthWrite = mat.userData.elemOrigDepthWrite;
+    meshes.forEach((m) => {
+      if (!m) return;
+      m.traverse((obj) => {
+        if (obj.isMesh && obj.material && (!obj.userData || (!obj.userData.isGizmo && !obj.userData.isHighlightOverlay && !obj.userData.isHoverOverlay && !obj.userData.isPivotHelper))) {
+          const updateMat = (mat) => {
+            if (!mat) return;
+            if (!mat.userData) mat.userData = {};
+            if (mat.userData.elemOrigOpacity === undefined) {
+              mat.userData.elemOrigOpacity = mat.opacity !== undefined ? mat.opacity : 1.0;
+              mat.userData.elemOrigTransparent = Boolean(mat.transparent);
+              mat.userData.elemOrigDepthWrite = mat.depthWrite !== undefined ? mat.depthWrite : true;
+            }
+            if (opacityPercent >= 100) {
+              mat.opacity = mat.userData.elemOrigOpacity;
+              mat.transparent = mat.userData.elemOrigTransparent;
+              mat.depthWrite = mat.userData.elemOrigDepthWrite;
+            } else {
+              mat.transparent = true;
+              mat.opacity = alpha * mat.userData.elemOrigOpacity;
+              mat.depthWrite = (mat.opacity >= 0.95);
+            }
+            mat.needsUpdate = true;
+          };
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(updateMat);
           } else {
-            mat.transparent = true;
-            mat.opacity = alpha * mat.userData.elemOrigOpacity;
-            mat.depthWrite = (mat.opacity >= 0.95);
+            updateMat(obj.material);
           }
-          mat.needsUpdate = true;
-        };
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(updateMat);
-        } else {
-          updateMat(obj.material);
         }
-      }
+      });
     });
     if (this.highlightOverlayGroup) {
       const baseHighlightOp = this.highlightOpacity || 0.65;
@@ -3648,10 +4255,12 @@ class BIMViewerApp {
   
   clearSelection() {
     this.selectedMesh = null;
+    this.selectedMeshes = [];
     this.lastClickPoint = null;
     if (this.highlightBox) this.highlightBox.visible = false;
     this.clearHighlightOverlay();
     this.clearHoverOverlay();
+    this.syncTreeSelection();
     this.renderModelInfoInspector();
   }
 
@@ -5364,7 +5973,7 @@ class BIMViewerApp {
     if (this.updateSidebarTabsOverflow) {
       this.updateSidebarTabsOverflow();
     }
-    if (this.updateInspectorTabsOverflow && this.selectedMesh) {
+    if (this.updateInspectorTabsOverflow && (this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.length > 0))) {
       this.updateInspectorTabsOverflow();
     }
     if (this.updateViewportCenterNav) {
@@ -5395,7 +6004,7 @@ class BIMViewerApp {
       this.raycaster.setFromCamera(this.mouse, this.camera);
 
       // Section Gizmo Hover detection
-      if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isGizmoDragging) {
+      if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
         const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
         if (gizmoHits.length > 0) {
           this.clippingEngine.setHoverGizmo(gizmoHits[0].object);
@@ -5409,7 +6018,7 @@ class BIMViewerApp {
       }
 
       const ctxMenu = document.getElementById('context-menu');
-      if (this.isOrbiting || this.isPanning || this.isGizmoDragging || this.isMeasureMode || (ctxMenu && ctxMenu.style.display === 'flex')) {
+      if (this.isOrbiting || this.isPanning || this.isLeftInteracting || this.isBoxSelecting || this.isGizmoDragging || this.isMeasureMode || (ctxMenu && ctxMenu.style.display === 'flex')) {
         this.clearHoverOverlay();
         return;
       }
@@ -5426,7 +6035,8 @@ class BIMViewerApp {
         document.getElementById('coord-rl').textContent = p.y.toFixed(2);
 
         // Subtle hover highlight on current pointed element
-        if (hitMesh !== this.selectedMesh) {
+        const isAlreadySel = (hitMesh === this.selectedMesh) || (this.selectedMeshes && this.selectedMeshes.includes(hitMesh));
+        if (!isAlreadySel) {
           this.setHoveredElement(hitMesh);
           this.canvas.style.cursor = 'pointer';
         } else {
@@ -5444,7 +6054,8 @@ class BIMViewerApp {
       this.canvas.style.cursor = 'default';
     });
 
-    // Pointer events for ACC Virtual Pivot Orbiting (Left click drag), Selection, Section Gizmo, and Native Pan (Right/Middle drag)
+    // Pointer events: Left click (select/clear) & Left drag (box select)
+    // Middle drag (pan) | Right click (context menu) & Right drag (orbit around pointed surface)
     this.canvas.addEventListener('pointerdown', (e) => {
       this.clearHoverOverlay();
       if (this.cameraTweenRaf) {
@@ -5452,7 +6063,7 @@ class BIMViewerApp {
         this.cameraTweenRaf = null;
         this.isNavigatingViewHistory = false;
       }
-      if (e.button === 0) { // Left click
+      if (e.button === 0) { // Left click / drag
         // Check if clicking Section Gizmo (highest priority)
         if (this.clippingEngine && this.clippingEngine.enabled) {
           const rect = this.canvas.getBoundingClientRect();
@@ -5468,25 +6079,44 @@ class BIMViewerApp {
           }
         }
 
-        this.isOrbiting = true;
-        this.orbitStartX = e.clientX;
-        this.orbitStartY = e.clientY;
-        this.orbitMoved = false;
-        // Keep pivot indicator active at the fixed pivot point during drag
+        this.isLeftInteracting = true;
+        this.leftDownPos = { x: e.clientX, y: e.clientY };
+        this.leftMoved = false;
+        this.isBoxSelecting = false;
+        this.boxSelectStartPos = { x: e.clientX, y: e.clientY };
+      } else if (e.button === 1) { // Middle click: Pan
+        this.isPanning = true;
+        this.panMoved = false;
+        this.panStartX = e.clientX;
+        this.panStartY = e.clientY;
+        e.preventDefault();
+      } else if (e.button === 2) { // Right click: Orbit around pointed surface point
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        let hitPoint = null;
+        if (this.activeModel) {
+          const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
+          const valid = intersects.filter(h => this.isPickableElement(h.object));
+          if (valid.length > 0) {
+            hitPoint = valid[0].point;
+          }
+        }
+        if (hitPoint) {
+          this.pivotPoint.copy(hitPoint);
+        }
         if (this.pivotPoint && this.pivotHelper) {
           this.pivotHelper.position.copy(this.pivotPoint);
           this.pivotHelper.visible = true;
           this.updatePivotIndicator();
         }
-      } else if (e.button === 2 || e.button === 1) { // Right or middle click: Pan
-        this.isPanning = true;
-        this.panMoved = false;
-        this.panStartX = e.clientX;
-        this.panStartY = e.clientY;
-        if (e.button === 2) {
-          this.isRightDragging = false;
-          this.rightDownPos = { x: e.clientX, y: e.clientY };
-        }
+        this.isOrbiting = true;
+        this.orbitStartX = e.clientX;
+        this.orbitStartY = e.clientY;
+        this.orbitMoved = false;
+        this.isRightDragging = false;
+        this.rightDownPos = { x: e.clientX, y: e.clientY };
       }
     });
 
@@ -5500,9 +6130,20 @@ class BIMViewerApp {
         this.syncSectionUI();
         return;
       }
-      if (this.isOrbiting) {
+      if (this.isLeftInteracting) {
+        const dx = e.clientX - this.leftDownPos.x;
+        const dy = e.clientY - this.leftDownPos.y;
+        if (Math.hypot(dx, dy) > 4) {
+          this.leftMoved = true;
+          this.isBoxSelecting = true;
+          this.updateMarqueeBox(this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
+        }
+      } else if (this.isOrbiting) {
         const dx = e.clientX - this.orbitStartX;
         const dy = e.clientY - this.orbitStartY;
+        if (this.rightDownPos && Math.hypot(e.clientX - this.rightDownPos.x, e.clientY - this.rightDownPos.y) > 3) {
+          this.isRightDragging = true;
+        }
         if (Math.hypot(dx, dy) > 2) {
           this.orbitMoved = true;
           this.orbitStartX = e.clientX;
@@ -5517,9 +6158,6 @@ class BIMViewerApp {
         }
         this.panStartX = e.clientX;
         this.panStartY = e.clientY;
-        if (this.rightDownPos && Math.hypot(e.clientX - this.rightDownPos.x, e.clientY - this.rightDownPos.y) > 3) {
-          this.isRightDragging = true;
-        }
         this.panCamera(dx, dy);
       }
     });
@@ -5532,32 +6170,41 @@ class BIMViewerApp {
         this.syncSectionUI();
         return;
       }
-      if (e.button === 0 && this.isOrbiting) {
-        const wasOrbitMoved = this.orbitMoved;
-        this.isOrbiting = false;
-        if (!wasOrbitMoved) {
-          // Precise click on canvas without dragging -> element selection
+      if (e.button === 0 && this.isLeftInteracting) {
+        this.isLeftInteracting = false;
+        this.hideMarqueeBox();
+        if (this.isBoxSelecting && this.leftMoved) {
+          this.isBoxSelecting = false;
+          this.finishBoxSelection(e, this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
+        } else {
+          this.isBoxSelecting = false;
           const rect = this.canvas.getBoundingClientRect();
           if (e.clientX >= rect.left && e.clientX <= rect.right &&
               e.clientY >= rect.top && e.clientY <= rect.bottom) {
             this.handleCanvasClick(e);
           }
-        } else {
+        }
+      }
+      if (e.button === 1 && this.isPanning) {
+        const wasPanning = this.panMoved;
+        this.isPanning = false;
+        this.panMoved = false;
+        if (wasPanning) {
+          this.pushViewSnapshot();
+        }
+      }
+      if (e.button === 2 && this.isOrbiting) {
+        const wasOrbitMoved = this.orbitMoved || this.isRightDragging;
+        this.isOrbiting = false;
+        this.orbitMoved = false;
+        if (wasOrbitMoved) {
           this.pushViewSnapshot();
         }
         if (this.pivotHelper) {
           if (this.pivotTimeout) clearTimeout(this.pivotTimeout);
           this.pivotTimeout = setTimeout(() => {
-            this.pivotHelper.visible = false;
+            if (this.pivotHelper) this.pivotHelper.visible = false;
           }, 1200);
-        }
-      }
-      if (e.button === 2 || e.button === 1) {
-        const wasPanning = this.isRightDragging || (this.isPanning && this.panMoved);
-        this.isPanning = false;
-        this.panMoved = false;
-        if (wasPanning) {
-          this.pushViewSnapshot();
         }
       }
     });
@@ -5617,7 +6264,7 @@ class BIMViewerApp {
     if (!menu) return;
 
     this.contextGroupMeshes = null;
-    const hasSelection = !!this.selectedMesh;
+    const hasSelection = !!this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.length > 0);
 
     // Toggle menu items according to selection state:
     // When no object is selected: show Show All, Zoom to Global, Reset Initial View
@@ -5885,7 +6532,10 @@ class BIMViewerApp {
     if (btnHide) {
       btnHide.onclick = () => {
         this.hideContextMenu();
-        if (this.selectedMesh) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+          this.hideGroup(this.selectedMeshes);
+          this.clearSelection();
+        } else if (this.selectedMesh) {
           this.selectedMesh.visible = false;
           this.clearSelection();
         }
@@ -5896,7 +6546,9 @@ class BIMViewerApp {
     if (btnIsolate) {
       btnIsolate.onclick = () => {
         this.hideContextMenu();
-        if (this.selectedMesh) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+          this.isolateGroup(this.selectedMeshes);
+        } else if (this.selectedMesh) {
           this.isolateElement(this.selectedMesh);
         }
       };
@@ -5906,7 +6558,9 @@ class BIMViewerApp {
     if (btnZoomTo) {
       btnZoomTo.onclick = () => {
         this.hideContextMenu();
-        if (this.selectedMesh) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+          this.zoomToGroup(this.selectedMeshes);
+        } else if (this.selectedMesh) {
           this.zoomToElement(this.selectedMesh);
         }
       };
@@ -5916,7 +6570,9 @@ class BIMViewerApp {
     if (btnSectionBox) {
       btnSectionBox.onclick = () => {
         this.hideContextMenu();
-        if (this.selectedMesh) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+          this.fitSectionBoxToTarget(this.selectedMeshes);
+        } else if (this.selectedMesh) {
           this.applySectionBox(this.selectedMesh);
         }
       };
@@ -5926,7 +6582,9 @@ class BIMViewerApp {
     if (btnMoveSecHere) {
       btnMoveSecHere.onclick = () => {
         this.hideContextMenu();
-        const target = this.selectedMesh || this.contextGroupMeshes;
+        const target = (this.selectedMeshes && this.selectedMeshes.length > 1) ? 
+          this.selectedMeshes : 
+          (this.selectedMesh || this.contextGroupMeshes);
         if (target) {
           this.moveSectionToTarget(target);
         }
@@ -6090,7 +6748,14 @@ class BIMViewerApp {
     meshes.forEach(m => {
       if (m && m.isMesh) m.visible = false;
     });
-    if (this.selectedMesh && !this.selectedMesh.visible) {
+    if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+      const remaining = this.selectedMeshes.filter(m => m.visible);
+      if (remaining.length === 0) {
+        this.clearSelection();
+      } else if (remaining.length !== this.selectedMeshes.length) {
+        this.selectElements(remaining);
+      }
+    } else if (this.selectedMesh && !this.selectedMesh.visible) {
       this.clearSelection();
     }
     showToast(I18N.t('menuHideGroup'), 'info');
@@ -6151,7 +6816,14 @@ class BIMViewerApp {
     if (!this.clippingEngine) return;
 
     // Clear any non-pickable selection
-    if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
+    if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+      const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
+      if (remaining.length === 0) {
+        this.clearSelection();
+      } else if (remaining.length !== this.selectedMeshes.length) {
+        this.selectElements(remaining);
+      }
+    } else if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
       this.clearSelection();
     }
 
@@ -6283,10 +6955,54 @@ class BIMViewerApp {
       return;
     }
     
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+
     if (valid.length > 0) {
-      this.selectElement(valid[0].object, valid[0].point);
+      const hitMesh = valid[0].object;
+      const hitPoint = valid[0].point;
+
+      if (isCtrl) {
+        // Toggle selection
+        const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
+          [...this.selectedMeshes] : 
+          (this.selectedMesh ? [this.selectedMesh] : []);
+        const idx = current.indexOf(hitMesh);
+        if (idx >= 0) {
+          current.splice(idx, 1);
+        } else {
+          current.push(hitMesh);
+        }
+        if (current.length === 0) {
+          this.clearSelection();
+        } else if (current.length === 1) {
+          this.selectElement(current[0], hitPoint);
+        } else {
+          this.selectElements(current);
+        }
+      } else if (isShift) {
+        // Remove from selection
+        const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
+          [...this.selectedMeshes] : 
+          (this.selectedMesh ? [this.selectedMesh] : []);
+        const idx = current.indexOf(hitMesh);
+        if (idx >= 0) {
+          current.splice(idx, 1);
+          if (current.length === 0) {
+            this.clearSelection();
+          } else if (current.length === 1) {
+            this.selectElement(current[0]);
+          } else {
+            this.selectElements(current);
+          }
+        }
+      } else {
+        this.selectElement(hitMesh, hitPoint);
+      }
     } else {
-      this.clearSelection();
+      if (!isCtrl && !isShift) {
+        this.clearSelection();
+      }
     }
   }
 
@@ -6413,7 +7129,9 @@ class BIMViewerApp {
       this.updateClippingModeBtnWidths();
       this.updateCameraProjUI();
       this.updateViewHistoryUI();
-      if (this.selectedMesh) {
+      if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+        this.selectElements(this.selectedMeshes);
+      } else if (this.selectedMesh) {
         this.selectElement(this.selectedMesh);
       } else {
         this.renderModelInfoInspector();
@@ -6795,7 +7513,7 @@ class BIMViewerApp {
         rsb.style.width = `${this.customInspectorWidth || 330}px`;
         if (btnInspect) btnInspect.classList.add('active');
         updateCollapseBtnUI(false);
-        if (this.selectedMesh) {
+        if (this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.length > 0)) {
           setTimeout(() => this.setupInspectorTabsScroll(), 250);
         }
       }
@@ -6867,7 +7585,7 @@ class BIMViewerApp {
         rsb.style.transition = '';
         localStorage.setItem('bimscope_inspector_width', this.customInspectorWidth);
         this.onContainerResize();
-        if (this.selectedMesh) {
+        if (this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.length > 0)) {
           if (this.updateInspectorTabsOverflow) {
             this.updateInspectorTabsOverflow();
           } else {
@@ -7022,8 +7740,14 @@ class BIMViewerApp {
     secActive.onchange = () => {
       this.clippingEngine.enabled = secActive.checked;
       this.clippingEngine.update();
-      if (!this.clippingEngine.enabled && this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
-        this.clearSelection();
+      if (!this.clippingEngine.enabled) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+          const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
+          if (remaining.length === 0) this.clearSelection();
+          else if (remaining.length !== this.selectedMeshes.length) this.selectElements(remaining);
+        } else if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
+          this.clearSelection();
+        }
       }
       this.syncSectionUI();
     };
@@ -7058,7 +7782,11 @@ class BIMViewerApp {
       ensureSectioningActive();
       this.clippingEngine.mode = mode;
       this.clippingEngine.update();
-      if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
+      if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+        const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
+        if (remaining.length === 0) this.clearSelection();
+        else if (remaining.length !== this.selectedMeshes.length) this.selectElements(remaining);
+      } else if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
         this.clearSelection();
       }
       this.syncSectionUI();
