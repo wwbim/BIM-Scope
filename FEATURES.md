@@ -83,6 +83,7 @@ This document systematically organizes all features and UI elements of BIMScope 
 | **界面交互<br>UI / UX** | 响应式设计<br>Responsive Layout | 视口保护自适应布局<br>Responsive Layout with Viewport Protection | 动态视口占比保护（$\ge 40\%$），小屏幕自动折叠侧边栏，保留用户自定义宽度偏好。<br>Adaptive layout safeguarding $\ge 40\%$ viewport; auto-collapses on small screens. | ✅ 已上线<br>Released | v1.2610040430 |
 | **界面交互<br>UI / UX** | 视觉主题<br>Theme & Styling | 工程专业深色暗黑主题<br>Modern Dark Engineering Theme | 采用低视觉疲劳的高质感深黑底色，搭配层次分明的信息层级与高反差提示色。<br>Professional dark UI theme optimized for long-session CAD/BIM inspection. | ✅ 已上线<br>Released | v1.2610010130 |
 | **界面交互<br>UI / UX** | 多语言<br>Localization | 中英双语一键无缝切换<br>Full Bilingual Localization (EN / 中文) | 顶部栏一键无刷新即时切换中文与英文，涵盖所有界面标签、属性名与提示语。<br>Instant zero-reload language switching between English and Simplified Chinese. | ✅ 已上线<br>Released | v1.2610010130 |
+| **界面交互<br>UI / UX** | 底部栏状态<br>Bottom Bar | 构件类型过长渐变内阴影与平滑滚动<br>Elements Overflow Edge Shadow & Smooth Scroll | 最底部 Elements 构件类型标签在过长而被右侧坐标及状态 HUD 遮挡时，从坐标值区域左边缘向左动态渲染平滑渐变内阴影（Edge Shadow Gradient，契合标签页溢出时的视觉质感）；支持鼠标滚轮在底部栏直接横向平滑滚动，并根据滚动位置和窗口尺寸实时自适应显隐阴影。<br>When bottom Elements category chips overflow and collide with the right-side coordinates HUD, renders a leftward gradient edge shadow from the left edge of coordinates HUD; supports direct mouse wheel horizontal scrolling and dynamically toggles shadow based on scroll position and screen resize. | ✅ 已上线<br>Released | v1.2610052300 |
 
 ---
 

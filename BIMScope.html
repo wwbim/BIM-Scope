@@ -2038,8 +2038,14 @@ input:checked + .slider:before {
   gap: 10px;
   overflow-x: auto;
   white-space: nowrap;
-  padding-right: 12px;
+  padding-right: 14px;
   flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.legend-container::-webkit-scrollbar {
+  display: none;
 }
 
 .legend-title {
@@ -2047,6 +2053,7 @@ input:checked + .slider:before {
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .legend-chip {
@@ -2063,6 +2070,7 @@ input:checked + .slider:before {
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(255, 255, 255, 0.02);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .legend-chip:hover {
@@ -2118,6 +2126,27 @@ input:checked + .slider:before {
   padding-left: 14px;
   border-left: 1px solid var(--border-color);
   z-index: 2;
+  position: relative;
+  align-self: stretch;
+}
+
+/* Edge shadow casting leftwards from the left border of coordinates/status HUD */
+.bottom-bar-edge-shadow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 36px;
+  pointer-events: none;
+  z-index: 10;
+  background: linear-gradient(to left, rgba(21, 28, 44, 0.98) 0%, rgba(21, 28, 44, 0.75) 45%, rgba(21, 28, 44, 0.25) 75%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+#bottom-bar.has-overflow-elements .bottom-bar-edge-shadow,
+.bottom-status-right.has-overflow .bottom-bar-edge-shadow {
+  opacity: 1;
 }
 
 .status-metric {
@@ -3473,6 +3502,8 @@ input:checked + .slider:before {
       </div>
 
       <div class="bottom-status-right">
+        <!-- Edge Shadow casting leftwards from the left border of status HUD -->
+        <div class="bottom-bar-edge-shadow" id="bottom-bar-edge-shadow"></div>
         <div class="status-metric">X: <span id="coord-x">697.2</span></div>
         <div class="status-metric">Y: <span id="coord-y">170.0</span></div>
         <div class="status-metric">RL: <span id="coord-rl">50.96</span></div>
@@ -25516,7 +25547,10 @@ class BIMViewerApp {
     container.innerHTML = '<span class="legend-title" data-i18n="legendTitle">' + I18N.t('legendTitle') + '</span>';
 
     this.categoryStates.clear();
-    if (!this.activeModel) return;
+    if (!this.activeModel) {
+      this.updateBottomBarOverflow();
+      return;
+    }
 
     // Scan activeModel for all category groups
     const catMap = new Map();
@@ -25528,7 +25562,10 @@ class BIMViewerApp {
       }
     });
 
-    if (catMap.size === 0) return;
+    if (catMap.size === 0) {
+      this.updateBottomBarOverflow();
+      return;
+    }
 
     catMap.forEach((meshes, catName) => {
       const firstMat = meshes[0] && meshes[0].material;
@@ -25575,6 +25612,8 @@ class BIMViewerApp {
         this.isolateCategory(catName);
       });
     });
+
+    this.updateBottomBarOverflow();
   }
 
   toggleCategory(catName, forcedState = null) {
@@ -25715,6 +25754,7 @@ class BIMViewerApp {
     const container = document.querySelector('.legend-container');
     if (container) {
       container.innerHTML = '<span class="legend-title" data-i18n="legendTitle">' + I18N.t('legendTitle') + '</span>';
+      this.updateBottomBarOverflow();
     }
     this.clearBillboards();
     this.clearSelection();
@@ -28004,6 +28044,53 @@ class BIMViewerApp {
     if (chevronRight) chevronRight.onclick = () => scrollToNextTab('right');
 
     this.updateInspectorTabsOverflow();
+  }
+
+  // Update inner shadow visibility when bottom Elements chips overflow into the right status HUD
+  updateBottomBarOverflow() {
+    const bar = document.getElementById('bottom-bar');
+    const legend = document.querySelector('.legend-container');
+    if (!bar || !legend) return;
+
+    const maxScroll = Math.max(0, legend.scrollWidth - legend.clientWidth);
+    // Has overflow when total width exceeds visible width and not scrolled fully to the right
+    const hasRight = maxScroll > 4 && legend.scrollLeft < maxScroll - 4;
+
+    bar.classList.toggle('has-overflow-elements', hasRight);
+  }
+
+  // Setup direct wheel scrolling, native scroll listener, and resize observer for bottom Elements chips
+  setupBottomBarScroll() {
+    const legend = document.querySelector('.legend-container');
+    if (!legend) return;
+
+    // 1. Wheel directly scrolls horizontally without resetting position
+    legend.addEventListener('wheel', (e) => {
+      if (legend.scrollWidth > legend.clientWidth) {
+        const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (Math.abs(delta) > 0) {
+          e.preventDefault();
+          const maxScroll = Math.max(0, legend.scrollWidth - legend.clientWidth);
+          legend.scrollLeft = Math.max(0, Math.min(maxScroll, legend.scrollLeft + delta * 0.8));
+          this.updateBottomBarOverflow();
+        }
+      }
+    }, { passive: false });
+
+    // 2. Scroll event (trackpad / touch / programmatic)
+    legend.addEventListener('scroll', () => {
+      this.updateBottomBarOverflow();
+    }, { passive: true });
+
+    // 3. ResizeObserver
+    if (window.ResizeObserver) {
+      if (!this._bottomBarResizeObserver) {
+        this._bottomBarResizeObserver = new ResizeObserver(() => this.updateBottomBarOverflow());
+      }
+      this._bottomBarResizeObserver.observe(legend);
+    }
+
+    this.updateBottomBarOverflow();
   }
 
   // Render individual Inspector Tab Pane
@@ -30350,6 +30437,9 @@ class BIMViewerApp {
     if (this.updateViewportCenterNav) {
       this.updateViewportCenterNav();
     }
+    if (this.updateBottomBarOverflow) {
+      this.updateBottomBarOverflow();
+    }
   }
 
   initEventListeners() {
@@ -31497,6 +31587,7 @@ class BIMViewerApp {
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       I18N.toggleLanguage();
       this.buildHierarchyTree();
+      this.updateBottomLegend();
       this.updateClippingModeBtnWidths();
       this.updateCameraProjUI();
       this.updateViewHistoryUI();
@@ -32430,6 +32521,9 @@ class BIMViewerApp {
 
     // Animation Player UI setup
     this.initAnimationUI();
+
+    // Bottom Bar Legend Horizontal Scroll & Edge Shadow Setup
+    this.setupBottomBarScroll();
   }
   
   switchLeftTab(tabContentId) {

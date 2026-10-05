@@ -2025,8 +2025,14 @@ input:checked + .slider:before {
   gap: 10px;
   overflow-x: auto;
   white-space: nowrap;
-  padding-right: 12px;
+  padding-right: 14px;
   flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.legend-container::-webkit-scrollbar {
+  display: none;
 }
 
 .legend-title {
@@ -2034,6 +2040,7 @@ input:checked + .slider:before {
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .legend-chip {
@@ -2050,6 +2057,7 @@ input:checked + .slider:before {
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: rgba(255, 255, 255, 0.02);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .legend-chip:hover {
@@ -2105,6 +2113,27 @@ input:checked + .slider:before {
   padding-left: 14px;
   border-left: 1px solid var(--border-color);
   z-index: 2;
+  position: relative;
+  align-self: stretch;
+}
+
+/* Edge shadow casting leftwards from the left border of coordinates/status HUD */
+.bottom-bar-edge-shadow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 36px;
+  pointer-events: none;
+  z-index: 10;
+  background: linear-gradient(to left, rgba(21, 28, 44, 0.98) 0%, rgba(21, 28, 44, 0.75) 45%, rgba(21, 28, 44, 0.25) 75%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+#bottom-bar.has-overflow-elements .bottom-bar-edge-shadow,
+.bottom-status-right.has-overflow .bottom-bar-edge-shadow {
+  opacity: 1;
 }
 
 .status-metric {
