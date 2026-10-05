@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **30 小时 02 分钟 (30.04 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 22 小时 17 分钟** (2026-09-29 22:17 至 2026-10-05 20:34)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,419 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **30 小时 18 分钟 (30.31 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 22 小时 33 分钟** (2026-09-29 22:17 至 2026-10-05 20:50)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,574 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,20 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~20:34 | 1h 29m (1.50h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~20:50 | 1h 45m (1.76h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610052050] - 2026-10-05 20:50
+
+### 右面板控件精简与聚焦操作命名统一 / Right Panel UI Streamlining & 'Zoom to' Label Alignment
+- **右侧检查器卡片精简与构件操作词条规范 / Inspector UI Streamlining & Action Label Consistency**
+  - **中文**:
+    1. **移除右面板冗余的 Dist（可视距离）滑块**: 彻底移除右侧检查器首选项卡片（`.inspector-pref-card`）中重复的 Dist 滑动条，统一由左侧边栏“相机与可视距离”（`#tab-camera-content`）专属面板进行精细化控制与预设档位（1km~10km）管理，优化右面板纵向排版空间。
+    2. **构件操作按钮更名（Zoom to）**: 将右面板选中构件后的聚焦按钮由原先冗长的 "Zoom drawing" 更名为标准、凝练的 "Zoom to"（中文保持 "聚焦构件"），与视口右键上下文菜单中的 "Zoom to" 保持 100% 词义与风格统一。
+  - **English**:
+    1. **Removed Redundant 'Dist' Slider from Right Panel**: Eliminated the duplicate Dist slider from the right Inspector preference card (`.inspector-pref-card`). Camera visible distance is now exclusively managed via the dedicated Left Sidebar Camera & Far Distance tab (`#tab-camera-content`), decluttering the right panel.
+    2. **Renamed Inspector Selection Button to 'Zoom to'**: Renamed the right-hand element action button from "Zoom drawing" to "Zoom to" (keeping "聚焦构件" in Chinese), achieving consistency with the 3D viewport context menu.
+
 ---
 
 ## [v1.2610052040] - 2026-10-05 20:40

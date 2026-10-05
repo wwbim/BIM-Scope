@@ -142,7 +142,7 @@ const I18N = {
       expandTree: "Expand Model Hierarchy",
       noSelection: "No Element Selected",
       clickToInspect: "Click any 3D element in the model to inspect its BIM properties, RL elevation, and geometry.",
-      zoomTo: "Zoom drawing",
+      zoomTo: "Zoom to",
       isolate: "Isolate",
       hide: "Hide here",
       clearSel: "Clear",

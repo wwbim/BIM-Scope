@@ -700,18 +700,6 @@ html_content = f"""<!DOCTYPE html>
           <!-- Subtle Divider -->
           <div class="pref-divider"></div>
 
-          <!-- Visible Distance Slider (Dist) -->
-          <div class="pref-subgroup">
-            <div class="pref-inline-row">
-              <span class="pref-inline-label" data-i18n="viewDistLabel" style="font-weight:600;color:var(--text-bright)">Dist</span>
-              <input type="range" min="200" max="10000" step="100" value="5000" class="range-slider pref-fixed-slider" id="nav-dist-slider" title="Camera Visible Distance / 视野可视距离调节 (200m - 10km)">
-              <span class="pref-inline-val" id="nav-dist-display">5 km</span>
-            </div>
-          </div>
-
-          <!-- Subtle Divider -->
-          <div class="pref-divider"></div>
-
           <!-- 3D Billboard Labels -->
           <div class="pref-subgroup">
             <div class="pref-inline-row" style="margin-bottom:6px">
