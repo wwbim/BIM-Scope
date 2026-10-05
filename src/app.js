@@ -4457,6 +4457,17 @@ class BIMViewerApp {
   // Update header subtitle with format version, exporting software, unit & axis, and GIS CRS
   updateModelSubtitle(modelInfo = null) {
     const info = modelInfo || this.currentModelInfo;
+    const titleEl = document.getElementById('project-title-text');
+    if (titleEl) {
+      if (info && !info.isDemo && info.fileName) {
+        titleEl.textContent = info.fileName;
+        titleEl.title = info.fileName;
+      } else {
+        titleEl.textContent = I18N.t('appTitle');
+        titleEl.title = I18N.t('appTitle');
+      }
+    }
+
     const subEl = document.getElementById('project-subtitle-text');
     if (!subEl) return;
 
@@ -5207,14 +5218,14 @@ class BIMViewerApp {
             this.showTextureModal(fbxInfo, blobMap, (skipTextures) => {
               this.showProgressModal(true, I18N.t('stageMeshing'), 60);
               setTimeout(() => {
-                this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, skipTextures);
+                this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, skipTextures, mainFile);
               }, 40);
             });
           } else {
             // All textures are embedded or already provided in blobMap
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, false);
+              this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, false, mainFile);
             }, 40);
           }
         } catch (err) {
@@ -5500,7 +5511,7 @@ class BIMViewerApp {
     renderChecklist();
   }
 
-  loadFBXModel(arrayBuffer, fbxInfo, manager, modelName, blobMap, skipTextures = false) {
+  loadFBXModel(arrayBuffer, fbxInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
     try {
       const loader = new THREE.FBXLoader(manager);
       loader.skipTextures = skipTextures;
@@ -5675,10 +5686,10 @@ class BIMViewerApp {
       this.setModel(model);
 
       const stats = this.calculateModelStats(model);
-      const primaryFile = (fbxInfo && fbxInfo.file) || (Array.isArray(fileOrFiles) ? fileOrFiles[0] : fileOrFiles);
-      const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
-        `${(primaryFile.size / 1048576).toFixed(2)} MB` : 
-        (primaryFile && primaryFile.size ? `${(primaryFile.size / 1024).toFixed(1)} KB` : "N/A");
+      const fileObj = primaryFile || (fbxInfo && fbxInfo.file) || null;
+      const sizeStr = fileObj && fileObj.size > 1048576 ? 
+        `${(fileObj.size / 1048576).toFixed(2)} MB` : 
+        (fileObj && fileObj.size ? `${(fileObj.size / 1024).toFixed(1)} KB` : "N/A");
 
       const fbxVer = this.formatFBXVersion(fbxInfo && fbxInfo.version, fbxInfo ? fbxInfo.isBinary : true);
       const unitAxis = this.formatFBXUnitAndAxis(unitScale, fbxInfo ? fbxInfo.upAxis : 1);
@@ -5694,8 +5705,8 @@ class BIMViewerApp {
         schema: `FBX (Unit: ${unitScale} cm)`,
         gis: fbxGis,
         fileSize: sizeStr,
-        filePath: (primaryFile && primaryFile.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
-        lastModified: primaryFile && primaryFile.lastModified ? new Date(primaryFile.lastModified).toLocaleString() : null,
+        filePath: (fileObj && fileObj.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
+        lastModified: fileObj && fileObj.lastModified ? new Date(fileObj.lastModified).toLocaleString() : null,
         loadedTime: new Date().toLocaleString(),
         originalSoftware: fbxCreator,
         stats: stats

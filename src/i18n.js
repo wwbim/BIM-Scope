@@ -844,6 +844,9 @@ const I18N = {
   
   updateDOM() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
+      if (el.id === 'project-title-text' && window.app && window.app.currentModelInfo && !window.app.currentModelInfo.isDemo) {
+        return;
+      }
       const key = el.getAttribute('data-i18n');
       el.textContent = this.t(key);
     });
