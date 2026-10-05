@@ -795,20 +795,24 @@ class BIMViewerApp {
         (sourceMat.userData && Boolean(sourceMat.userData.originalTransparent)) || 
         (sourceMat.opacity !== undefined && sourceMat.opacity < 0.85)
       ) : false;
-      const op = isTrans ? Math.min(0.18, this.highlightOpacity * 0.3) : this.highlightOpacity;
-      const overlayMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(this.highlightColor),
+      const op = isTrans ? Math.min(0.25, this.highlightOpacity * 0.4) : this.highlightOpacity;
+      const col = new THREE.Color(this.highlightColor);
+      const overlaySide = sourceMat && sourceMat.side !== undefined ? sourceMat.side : THREE.FrontSide;
+      const overlayMat = new THREE.MeshLambertMaterial({
+        color: col,
+        emissive: col.clone().multiplyScalar(0.22),
         transparent: true,
         opacity: op,
         depthTest: true,
         depthWrite: false,
         polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-        side: THREE.DoubleSide,
+        polygonOffsetFactor: -0.5,
+        polygonOffsetUnits: -0.5,
+        side: overlaySide,
         clippingPlanes: planes,
         clipShadows: true
       });
+      overlayMat.userData = { isTransElement: isTrans };
       if (sourceMat && sourceMat.alphaMap) {
         overlayMat.alphaMap = sourceMat.alphaMap;
         overlayMat.alphaTest = sourceMat.alphaTest !== undefined ? sourceMat.alphaTest : 0.5;
@@ -828,7 +832,7 @@ class BIMViewerApp {
         }
         const overlayMesh = new THREE.Mesh(obj.geometry, overlayMat);
         overlayMesh.applyMatrix4(obj.matrixWorld);
-        overlayMesh.renderOrder = 999;
+        overlayMesh.renderOrder = 1;
         overlayMesh.userData = { isHighlightOverlay: true };
         this.highlightOverlayGroup.add(overlayMesh);
       }
@@ -856,14 +860,26 @@ class BIMViewerApp {
   updateHighlightAppearance() {
     if (this.highlightOverlayGroup) {
       const col = new THREE.Color(this.highlightColor);
+      const emissiveCol = col.clone().multiplyScalar(0.22);
       this.highlightOverlayGroup.traverse((obj) => {
         if (obj.isMesh && obj.material) {
-          obj.material.color.copy(col);
-          obj.material.opacity = this.highlightOpacity;
-          obj.material.needsUpdate = true;
+          const updateMat = (m) => {
+            if (!m) return;
+            if (m.color) m.color.copy(col);
+            if (m.emissive) m.emissive.copy(emissiveCol);
+            const isTrans = m.userData && m.userData.isTransElement;
+            m.opacity = isTrans ? Math.min(0.25, this.highlightOpacity * 0.4) : this.highlightOpacity;
+            m.needsUpdate = true;
+          };
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(updateMat);
+          } else {
+            updateMat(obj.material);
+          }
         }
       });
     }
+    this.needsRender = true;
   }
 
   setHoveredElement(mesh) {
@@ -890,6 +906,7 @@ class BIMViewerApp {
         (sourceMat.opacity !== undefined && sourceMat.opacity < 0.85)
       ) : false;
 
+      const overlaySide = sourceMat && sourceMat.side !== undefined ? sourceMat.side : THREE.FrontSide;
       const overlayMat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
         blending: THREE.NormalBlending,
@@ -898,9 +915,9 @@ class BIMViewerApp {
         depthTest: true,
         depthWrite: false,
         polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
-        side: THREE.DoubleSide,
+        polygonOffsetFactor: -0.5,
+        polygonOffsetUnits: -0.5,
+        side: overlaySide,
         clippingPlanes: planes,
         clipShadows: true
       });
@@ -923,7 +940,7 @@ class BIMViewerApp {
         }
         const overlayMesh = new THREE.Mesh(obj.geometry, overlayMat);
         overlayMesh.applyMatrix4(obj.matrixWorld);
-        overlayMesh.renderOrder = 998;
+        overlayMesh.renderOrder = 1;
         overlayMesh.userData = { isHoverOverlay: true };
         this.hoverOverlayGroup.add(overlayMesh);
       }
@@ -1296,7 +1313,7 @@ class BIMViewerApp {
 
       const edgeLines = new THREE.LineSegments(edgeGeom, edgeMat);
       edgeLines.name = 'EdgeLines';
-      edgeLines.renderOrder = 2;
+      edgeLines.renderOrder = 2000;
       edgeLines.raycast = () => {}; // Never intercept raycasting
       edgeLines.userData = { isEdgeLine: true };
       edgeLines.visible = this.showEdges;
@@ -2781,11 +2798,16 @@ class BIMViewerApp {
       const targetOverlayOp = (opacityPercent / 100) * baseHighlightOp;
       this.highlightOverlayGroup.traverse((obj) => {
         if (obj.isMesh && obj.material) {
+          const updateOp = (m) => {
+            if (!m) return;
+            const isTrans = m.userData && m.userData.isTransElement;
+            m.opacity = isTrans ? Math.min(0.25, targetOverlayOp * 0.4) : targetOverlayOp;
+            m.needsUpdate = true;
+          };
           if (Array.isArray(obj.material)) {
-            obj.material.forEach(m => { if (m) { m.opacity = targetOverlayOp; m.needsUpdate = true; } });
+            obj.material.forEach(updateOp);
           } else {
-            obj.material.opacity = targetOverlayOp;
-            obj.material.needsUpdate = true;
+            updateOp(obj.material);
           }
         }
       });

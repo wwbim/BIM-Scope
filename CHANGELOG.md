@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **29 小时 26 分钟 (29.44 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 21 小时 40 分钟** (2026-09-29 22:17 至 2026-10-05 19:58)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,177 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **29 小时 52 分钟 (29.88 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **5 天 22 小时 07 分钟** (2026-09-29 22:17 至 2026-10-05 20:24)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **14,379 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,24 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~19:58 | 0h 53m (0.89h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~20:24 | 1h 20m (1.33h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610052030] - 2026-10-05 20:30
+
+### 构件选中高亮算法重构与轮廓线保真 / Selection Highlight Algorithm Refactor & Edge Preservation
+- **高亮渲染管线与透明度衰减算法重构 / Highlight Pipeline & Multi-Tier Opacity Linearization**
+  - **中文**:
+    1. **轮廓线（EdgeLines）渲染层级提升**: 将场景所有构件建筑边缘特征线（`EdgeLines`）的渲染顺序从 `renderOrder = 2` 提升至 `renderOrder = 2000`，并将高亮覆盖网格（`isHighlightOverlay`）与悬停覆盖网格的渲染顺序设定为 `renderOrder = 1`。彻底解决原先因高亮网格（999）最后绘制而将底层黑色轮廓线覆盖、洗白并抹除的缺陷，无论何种高亮透明度，边缘特征线（如立边咬缝、门窗洞口边框、墙脊线）始终 100% 锐利清晰可见。
+    2. **阻断闭合几何体重叠透光翻倍（消除 DoubleSide 饱和溢出）**: 修正原算法中对所有构件统一强制使用 `DoubleSide` 透明覆盖的问题。闭合三维立体构件在无深度写入下绘制双面会导致前后两层半透明像素重叠累乘（实际透光率为 $2\alpha - \alpha^2$），导致 30% 滑块对应 51% 饱和度、65% 对应 88%、80% 对应 96%，造成透明度仅在 10%~15% 轻微有效的视觉假象。现重构为智能继承几何体表面朝向（`FrontSide`），实现物理单层着色，使透明度滑块在 10%~100% 全量程内均获得均匀、灵敏且线性自然的视觉过渡。
+    3. **光照感知材质渲染（MeshLambertMaterial）**: 将原先无光照漫反射的扁平纯色材质 `MeshBasicMaterial` 升级为具备漫反射与自发光复合管线的 `MeshLambertMaterial`。高亮层自然承载太阳光照、法线方向与暗部阴影（附带 22% 适度发光辉光），彻底告别塑料贴片般的二维扁平面块，完美保留构件三维立体空间体积感。
+    4. **多材质数组安全遍历与即时渲染响应**: 修复多材质模型在动态调节高亮颜色与透明度时因材质数组导致的属性更新异常，并加入 `needsRender = true` 实时刷新管线。
+  - **English**:
+    1. **EdgeLines Render Order Elevation**: Raised architectural contour edge lines (`EdgeLines`) rendering precedence from `renderOrder = 2` to `renderOrder = 2000`, while anchoring selection and hover overlays at `renderOrder = 1`. This completely eliminates the issue where highlight overlays painted over and obscured the dark architectural edges.
+    2. **Eliminated Closed-Mesh Opacity Compounding**: Addressed the double-layer opacity stacking bug caused by unconditional `THREE.DoubleSide` on closed volumes without depth write. Restructured overlays to adhere to single-layer exterior surfaces (`FrontSide`), linearizing the perceived opacity progression across the entire 10% to 100% slider range.
+    3. **Lighting-Aware Shading with MeshLambertMaterial**: Upgraded from unlit `MeshBasicMaterial` to lighting-responsive `MeshLambertMaterial` with subtle emissive boost (22%), preserving sunlight reflection, normal shading, and ambient occlusion for authentic 3D architectural depth.
+    4. **Multi-Material Array Safety & Instant Viewport Render**: Hardened material traversal in `updateHighlightAppearance` to gracefully handle sub-mesh material arrays, ensuring instant visual feedback upon dragging the opacity slider.
+
 ---
 
 ## [v1.2610052000] - 2026-10-05 20:00
