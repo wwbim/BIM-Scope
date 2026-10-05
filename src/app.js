@@ -1275,7 +1275,6 @@ class BIMViewerApp {
   loadDemoModel() {
     this.clearModel();
     document.getElementById('project-title-text').textContent = I18N.t('appTitle');
-    document.getElementById('project-subtitle-text').textContent = I18N.t('appSubtitle');
     
     const model = CRLDemoModel.create();
     this.setModel(model);
@@ -1285,9 +1284,13 @@ class BIMViewerApp {
 
     const stats = this.calculateModelStats(model);
     this.currentModelInfo = {
+      isDemo: true,
       fileName: "Demo Model",
       format: "Procedural BIM (JavaScript/Three.js)",
+      formatVersion: "Procedural BIM (Three.js r128)",
       schema: "Built-in Procedural BIM",
+      unitStr: "1.0 m (Z-up)",
+      unitStrZh: "米 (Z-up)",
       fileSize: "Bundled In-Memory",
       filePath: "Built-in Architectural Template",
       lastModified: "Application Built-in",
@@ -1305,6 +1308,7 @@ class BIMViewerApp {
       projectPhase: "Design Facelift 2.0",
       stats: stats
     };
+    this.updateModelSubtitle();
     this.renderModelInfoInspector();
   }
   
@@ -4348,6 +4352,152 @@ class BIMViewerApp {
     };
   }
 
+  formatFBXVersion(version, isBinary = true) {
+    if (!version) return `Autodesk FBX (${isBinary ? 'Binary' : 'ASCII'})`;
+    const v = parseInt(version, 10);
+    const yearMap = { 
+      7000: '2010', 7100: '2011', 7200: '2012', 7300: '2013', 
+      7400: '2014', 7500: '2016', 7700: '2020' 
+    };
+    const major = Math.floor(v / 1000);
+    const minor = Math.floor((v % 1000) / 100);
+    const yr = yearMap[v] ? ` (${yearMap[v]})` : '';
+    return `Autodesk FBX ${major}.${minor}${yr}`;
+  }
+
+  formatFBXUnitAndAxis(unitScale = 1.0, upAxis = 1) {
+    // Up axis: 0=X, 1=Y, 2=Z
+    const axisStr = upAxis === 2 ? 'Z-up' : (upAxis === 0 ? 'X-up' : 'Y-up');
+    let enUnit = '1.0 m';
+    let zhUnit = '米';
+    
+    if (Math.abs(unitScale - 100.0) < 0.001) {
+      enUnit = '1.0 m';
+      zhUnit = '米';
+    } else if (Math.abs(unitScale - 1.0) < 0.001) {
+      enUnit = '1.0 cm';
+      zhUnit = '厘米';
+    } else if (Math.abs(unitScale - 0.1) < 0.001) {
+      enUnit = '1.0 mm';
+      zhUnit = '毫米';
+    } else if (Math.abs(unitScale - 2.54) < 0.001) {
+      enUnit = '1.0 in';
+      zhUnit = '英寸';
+    } else if (Math.abs(unitScale - 30.48) < 0.001) {
+      enUnit = '1.0 ft';
+      zhUnit = '英尺';
+    } else if (unitScale >= 100) {
+      const m = (unitScale / 100).toFixed(unitScale % 100 === 0 ? 0 : 2);
+      enUnit = `${m} m`;
+      zhUnit = `${m} 米`;
+    } else {
+      enUnit = `${unitScale} cm`;
+      zhUnit = `${unitScale} 厘米`;
+    }
+
+    return {
+      en: `${enUnit} (${axisStr})`,
+      zh: `${zhUnit} (${axisStr})`
+    };
+  }
+
+  formatDAEUnitAndAxis(unitMeter = 1.0, upAxis = 'Y_UP') {
+    const axisStr = upAxis === 'X_UP' ? 'X-up' : (upAxis === 'Y_UP' ? 'Y-up' : 'Z-up');
+    let enUnit = '1.0 m';
+    let zhUnit = '米';
+
+    if (Math.abs(unitMeter - 1.0) < 0.001) {
+      enUnit = '1.0 m'; zhUnit = '米';
+    } else if (Math.abs(unitMeter - 0.01) < 0.001) {
+      enUnit = '1.0 cm'; zhUnit = '厘米';
+    } else if (Math.abs(unitMeter - 0.001) < 0.001) {
+      enUnit = '1.0 mm'; zhUnit = '毫米';
+    } else if (Math.abs(unitMeter - 0.0254) < 0.001) {
+      enUnit = '1.0 in'; zhUnit = '英寸';
+    } else if (Math.abs(unitMeter - 0.3048) < 0.001) {
+      enUnit = '1.0 ft'; zhUnit = '英尺';
+    } else {
+      enUnit = `${unitMeter} m`; zhUnit = `${unitMeter} 米`;
+    }
+
+    return {
+      en: `${enUnit} (${axisStr})`,
+      zh: `${zhUnit} (${axisStr})`
+    };
+  }
+
+  formatIFCUnitAndAxis(unitScale = 1.0) {
+    const axisStr = 'Z-up';
+    let enUnit = '1.0 m';
+    let zhUnit = '米';
+
+    if (Math.abs(unitScale - 0.001) < 0.0001) {
+      enUnit = '1.0 mm'; zhUnit = '毫米';
+    } else if (Math.abs(unitScale - 1.0) < 0.001) {
+      enUnit = '1.0 m'; zhUnit = '米';
+    } else if (Math.abs(unitScale - 0.01) < 0.001) {
+      enUnit = '1.0 cm'; zhUnit = '厘米';
+    } else {
+      enUnit = `${unitScale} m`; zhUnit = `${unitScale} 米`;
+    }
+
+    return {
+      en: `${enUnit} (${axisStr})`,
+      zh: `${zhUnit} (${axisStr})`
+    };
+  }
+
+  formatGLTFUnitAndAxis() {
+    return {
+      en: '1.0 m (Y-up)',
+      zh: '米 (Y-up)'
+    };
+  }
+
+  // Update header subtitle with format version, exporting software, unit & axis, and GIS CRS
+  updateModelSubtitle(modelInfo = null) {
+    const info = modelInfo || this.currentModelInfo;
+    const subEl = document.getElementById('project-subtitle-text');
+    if (!subEl) return;
+
+    if (!info || info.isDemo) {
+      // Demo Model architectural description
+      const desc = I18N.t('appSubtitle');
+      subEl.textContent = desc;
+      subEl.title = desc;
+      return;
+    }
+
+    const isZh = I18N.currentLang === 'zh';
+    const unspecified = isZh ? (I18N.t('subtitleUnspecified') || '未指定') : 'Unspecified';
+
+    // 1. Format Version (No prefix)
+    const formatPart = info.formatVersion || info.format || (isZh ? '三维模型' : '3D Model');
+
+    // 2. Exporting Software
+    const softwareLabel = isZh ? (I18N.t('subtitleSoftware') || '导出软件') : 'Software';
+    const softwareVal = info.originalSoftware && info.originalSoftware !== 'Unspecified' && info.originalSoftware !== '未指定' ? 
+      info.originalSoftware : unspecified;
+    const softwarePart = `${softwareLabel}: ${softwareVal}`;
+
+    // 3. Unit & Up-Axis
+    const unitLabel = isZh ? (I18N.t('subtitleUnit') || '单位') : 'Unit';
+    const unitVal = (isZh && info.unitStrZh) ? info.unitStrZh : (info.unitStr || (isZh ? '米 (Z-up)' : '1.0 m (Z-up)'));
+    const unitPart = `${unitLabel}: ${unitVal}`;
+
+    const parts = [formatPart, softwarePart, unitPart];
+
+    // 4. GIS / Coordinate Reference System (only if present)
+    if (info.gis) {
+      const gisLabel = isZh ? (I18N.t('subtitleGis') || 'GIS坐标系') : 'GIS CRS';
+      parts.push(`${gisLabel}: ${info.gis}`);
+    }
+
+    const subText = parts.join(' | ');
+    subEl.textContent = subText;
+    subEl.title = subText;
+  }
+
   renderModelInfoInspector() {
     const content = document.getElementById('inspector-content');
     if (!content) return;
@@ -4365,18 +4515,27 @@ class BIMViewerApp {
     const info = this.currentModelInfo;
     const stats = info.stats || { totalElements: 0, totalTriangles: 0, totalVertices: 0 };
     const fmtNum = (n) => (n != null ? Number(n).toLocaleString() : '0');
+    const isZh = I18N.currentLang === 'zh';
+    const unspecified = isZh ? (I18N.t('subtitleUnspecified') || '未指定') : 'Unspecified';
 
     // Build section rows (only non-empty fields)
     const fileBasicsRows = [];
     if (info.fileName) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propFileName')}</td><td class="prop-value" style="color:var(--accent);font-weight:600">${this.escapeHtml(info.fileName)}</td></tr>`);
-    if (info.format) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propFormat')}</td><td class="prop-value">${this.escapeHtml(info.format)}</td></tr>`);
+    if (info.formatVersion || info.format) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propFormat')}</td><td class="prop-value">${this.escapeHtml(info.formatVersion || info.format)}</td></tr>`);
+    if (info.unitStr) {
+      const uVal = isZh && info.unitStrZh ? info.unitStrZh : info.unitStr;
+      fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propUnitAxis')}</td><td class="prop-value">${this.escapeHtml(uVal)}</td></tr>`);
+    }
     if (info.fileSize) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propFileSize')}</td><td class="prop-value">${this.escapeHtml(info.fileSize)}</td></tr>`);
     if (info.filePath) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propFilePath')}</td><td class="prop-value" style="word-break:break-all">${this.escapeHtml(info.filePath)}</td></tr>`);
     if (info.lastModified) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propModifiedDate')}</td><td class="prop-value">${this.escapeHtml(info.lastModified)}</td></tr>`);
     if (info.loadedTime) fileBasicsRows.push(`<tr><td class="prop-label">${I18N.t('propLoadedTime')}</td><td class="prop-value">${this.escapeHtml(info.loadedTime)}</td></tr>`);
 
     const standardRows = [];
-    if (info.originalSoftware) standardRows.push(`<tr><td class="prop-label">${I18N.t('propOriginalSoftware')}</td><td class="prop-value" style="color:#7dd3fc;font-weight:600">${this.escapeHtml(info.originalSoftware)}</td></tr>`);
+    const softwareVal = info.originalSoftware && info.originalSoftware !== 'Unspecified' && info.originalSoftware !== '未指定' ? 
+      info.originalSoftware : (info.isDemo ? "WWBIM Procedural BIM Engine" : unspecified);
+    standardRows.push(`<tr><td class="prop-label">${I18N.t('propOriginalSoftware')}</td><td class="prop-value" style="color:#7dd3fc;font-weight:600">${this.escapeHtml(softwareVal)}</td></tr>`);
+    if (info.gis) standardRows.push(`<tr><td class="prop-label">${I18N.t('propGisCrs')}</td><td class="prop-value" style="color:var(--accent);font-weight:600">${this.escapeHtml(info.gis)}</td></tr>`);
     if (info.mvd) standardRows.push(`<tr><td class="prop-label">${I18N.t('propMvd')}</td><td class="prop-value">${this.escapeHtml(info.mvd)}</td></tr>`);
     if (info.exportTimestamp) standardRows.push(`<tr><td class="prop-label">${I18N.t('propExportDate')}</td><td class="prop-value">${this.escapeHtml(info.exportTimestamp)}</td></tr>`);
     if (info.preprocessor) standardRows.push(`<tr><td class="prop-label">${I18N.t('propPreprocessor')}</td><td class="prop-value">${this.escapeHtml(info.preprocessor)}</td></tr>`);
@@ -4885,24 +5044,32 @@ class BIMViewerApp {
           classifyNode(model);
           
           document.getElementById('project-title-text').textContent = mainFile.name;
-          document.getElementById('project-subtitle-text').textContent = `GLTF/GLB Container: ${mainFile.name}`;
           this.setModel(model);
 
           const stats = this.calculateModelStats(model);
           const sizeStr = mainFile.size > 1048576 ? 
             `${(mainFile.size / 1048576).toFixed(2)} MB` : 
             `${(mainFile.size / 1024).toFixed(1)} KB`;
+          const gltfAsset = (gltf && gltf.asset) || {};
+          const gltfSoftware = (gltfAsset.generator && gltfAsset.generator.trim()) || null;
+          const gltfVer = gltfAsset.version ? `glTF ${gltfAsset.version}` : 'glTF 2.0';
+          const unitAxis = this.formatGLTFUnitAndAxis();
+
           this.currentModelInfo = {
             fileName: mainFile.name,
-            format: `glTF / GLB 2.0`,
+            format: gltfVer,
+            formatVersion: gltfVer,
+            unitStr: unitAxis.en,
+            unitStrZh: unitAxis.zh,
             schema: "glTF 2.0 Container",
             fileSize: sizeStr,
             filePath: mainFile.webkitRelativePath || `${mainFile.name} (Local Storage / Sandboxed)`,
             lastModified: mainFile.lastModified ? new Date(mainFile.lastModified).toLocaleString() : null,
             loadedTime: new Date().toLocaleString(),
-            originalSoftware: "3D Asset Exporter",
+            originalSoftware: gltfSoftware,
             stats: stats
           };
+          this.updateModelSubtitle();
           this.renderModelInfoInspector();
 
           // Animation initialization (GLTF)
@@ -4948,19 +5115,6 @@ class BIMViewerApp {
           titleEl.textContent = mainFile.name;
           titleEl.title = mainFile.name;
           
-          const parts = [this.ifcParser.formattedSchema];
-          if (this.ifcParser.software) {
-            parts.push(`Original Software: ${this.ifcParser.software}`);
-          }
-          if (this.ifcParser.mvd) {
-            parts.push(`MVD: ${this.ifcParser.mvd}`);
-          }
-          
-          const subText = parts.join(' | ');
-          const subEl = document.getElementById('project-subtitle-text');
-          subEl.textContent = subText;
-          subEl.title = subText;
-          
           this.setModel(rootGroup);
 
           const stats = this.calculateModelStats(rootGroup);
@@ -4979,11 +5133,18 @@ class BIMViewerApp {
             `${(mainFile.size / 1048576).toFixed(2)} MB` : 
             `${(mainFile.size / 1024).toFixed(1)} KB`;
 
+          const unitAxis = this.formatIFCUnitAndAxis(this.ifcParser.unitScale || 1.0);
+          const gisCrs = (this.ifcParser.gis || (meta && meta.gis)) || null;
+
           this.currentModelInfo = {
             fileName: mainFile.name,
             format: `IFC (${this.ifcParser.formattedSchema})`,
+            formatVersion: `IFC (${this.ifcParser.formattedSchema})`,
             schema: this.ifcParser.formattedSchema,
             rawSchema: this.ifcParser.schema,
+            unitStr: unitAxis.en,
+            unitStrZh: unitAxis.zh,
+            gis: gisCrs,
             fileSize: sizeStr,
             filePath: fileLoc,
             lastModified: mainFile.lastModified ? new Date(mainFile.lastModified).toLocaleString() : null,
@@ -5001,6 +5162,7 @@ class BIMViewerApp {
             projectPhase: meta.projectPhase || null,
             stats: stats
           };
+          this.updateModelSubtitle();
           this.renderModelInfoInspector();
 
           this.showProgressModal(false);
@@ -5517,17 +5679,28 @@ class BIMViewerApp {
       const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
         `${(primaryFile.size / 1048576).toFixed(2)} MB` : 
         (primaryFile && primaryFile.size ? `${(primaryFile.size / 1024).toFixed(1)} KB` : "N/A");
+
+      const fbxVer = this.formatFBXVersion(fbxInfo && fbxInfo.version, fbxInfo ? fbxInfo.isBinary : true);
+      const unitAxis = this.formatFBXUnitAndAxis(unitScale, fbxInfo ? fbxInfo.upAxis : 1);
+      const fbxCreator = (fbxInfo && fbxInfo.creator && fbxInfo.creator.trim()) || null;
+      const fbxGis = (fbxInfo && fbxInfo.gis) || null;
+
       this.currentModelInfo = {
         fileName: modelName,
-        format: `Autodesk FBX`,
+        format: fbxVer,
+        formatVersion: fbxVer,
+        unitStr: unitAxis.en,
+        unitStrZh: unitAxis.zh,
         schema: `FBX (Unit: ${unitScale} cm)`,
+        gis: fbxGis,
         fileSize: sizeStr,
         filePath: (primaryFile && primaryFile.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
         lastModified: primaryFile && primaryFile.lastModified ? new Date(primaryFile.lastModified).toLocaleString() : null,
         loadedTime: new Date().toLocaleString(),
-        originalSoftware: "Autodesk FBX Exporter",
+        originalSoftware: fbxCreator,
         stats: stats
       };
+      this.updateModelSubtitle();
       this.renderModelInfoInspector();
 
       // Animation initialization (FBX)
@@ -5559,6 +5732,10 @@ class BIMViewerApp {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(daeText, "application/xml");
 
+    // Version
+    const colladaNode = xmlDoc.querySelector("COLLADA");
+    const version = (colladaNode && colladaNode.getAttribute("version")) || "1.4.1";
+
     // Unit & Up Axis
     let unitMeter = 1.0;
     const unitNode = xmlDoc.querySelector("asset > unit, unit");
@@ -5579,6 +5756,23 @@ class BIMViewerApp {
     const commentsNode = xmlDoc.querySelector("asset > contributor > comments, contributor > comments, comments");
     const createdNode = xmlDoc.querySelector("asset > created, created");
     const modifiedNode = xmlDoc.querySelector("asset > modified, modified");
+
+    // GIS / Geolocation
+    let gis = null;
+    const geoNode = xmlDoc.querySelector("asset > coverage > geographic_location, geographic_location");
+    if (geoNode) {
+      const lat = geoNode.querySelector("latitude");
+      const lon = geoNode.querySelector("longitude");
+      if (lat && lon) gis = `Lat ${parseFloat(lat.textContent).toFixed(4)}°, Lon ${parseFloat(lon.textContent).toFixed(4)}°`;
+    }
+    if (!gis) {
+      const geTech = xmlDoc.querySelector("extra > technique[profile='GOOGLEEARTH'], technique[profile='GOOGLEEARTH']");
+      if (geTech) {
+        const lat = geTech.querySelector("latitude");
+        const lon = geTech.querySelector("longitude");
+        if (lat && lon) gis = `Lat ${parseFloat(lat.textContent).toFixed(4)}°, Lon ${parseFloat(lon.textContent).toFixed(4)}°`;
+      }
+    }
 
     // Textures
     const textures = [];
@@ -5602,6 +5796,7 @@ class BIMViewerApp {
     });
 
     return {
+      version,
       unitMeter,
       unitName,
       upAxis,
@@ -5610,6 +5805,7 @@ class BIMViewerApp {
       comments: commentsNode ? commentsNode.textContent.trim() : null,
       created: createdNode ? createdNode.textContent.trim() : null,
       modified: modifiedNode ? modifiedNode.textContent.trim() : null,
+      gis,
       textures
     };
   }
@@ -5778,7 +5974,6 @@ class BIMViewerApp {
 
       this.clearModel();
       document.getElementById('project-title-text').textContent = modelName;
-      document.getElementById('project-subtitle-text').textContent = `COLLADA: ${modelName}`;
       this.setModel(model);
 
       const stats = this.calculateModelStats(model);
@@ -5788,19 +5983,28 @@ class BIMViewerApp {
 
       const unitMeter = (daeInfo && daeInfo.unitMeter) || 1.0;
       const upAxis = (daeInfo && daeInfo.upAxis) || "Y_UP";
+      const daeVer = (daeInfo && daeInfo.version) ? `COLLADA ${daeInfo.version}` : 'COLLADA 1.4.1';
+      const unitAxis = this.formatDAEUnitAndAxis(unitMeter, upAxis);
+      const daeSoftware = (daeInfo && daeInfo.authoringTool && daeInfo.authoringTool.trim()) || null;
+      const daeGis = (daeInfo && daeInfo.gis) || null;
 
       this.currentModelInfo = {
         fileName: modelName,
-        format: `COLLADA (.dae)`,
+        format: daeVer,
+        formatVersion: daeVer,
+        unitStr: unitAxis.en,
+        unitStrZh: unitAxis.zh,
+        gis: daeGis,
         schema: `COLLADA (Unit: ${(unitMeter * 100).toFixed(1)} cm, Up: ${upAxis})`,
         fileSize: sizeStr,
         filePath: (primaryFile && primaryFile.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
         lastModified: primaryFile && primaryFile.lastModified ? new Date(primaryFile.lastModified).toLocaleString() : null,
         loadedTime: new Date().toLocaleString(),
-        originalSoftware: (daeInfo && daeInfo.authoringTool) || "COLLADA Exporter",
+        originalSoftware: daeSoftware,
         author: (daeInfo && daeInfo.author) || null,
         stats: stats
       };
+      this.updateModelSubtitle();
       this.renderModelInfoInspector();
 
       // Animation initialization
@@ -7184,6 +7388,7 @@ class BIMViewerApp {
     // 1. Language Toggle
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       I18N.toggleLanguage();
+      this.updateModelSubtitle();
       this.buildHierarchyTree();
       this.updateBottomLegend();
       this.updateClippingModeBtnWidths();

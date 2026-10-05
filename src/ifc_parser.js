@@ -1280,6 +1280,24 @@ class IFCParser {
     this.authorName = finalAuthors.join(', ') || null;
     this.orgName = finalOrgs.join(', ') || null;
 
+    // 3. Scan GIS / Coordinate Reference System (IFCPROJECTEDCRS, IFCMAPCONVERSION, IFCGEOGRAPHICCRS)
+    this.gis = null;
+    for (const ent of this.entities.values()) {
+      if (ent.type === 'IFCPROJECTEDCRS') {
+        const args = this.parseArgs(ent.rawArgs).map(a => this.cleanStepArg(a));
+        const name = (args[0] && args[0] !== '$') ? args[0] : '';
+        const desc = (args[1] && args[1] !== '$') ? args[1] : '';
+        this.gis = name || desc || null;
+        if (this.gis) break;
+      } else if (ent.type === 'IFCGEOGRAPHICCRS' && !this.gis) {
+        const args = this.parseArgs(ent.rawArgs).map(a => this.cleanStepArg(a));
+        const name = (args[0] && args[0] !== '$') ? args[0] : '';
+        this.gis = name || 'WGS84';
+      } else if (ent.type === 'IFCMAPCONVERSION' && !this.gis) {
+        this.gis = 'Projected CRS';
+      }
+    }
+
     this.fileMetadata = {
       headerFileName: this.headerFileName,
       schema: this.formattedSchema,
@@ -1294,7 +1312,8 @@ class IFCParser {
       authorization: this.headerAuthorization,
       projectName: this.projectName,
       projectDescription: this.projectDescription,
-      projectPhase: this.projectPhase
+      projectPhase: this.projectPhase,
+      gis: this.gis
     };
   }
   

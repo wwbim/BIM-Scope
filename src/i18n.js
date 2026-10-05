@@ -180,6 +180,12 @@ const I18N = {
       propLoadedTime: "Session Loaded Time",
       secStandardsSoftware: "Standards & Software",
       propOriginalSoftware: "Original Software",
+      propUnitAxis: "Unit & Orientation",
+      propGisCrs: "GIS / Coordinate Reference",
+      subtitleSoftware: "Software",
+      subtitleUnit: "Unit",
+      subtitleGis: "GIS CRS",
+      subtitleUnspecified: "Unspecified",
       propMvd: "View Definition (MVD)",
       propExportDate: "Export Timestamp",
       propPreprocessor: "Preprocessor Engine",
@@ -544,6 +550,12 @@ const I18N = {
       propLoadedTime: "本次载入时间",
       secStandardsSoftware: "BIM 标准与软件",
       propOriginalSoftware: "原导出软件",
+      propUnitAxis: "单位与坐标朝向",
+      propGisCrs: "GIS 地理坐标系",
+      subtitleSoftware: "导出软件",
+      subtitleUnit: "单位",
+      subtitleGis: "GIS坐标系",
+      subtitleUnspecified: "未指定",
       propMvd: "视图定义 (MVD)",
       propExportDate: "原始导出时间",
       propPreprocessor: "预处理引擎",
@@ -860,6 +872,17 @@ const I18N = {
           state.chipEl.title = `${localizedName} (${state.meshes.length}) - Click: Toggle | Alt-Click: Isolate`;
         }
       });
+    }
+
+    if (window.app) {
+      if (typeof window.app.updateModelSubtitle === 'function') {
+        window.app.updateModelSubtitle();
+      }
+      if (!window.app.selectedMesh && (!window.app.selectedMeshes || window.app.selectedMeshes.length === 0)) {
+        if (typeof window.app.renderModelInfoInspector === 'function') {
+          window.app.renderModelInfoInspector();
+        }
+      }
     }
   }
 };

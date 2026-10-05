@@ -3916,9 +3916,14 @@
 	FBXLoader.prototype.inspect = function ( FBXBuffer ) {
 
 		let tree;
+		let version = 0;
+		const isBinary = isFbxFormatBinary( FBXBuffer );
 
-		if ( isFbxFormatBinary( FBXBuffer ) ) {
+		if ( isBinary ) {
 
+			const reader = new BinaryReader( FBXBuffer );
+			reader.skip( 23 );
+			version = reader.getUint32();
 			tree = new BinaryParser().parse( FBXBuffer );
 
 		} else {
@@ -3931,8 +3936,36 @@
 
 			}
 
+			try {
+				version = getFbxVersion( FBXText );
+			} catch ( e ) {
+				version = 7000;
+			}
+
 			tree = new TextParser().parse( FBXText );
 
+		}
+
+		let creator = null;
+		if ( tree && tree.FBXHeaderExtension ) {
+			const cNode = tree.FBXHeaderExtension.Creator;
+			if ( typeof cNode === 'string' ) {
+				creator = cNode.trim();
+			} else if ( cNode && typeof cNode.value === 'string' ) {
+				creator = cNode.value.trim();
+			}
+		}
+
+		let gis = null;
+		if ( tree && tree.GlobalSettings ) {
+			const gs = tree.GlobalSettings;
+			if ( gs.GeoLocation && gs.GeoLocation.value ) {
+				gis = String( gs.GeoLocation.value ).trim();
+			} else if ( gs.CRS && gs.CRS.value ) {
+				gis = String( gs.CRS.value ).trim();
+			} else if ( gs.CoordinateSystem && gs.CoordinateSystem.value ) {
+				gis = String( gs.CoordinateSystem.value ).trim();
+			}
 		}
 
 		const textures = [];
@@ -4011,7 +4044,11 @@
 			tree: tree,
 			textures: textures,
 			unitScale: unitScale,
-			upAxis: upAxis
+			upAxis: upAxis,
+			version: version,
+			creator: creator,
+			isBinary: isBinary,
+			gis: gis
 		};
 
 	};

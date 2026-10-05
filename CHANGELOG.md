@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **32 小时 27 分钟 (32.46 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 0 小时 42 分钟** (2026-09-29 22:17 至 2026-10-05 22:59)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,277 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **33 小时 36 分钟 (33.60 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 1 小时 50 分钟** (2026-09-29 22:17 至 2026-10-06 00:08)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,562 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~22:59 | 3h 54m (3.91h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~00:08 | 5h 03m (5.06h) | 功能迭代与持续优化 / Feature development |
 ---
 
 ## [v1.2610052130] - 2026-10-05 21:30
