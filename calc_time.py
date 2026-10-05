@@ -14,7 +14,9 @@ MILESTONES = {
     "2026-10-01": "剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling",
     "2026-10-02": "FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing",
     "2026-10-03": "墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor",
-    "2026-10-04": "正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover"
+    "2026-10-04": "正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover",
+    "2026-10-05": "左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow",
+    "2026-10-06": "多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync"
 }
 
 def calculate_time_metrics():

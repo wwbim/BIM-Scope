@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **33 小时 48 分钟 (33.81 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 2 小时 03 分钟** (2026-09-29 22:17 至 2026-10-06 00:20)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,691 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **33 小时 54 分钟 (33.91 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 2 小时 09 分钟** (2026-09-29 22:17 至 2026-10-06 00:26)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,723 Steps** (跨 14 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,52 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~00:20 | 5h 16m (5.27h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-05** | 19:04~00:26 | 5h 21m (5.36h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
+---
+
+## [v1.2610060030] - 2026-10-06 00:30
+
+### 多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-Format Model Subtitle & Inspector Metadata Profile Sync
+- **标题栏副标题统一工程规范与检查器模型档案对齐 / Unified Title Bar Engineering Subtitle & Inspector Alignment**
+  - **中文**:
+    1. **多格式副标题统一格式规范**: 标题栏模型文件名下方小字副标题全局适配所有支持格式（IFC、FBX、DAE、glTF/GLB 以及演示模型），彻底淘汰原先加载非 IFC 模型时残留初始演示模型建筑描述的缺陷。统一采用紧凑工程格式：`格式版本 | 导出软件: ... | 单位: ... (轴向) | GIS: ... (若有)`，当文件缺少对应字段时优雅显示为“未指定 / Unspecified”。
+    2. **深层元数据解析引擎拓展**: 在 `FBXLoader.js` 中新增版本（`FBXHeaderExtension.Version`）、原导出软件（`Creator`）、单位缩放比例（`UnitScaleFactor`）、上轴向（`UpAxis`）及 GIS 坐标参考系扫描；在 `ifc_parser.js` 中解析 `IFCPROJECTEDCRS` 与 `IFCGEOGRAPHICCRS`；在 DAE 解析中提取 COLLADA 版本号、导出工具软件及地理位置。
+    3. **FBX 加载健壮化修复**: 修正了 `loadFBXModel` 中形参未定义引起的 `ReferenceError` 异常中断，确保真实 FBX 模型全流程完整载入并准确呈现元数据。
+    4. **检查器「模型档案」属性卡片与双语即时联动**: 右侧检查器未选中构件时显示的“模型档案”属性卡片与副标题 100% 数据同步，新增“单位与坐标朝向”及“GIS 地理坐标系”展示行；切换中英文时即时刷新，无需重新加载模型，且智能保护已载入模型的文件名不被默认演示名覆盖。
+  - **English**:
+    1. **Unified Multi-Format Subtitle Engineering Standard**: Subtitle beneath model name dynamically displays compact engineering metadata across all supported formats (IFC, FBX, DAE, glTF/GLB, Demo Model), replacing residual architectural demo text. Standardized structure: `Format Version | Software: ... | Unit: ... (Axis) | GIS: ... (if present)`, gracefully falling back to "Unspecified".
+    2. **Deep Format Metadata Extraction**: Extended `FBXLoader.js` to parse FBX version, Creator, unit scale, up-axis, and GIS coordinate reference; integrated `IFCPROJECTEDCRS`/`IFCGEOGRAPHICCRS` in `ifc_parser.js`; extracted COLLADA version, authoring tool, and geolocation in DAE loader.
+    3. **Robust FBX Loader Exception Fix**: Fixed a `ReferenceError` caused by undefined variable reference in `loadFBXModel`, ensuring seamless loading and full metadata propagation for real-world FBX models.
+    4. **Inspector 'Model Profile' Synchronization & Bilingual Zero-Reload Switching**: The right-hand Model Profile inspector card synchronizes fully with the header subtitle, adding "Unit & Orientation" and "GIS / Coordinate Reference". Instant bilingual language toggle dynamically re-renders both header and inspector without reloading the model.
+
+---
+
+## [v1.2610052300] - 2026-10-05 23:00
+
+### 最底部构件类型（Elements）溢出渐变内阴影与平滑滚动 / Bottom Bar Elements Overflow Edge Shadow & Smooth Scroll
+- **构件分类标签溢出碰撞防护与平滑渐变内阴影 / Overflow Detection & Leftward Gradient Inner Shadow**
+  - **中文**:
+    1. **构件分类标签溢出内阴影指示**: 当底部栏 Elements 构件分类标签过多而延伸至右侧并被坐标值及性能 HUD 遮挡时，自坐标区域左侧边缘向左侧动态渲染平滑的渐变内阴影（Edge Shadow Gradient），与标签页溢出时的视觉质感保持一致，直观提示用户右侧存在未展示完全的标签内容。
+    2. **鼠标滚轮横向平滑滚动与动态显隐**: 支持光标位于底部栏时直接通过鼠标滚轮进行水平平滑滚动（`deltaY` 转化为横向位移）；实时监听滚动位置与视口缩放尺寸，当滚动至末端时自动渐隐阴影。
+  - **English**:
+    1. **Elements Overflow Edge Inner Shadow**: When category chips in the bottom bar overflow and collide with the right-side coordinates and performance HUD, dynamically renders a smooth leftward gradient inner shadow starting from the left boundary of the coordinates section.
+    2. **Horizontal Wheel Scrolling & Dynamic Shadow Visibility**: Direct mouse-wheel horizontal scrolling over the bottom bar; continuously monitors scroll position and viewport resize, smoothly fading out the shadow when scrolled to the end.
+
+---
+
+## [v1.2610052230] - 2026-10-05 22:30
+
+### CAD 制图级鼠标交互与双向矩形框选 / CAD-Standard Marquee Box Selection & Surface-Pivot Orbit
+- **鼠标按键交互体系升级与专业框选规则 / Mouse Interaction Overhaul & Window/Crossing Selection**
+  - **中文**:
+    1. **鼠标按键功能精细化重构**: 鼠标左键专用于点击选择与拖拽矩形框选；鼠标中键按住为平移（Pan）；鼠标右键短按弹出上下文操作菜单，长按拖拽则改为以光标当前所指构件表面空间坐标为轴心的精准环视（Surface-Pivot Orbit）。
+    2. **CAD 专业实线窗口 vs 虚线交叉框选**: 向右拖拽展示实线蓝色选框（Window Selection，仅选中 100% 处于选框内部的构件）；向左拖拽展示虚线绿色选框（Crossing Selection，构件任意部分与选框相交或位于框内即被选中）。
+    3. **组合框选与批量操作**: 按住 Ctrl 拖拽进行追加选择（并集），按住 Shift 拖拽进行去除选择（差集）；多选构件在右侧检查器提供批量显隐、批量隔离、批量缩放（Zoom to）、批量透明度滑块及公共属性集求交汇算。
+  - **English**:
+    1. **Mouse Control Layout Refactor**: Left mouse button exclusively handles click selection and marquee box drag; middle mouse drag handles Pan; right click opens context menu, while right drag performs Orbit rotating precisely around the surface point under cursor.
+    2. **CAD-Standard Window vs. Crossing Selection**: Dragging to the right renders a solid blue border (Window Selection, selecting elements completely enclosed); dragging to the left renders a dashed green border (Crossing Selection, selecting elements intersecting or enclosed).
+    3. **Composite Box Selection & Batch Operations**: Ctrl-drag adds to selection (Union), Shift-drag subtracts from selection (Difference). Multi-selection inspector card provides batch visibility toggle, isolation, Zoom to, unified opacity slider, and intersected property sets.
+
 ---
 
 ## [v1.2610052130] - 2026-10-05 21:30
