@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **34 小时 26 分钟 (34.44 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 22 小时 42 分钟** (2026-09-29 22:17 至 2026-10-06 20:59)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,912 Steps** (跨 15 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **34 小时 37 分钟 (34.63 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 22 小时 53 分钟** (2026-09-29 22:17 至 2026-10-06 21:11)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,992 Steps** (跨 15 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -28,7 +28,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
-| **2026-10-06** | 20:29~20:59 | 0h 30m (0.51h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
+| **2026-10-06** | 20:29~21:11 | 0h 42m (0.70h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
 ---
 
 ## [v1.2610062100] - 2026-10-06 21:00

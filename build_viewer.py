@@ -1005,8 +1005,14 @@ def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliver
     print(f"[{variant_key}] Exported to Deliverables: {deliv_dir}")
 
     # Sync documentation files if available
-    changelog_src = os.path.join(BASE_DIR, "CHANGELOG.md")
-    features_src = os.path.join(BASE_DIR, "FEATURES.md")
+    changelog_src = os.path.join(proj_dir, "CHANGELOG.md")
+    if not os.path.exists(changelog_src):
+        changelog_src = os.path.join(BASE_DIR, "CHANGELOG.md")
+
+    features_src = os.path.join(proj_dir, "FEATURES.md")
+    if not os.path.exists(features_src):
+        features_src = os.path.join(BASE_DIR, "FEATURES.md")
+
     if os.path.exists(changelog_src):
         shutil.copy2(changelog_src, os.path.join(deliv_dir, "CHANGELOG.md"))
     if os.path.exists(features_src):
@@ -1015,7 +1021,12 @@ def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliver
     # Auto-calculate and update project development time in CHANGELOG.md
     try:
         import calc_time
-        calc_time.update_changelog()
+        target_changelog = os.path.join(proj_dir, "CHANGELOG.md")
+        if os.path.exists(target_changelog):
+            calc_time.update_changelog(target_changelog)
+            shutil.copy2(target_changelog, os.path.join(deliv_dir, "CHANGELOG.md"))
+        else:
+            calc_time.update_changelog()
     except Exception as e:
         print(f"Notice: dev time metrics update skipped: {e}")
 

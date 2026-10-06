@@ -2,7 +2,7 @@
 r"""
 Synchronization and Deployment Script for Variant B (SWBIM Scope)
 Maintains Single Source of Truth in BIM Scope (Project A) and propagates
-code, assets, and builds to SWBIM Scope (Project B).
+code, assets, and tailored builds to SWBIM Scope (Project B).
 
 Author: WWBIM
 """
@@ -10,6 +10,7 @@ import os
 import sys
 import shutil
 import json
+import re
 import subprocess
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,11 +33,20 @@ def sync_directories(src_dir, dst_dir):
         for f in files:
             src_file = os.path.join(root, f)
             dst_file = os.path.join(target_root, f)
-            # Only copy if dst doesn't exist or src is modified
             if not os.path.exists(dst_file) or os.path.getmtime(src_file) != os.path.getmtime(dst_file):
                 shutil.copy2(src_file, dst_file)
                 count += 1
     return count
+
+def replace_branding_to_swbim(content):
+    """Accurately substitutes BIM Scope branding to SWBIM Scope without double prefixing."""
+    content = re.sub(r'(?<!SW)BIMScope\.html', 'SWBIMScope.html', content)
+    content = re.sub(r'(?<!SW)BIMScope', 'SWBIMScope', content)
+    content = re.sub(r'(?<!SW)BIM Scope', 'SWBIM Scope', content)
+    content = re.sub(r'(?<!SW)BIM_Scope', 'SWBIM_Scope', content)
+    content = re.sub(r'(?<!SW)BIM_SCOPE', 'SWBIM_SCOPE', content)
+    content = re.sub(r'^#\s*SWBIMScope', '# SWBIM Scope', content, flags=re.MULTILINE)
+    return content
 
 def generate_swbim_readme(src_readme_path, dst_readme_path):
     """Adapts project README for SWBIM Scope."""
@@ -45,13 +55,59 @@ def generate_swbim_readme(src_readme_path, dst_readme_path):
     with open(src_readme_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Replace branding titles & filenames
-    swbim_content = content.replace("# BIMScope", "# SWBIM Scope")
-    swbim_content = swbim_content.replace("BIMScope.html", "SWBIMScope.html")
-    swbim_content = swbim_content.replace("BIM Scope", "SWBIM Scope")
+    swbim_content = replace_branding_to_swbim(content)
 
     with open(dst_readme_path, "w", encoding="utf-8") as f:
         f.write(swbim_content)
+
+def generate_swbim_features(src_features_path, dst_features_path):
+    """Adapts FEATURES.md for SWBIM Scope:
+    1. Removes any rows referring to multi-variant release pipelines.
+    2. Substitutes BIM Scope / BIMScope branding to SWBIM Scope / SWBIMScope.
+    """
+    if not os.path.exists(src_features_path):
+        return
+    with open(src_features_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Filter out multi-variant pipeline rows
+    lines = []
+    for line in content.splitlines():
+        if "双版本参数化发布管线" in line or "Dual-Variant Parametric Release Pipeline" in line or "多版本发布" in line:
+            continue
+        lines.append(line)
+    content = "\n".join(lines)
+
+    content = replace_branding_to_swbim(content)
+
+    with open(dst_features_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
+    """Adapts CHANGELOG.md for SWBIM Scope:
+    1. Removes dual-variant branching version entries (e.g. [v1.2610062100]).
+    2. Rewrites 2026-10-06 milestone in the time metrics table to the clean feature milestone.
+    3. Substitutes all BIM Scope / BIMScope branding to SWBIM Scope / SWBIMScope.
+    """
+    if not os.path.exists(src_changelog_path):
+        return
+    with open(src_changelog_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Remove v1.2610062100 dual-variant release note block completely
+    pattern = r"\n## \[v1\.2610062100\].*?\n---\n(?=\n## \[v1\.)"
+    content = re.sub(pattern, "", content, flags=re.DOTALL)
+
+    # 2. Ensure milestone in development time metrics table is the clean feature milestone
+    old_ms = "双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync"
+    new_ms = "多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync"
+    content = content.replace(old_ms, new_ms)
+
+    # 3. Replace all software name occurrences
+    content = replace_branding_to_swbim(content)
+
+    with open(dst_changelog_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 def run_sync():
     print("=" * 60)
@@ -86,9 +142,7 @@ def run_sync():
         "build_viewer.py",
         "calc_time.py",
         "variant_config.json",
-        ".gitignore",
-        "CHANGELOG.md",
-        "FEATURES.md"
+        ".gitignore"
     ]
     for rf in root_files:
         src_f = os.path.join(BASE_DIR, rf)
@@ -96,16 +150,25 @@ def run_sync():
             shutil.copy2(src_f, os.path.join(target_proj_dir, rf))
             print(f"  - Copied {rf}")
 
-    # Tailor README for SWBIM Scope
+    # Generate tailored documentation for SWBIM Scope
     src_readme = os.path.join(BASE_DIR, "README.md")
     dst_readme = os.path.join(target_proj_dir, "README.md")
     generate_swbim_readme(src_readme, dst_readme)
     print("  - Generated tailored README.md for SWBIM Scope")
 
+    src_features = os.path.join(BASE_DIR, "FEATURES.md")
+    dst_features = os.path.join(target_proj_dir, "FEATURES.md")
+    generate_swbim_features(src_features, dst_features)
+    print("  - Generated tailored FEATURES.md for SWBIM Scope")
+
+    src_changelog = os.path.join(BASE_DIR, "CHANGELOG.md")
+    dst_changelog = os.path.join(target_proj_dir, "CHANGELOG.md")
+    generate_swbim_changelog(src_changelog, dst_changelog)
+    print("  - Generated tailored CHANGELOG.md for SWBIM Scope (branch history hidden)")
+
     # 3. Compile Variant B in target project
     print("\n[3/4] Compiling Variant B (SWBIM Scope) standalone distributions...")
     try:
-        # Import and run build_variant directly
         import build_viewer
         result = build_viewer.build_variant(
             variant_key="B",
