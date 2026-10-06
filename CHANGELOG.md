@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **33 小时 54 分钟 (33.91 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 2 小时 09 分钟** (2026-09-29 22:17 至 2026-10-06 00:26)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,723 Steps** (跨 14 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **34 小时 26 分钟 (34.44 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **6 天 22 小时 42 分钟** (2026-09-29 22:17 至 2026-10-06 20:59)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **15,912 Steps** (跨 15 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -27,7 +27,27 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
 | **2026-10-03** | 09:55~10:39, 23:11~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~00:26 | 5h 21m (5.36h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
+| **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
+| **2026-10-06** | 20:29~20:59 | 0h 30m (0.51h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
+---
+
+## [v1.2610062100] - 2026-10-06 21:00
+
+### 双版本参数化构建系统与品牌所有权隔离 / Dual-Variant Parametric Build System & Ownership Isolation
+- **一式两份构建发布架构 / Single Source of Truth Dual-Edition Architecture**
+  - **中文**:
+    1. **A/B 双版本独立配置与参数化注入**: 构建系统全面重构，支持通过 `variant_config.json` 集中管理 Variant A (`BIM Scope`) 与 Variant B (`SWBIM Scope`) 的品牌标识、所有权元数据、文件名称及输出路径。
+    2. **版本 A (BIM Scope)**: 所有者设为 `WWBIM`（注入至 HTML `<meta name="author">`、`<meta name="creator">` 与注释中，界面无侵入）；顶部导航栏 Logo 切换为专属 WW Logo（`logo_ww_b64`）；软件名称为 `BIM Scope`；生成独立 `BIMScope.html` 及镜像 `index.html`。
+    3. **版本 B (SWBIM Scope)**: 所有者设为 `Samwoh Corporation, Wang Wei`（注入至 HTML 元数据与注释中）；顶部导航栏保留原红色 Samwoh Logo（`icon_red_b64`）；软件名称设为 `SWBIM Scope`；生成独立 `SWBIMScope.html` 及镜像 `index.html`。
+    4. **3D 视口水印统一保护**: 两个版本的 3D 视口左下角半透明水印图标均统一保持为 WW Logo，所有 3D 渲染核心、解析引擎与交互功能 100% 保持一致与零差异同步。
+    5. **一键同步与构建脚本 (`sync_variant_b.py`)**: 提供一键脚本自动将源项目（`BIM Scope/Project`）的代码、依赖库、文档自动同步至对等目录（`SWBIM Scope/Project`），并在目标目录独立编译 Variant B 单文件发行版至工程根目录及 `Deliverables` 文件夹，附带 Account B Git 仓库就绪初始化指令。
+  - **English**:
+    1. **Centralized A/B Variant Parametric Configuration**: Fully modularized build architecture governed by `variant_config.json`, maintaining a single source of truth for Variant A (`BIM Scope`) and Variant B (`SWBIM Scope`).
+    2. **Edition A (BIM Scope)**: Owned by `WWBIM` (injected in `<meta name="author">`, `<meta name="creator">`, comments; hidden from UI); top navbar displays WW Logo (`logo_ww_b64`); brand name set to `BIM Scope`; outputs `BIMScope.html` and root mirror `index.html`.
+    3. **Edition B (SWBIM Scope)**: Owned by `Samwoh Corporation, Wang Wei`; top navbar retains original Samwoh logo (`icon_red_b64`); brand name set to `SWBIM Scope`; outputs `SWBIMScope.html` and root mirror `index.html`.
+    4. **Unified Viewport Watermark Protection**: Both editions preserve the WW logo watermark at the bottom-left of the 3D viewport, while 100% sharing identical Three.js engines, parser modules, shaders, and features.
+    5. **Automated One-Click Sync & Build (`sync_variant_b.py`)**: One-click synchronization utility mirroring sources, libraries, and docs from `BIM Scope/Project` to `SWBIM Scope/Project`, automatically compiling Variant B deliverables and providing Git setup guidelines for Account B.
+
 ---
 
 ## [v1.2610060030] - 2026-10-06 00:30

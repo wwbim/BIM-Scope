@@ -2,68 +2,149 @@
 r"""
 Build script to compile everything into a single-file, 100% offline HTML viewer.
 Author: WWBIM
-Outputs: C:/Users/wangw/.gemini/antigravity/scratch/bim-viewer/index.html
+Supports editions:
+  --variant=A: BIM Scope (Owner: WWBIM, Logo: WW logo, Folder: BIM Scope)
+  --variant=B: SWBIM Scope (Owner: Samwoh Corporation, Wang Wei, Logo: Samwoh logo, Folder: SWBIM Scope)
+  --variant=all: Builds both variants
 """
 import os
+import sys
 import shutil
+import json
+import argparse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIB_DIR = os.path.join(BASE_DIR, "libs")
 SRC_DIR = os.path.join(BASE_DIR, "src")
-OUTPUT_HTML = os.path.join(BASE_DIR, "BIMScope.html")
-INDEX_HTML = os.path.join(BASE_DIR, "index.html")
+CONFIG_PATH = os.path.join(BASE_DIR, "variant_config.json")
 
-# Read Libraries
-with open(os.path.join(LIB_DIR, "three.min.js"), "r", encoding="utf-8") as f:
-    three_js = f.read()
+DEFAULT_CONFIG = {
+    "variants": {
+        "A": {
+            "key": "A",
+            "appName": "BIM Scope",
+            "htmlTitle": "BIM Scope - 3D BIM Viewer",
+            "owner": "WWBIM",
+            "authorComment": "Author: WWBIM | BIM Scope 3D Viewer",
+            "topLogo": "logo_ww_b64.txt",
+            "outputHtml": "BIMScope.html",
+            "projectDir": r"H:\我的云端硬盘\Software Develop\BIM Scope\Project",
+            "deliverablesDir": r"H:\我的云端硬盘\Software Develop\BIM Scope\Deliverables"
+        },
+        "B": {
+            "key": "B",
+            "appName": "SWBIM Scope",
+            "htmlTitle": "SWBIM Scope - 3D BIM Viewer",
+            "owner": "Samwoh Corporation, Wang Wei",
+            "authorComment": "Author: Samwoh Corporation, Wang Wei | SWBIM Scope 3D Viewer",
+            "topLogo": "icon_red_b64.txt",
+            "outputHtml": "SWBIMScope.html",
+            "projectDir": r"H:\我的云端硬盘\Software Develop\SWBIM Scope\Project",
+            "deliverablesDir": r"H:\我的云端硬盘\Software Develop\SWBIM Scope\Deliverables"
+        }
+    }
+}
 
-with open(os.path.join(LIB_DIR, "OrbitControls.js"), "r", encoding="utf-8") as f:
-    orbit_controls_js = f.read()
+def load_config(base_dir=BASE_DIR):
+    cfg_file = os.path.join(base_dir, "variant_config.json")
+    if os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Notice: Failed reading {cfg_file}: {e}, using defaults.")
+    return DEFAULT_CONFIG
 
-with open(os.path.join(LIB_DIR, "GLTFLoader.js"), "r", encoding="utf-8") as f:
-    gltf_loader_js = f.read()
+def load_sources(base_dir=BASE_DIR):
+    lib_dir = os.path.join(base_dir, "libs")
+    src_dir = os.path.join(base_dir, "src")
 
-with open(os.path.join(LIB_DIR, "fflate.min.js"), "r", encoding="utf-8") as f:
-    fflate_js = f.read()
+    with open(os.path.join(lib_dir, "three.min.js"), "r", encoding="utf-8") as f:
+        three_js = f.read()
+    with open(os.path.join(lib_dir, "OrbitControls.js"), "r", encoding="utf-8") as f:
+        orbit_controls_js = f.read()
+    with open(os.path.join(lib_dir, "GLTFLoader.js"), "r", encoding="utf-8") as f:
+        gltf_loader_js = f.read()
+    with open(os.path.join(lib_dir, "fflate.min.js"), "r", encoding="utf-8") as f:
+        fflate_js = f.read()
+    with open(os.path.join(lib_dir, "TGALoader.js"), "r", encoding="utf-8") as f:
+        tga_loader_js = f.read()
+    with open(os.path.join(lib_dir, "FBXLoader.js"), "r", encoding="utf-8") as f:
+        fbx_loader_js = f.read()
+    with open(os.path.join(lib_dir, "ColladaLoader.js"), "r", encoding="utf-8") as f:
+        collada_loader_js = f.read()
 
-with open(os.path.join(LIB_DIR, "TGALoader.js"), "r", encoding="utf-8") as f:
-    tga_loader_js = f.read()
+    with open(os.path.join(src_dir, "styles.css"), "r", encoding="utf-8") as f:
+        styles_css = f.read()
+    with open(os.path.join(src_dir, "i18n.js"), "r", encoding="utf-8") as f:
+        i18n_js = f.read()
+    with open(os.path.join(src_dir, "solar.js"), "r", encoding="utf-8") as f:
+        solar_js = f.read()
+    with open(os.path.join(src_dir, "clipping.js"), "r", encoding="utf-8") as f:
+        clipping_js = f.read()
+    with open(os.path.join(src_dir, "ifc_parser.js"), "r", encoding="utf-8") as f:
+        ifc_parser_js = f.read()
+    with open(os.path.join(src_dir, "demo_model.js"), "r", encoding="utf-8") as f:
+        demo_model_js = f.read()
+    with open(os.path.join(src_dir, "app.js"), "r", encoding="utf-8") as f:
+        app_js = f.read()
 
-with open(os.path.join(LIB_DIR, "FBXLoader.js"), "r", encoding="utf-8") as f:
-    fbx_loader_js = f.read()
+    with open(os.path.join(src_dir, "icon_red_b64.txt"), "r", encoding="utf-8") as f:
+        icon_red_b64 = f.read().strip()
+    with open(os.path.join(src_dir, "logo_ww_b64.txt"), "r", encoding="utf-8") as f:
+        logo_ww_b64 = f.read().strip()
 
-with open(os.path.join(LIB_DIR, "ColladaLoader.js"), "r", encoding="utf-8") as f:
-    collada_loader_js = f.read()
+    return {
+        "three_js": three_js,
+        "orbit_controls_js": orbit_controls_js,
+        "gltf_loader_js": gltf_loader_js,
+        "fflate_js": fflate_js,
+        "tga_loader_js": tga_loader_js,
+        "fbx_loader_js": fbx_loader_js,
+        "collada_loader_js": collada_loader_js,
+        "styles_css": styles_css,
+        "i18n_js": i18n_js,
+        "solar_js": solar_js,
+        "clipping_js": clipping_js,
+        "ifc_parser_js": ifc_parser_js,
+        "demo_model_js": demo_model_js,
+        "app_js": app_js,
+        "icon_red_b64": icon_red_b64,
+        "logo_ww_b64": logo_ww_b64,
+    }
 
-# Read Source Files
-with open(os.path.join(SRC_DIR, "styles.css"), "r", encoding="utf-8") as f:
-    styles_css = f.read()
+def generate_html(variant_cfg, sources):
+    owner = variant_cfg["owner"]
+    author_comment = variant_cfg["authorComment"]
+    html_title = variant_cfg["htmlTitle"]
+    app_name = variant_cfg["appName"]
 
-with open(os.path.join(SRC_DIR, "i18n.js"), "r", encoding="utf-8") as f:
-    i18n_js = f.read()
+    # Select navbar top logo based on configuration
+    top_logo_file = variant_cfg.get("topLogo", "logo_ww_b64.txt")
+    if "icon_red" in top_logo_file:
+        top_logo_b64 = sources["icon_red_b64"]
+    else:
+        top_logo_b64 = sources["logo_ww_b64"]
 
-with open(os.path.join(SRC_DIR, "solar.js"), "r", encoding="utf-8") as f:
-    solar_js = f.read()
+    # Watermark logo in viewport is always user logo
+    logo_ww_b64 = sources["logo_ww_b64"]
 
-with open(os.path.join(SRC_DIR, "clipping.js"), "r", encoding="utf-8") as f:
-    clipping_js = f.read()
+    styles_css = sources["styles_css"]
+    three_js = sources["three_js"]
+    orbit_controls_js = sources["orbit_controls_js"]
+    gltf_loader_js = sources["gltf_loader_js"]
+    fflate_js = sources["fflate_js"]
+    tga_loader_js = sources["tga_loader_js"]
+    fbx_loader_js = sources["fbx_loader_js"]
+    collada_loader_js = sources["collada_loader_js"]
+    i18n_js = sources["i18n_js"]
+    solar_js = sources["solar_js"]
+    clipping_js = sources["clipping_js"]
+    ifc_parser_js = sources["ifc_parser_js"]
+    demo_model_js = sources["demo_model_js"]
+    app_js = sources["app_js"]
 
-with open(os.path.join(SRC_DIR, "ifc_parser.js"), "r", encoding="utf-8") as f:
-    ifc_parser_js = f.read()
-
-with open(os.path.join(SRC_DIR, "demo_model.js"), "r", encoding="utf-8") as f:
-    demo_model_js = f.read()
-
-with open(os.path.join(SRC_DIR, "icon_red_b64.txt"), "r", encoding="utf-8") as f:
-    icon_red_b64 = f.read().strip()
-
-with open(os.path.join(SRC_DIR, "logo_ww_b64.txt"), "r", encoding="utf-8") as f:
-    logo_ww_b64 = f.read().strip()
-
-with open(os.path.join(SRC_DIR, "app.js"), "r", encoding="utf-8") as f:
-    app_js = f.read()
-
-html_content = f"""<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -71,10 +152,10 @@ html_content = f"""<!DOCTYPE html>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="author" content="WWBIM">
-  <meta name="creator" content="WWBIM">
-  <!-- Author: WWBIM | BIM Scope 3D Viewer -->
-  <title>BIM Scope - 3D BIM Viewer</title>
+  <meta name="author" content="{owner}">
+  <meta name="creator" content="{owner}">
+  <!-- {author_comment} -->
+  <title>{html_title}</title>
   <style>
 {styles_css}
   </style>
@@ -85,7 +166,7 @@ html_content = f"""<!DOCTYPE html>
     <header id="top-navbar">
       <div class="nav-left">
         <div class="brand-box">
-          <img class="brand-logo-red" src="{icon_red_b64}" alt="openBIM / buildingSMART" width="22" height="22">
+          <img class="brand-logo-red" src="{top_logo_b64}" alt="Logo" width="22" height="22">
           <svg class="brand-lens-icon" viewBox="0 0 24 24" width="22" height="22">
             <circle cx="12" cy="12" r="9.6" stroke="currentColor" stroke-width="1.6" fill="none"/>
             <circle cx="12" cy="12" r="7.2" stroke="currentColor" stroke-width="1.1" stroke-opacity="0.8" fill="none"/>
@@ -98,7 +179,7 @@ html_content = f"""<!DOCTYPE html>
             <line x1="19.8" y1="12" x2="22.2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             <circle cx="12" cy="12" r="1.1" fill="currentColor"/>
           </svg>
-          <span class="brand-name">BIM Scope</span>
+          <span class="brand-name">{app_name}</span>
         </div>
         <div class="project-title-box">
           <div class="project-title">
@@ -881,32 +962,89 @@ html_content = f"""<!DOCTYPE html>
 </html>
 """
 
-with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
-    f.write(html_content)
+def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliverables_dir=None, sources=None):
+    if cfg is None:
+        cfg = load_config()
+    v_info = cfg.get("variants", {}).get(variant_key)
+    if not v_info:
+        raise ValueError(f"Unknown variant key '{variant_key}'. Available: {list(cfg.get('variants', {}).keys())}")
 
-with open(INDEX_HTML, "w", encoding="utf-8") as f:
-    f.write(html_content)
+    if sources is None:
+        sources = load_sources(BASE_DIR)
 
-size_mb = os.path.getsize(OUTPUT_HTML) / (1024 * 1024)
-print(f"Successfully compiled standalone HTML viewer: {OUTPUT_HTML} ({size_mb:.2f} MB)")
-print(f"Also created mirror copy at: {INDEX_HTML}")
+    print(f"\n==========================================")
+    print(f"Building Edition {variant_key}: {v_info['appName']} (Owner: {v_info['owner']})")
+    print(f"==========================================")
 
-# Auto-calculate and update project development time in CHANGELOG.md
-changelog_path = os.path.join(BASE_DIR, "CHANGELOG.md")
-try:
-    import calc_time
-    calc_time.update_changelog()
-except Exception as e:
-    print(f"Notice: dev time metrics update skipped: {e}")
+    html_content = generate_html(v_info, sources)
 
-# Auto-distribute to Deliverables folder (sibling of Project)
-deliverables_dir = os.path.abspath(os.path.join(BASE_DIR, "..", "Deliverables"))
-os.makedirs(deliverables_dir, exist_ok=True)
-shutil.copy2(OUTPUT_HTML, os.path.join(deliverables_dir, "BIMScope.html"))
-shutil.copy2(INDEX_HTML, os.path.join(deliverables_dir, "index.html"))
-features_path = os.path.join(BASE_DIR, "FEATURES.md")
-if os.path.exists(changelog_path):
-    shutil.copy2(changelog_path, os.path.join(deliverables_dir, "CHANGELOG.md"))
-if os.path.exists(features_path):
-    shutil.copy2(features_path, os.path.join(deliverables_dir, "FEATURES.md"))
-print(f"Exported deliverable to: {deliverables_dir}")
+    proj_dir = custom_project_dir or v_info.get("projectDir") or BASE_DIR
+    deliv_dir = custom_deliverables_dir or v_info.get("deliverablesDir") or os.path.abspath(os.path.join(proj_dir, "..", "Deliverables"))
+
+    os.makedirs(proj_dir, exist_ok=True)
+    os.makedirs(deliv_dir, exist_ok=True)
+
+    output_html_name = v_info.get("outputHtml", "BIMScope.html")
+    proj_out = os.path.join(proj_dir, output_html_name)
+    proj_index = os.path.join(proj_dir, "index.html")
+
+    with open(proj_out, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    with open(proj_index, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    size_mb = os.path.getsize(proj_out) / (1024 * 1024)
+    print(f"[{variant_key}] Compiled: {proj_out} ({size_mb:.2f} MB)")
+    print(f"[{variant_key}] Mirror entrypoint: {proj_index}")
+
+    deliv_out = os.path.join(deliv_dir, output_html_name)
+    deliv_index = os.path.join(deliv_dir, "index.html")
+
+    shutil.copy2(proj_out, deliv_out)
+    shutil.copy2(proj_index, deliv_index)
+    print(f"[{variant_key}] Exported to Deliverables: {deliv_dir}")
+
+    # Sync documentation files if available
+    changelog_src = os.path.join(BASE_DIR, "CHANGELOG.md")
+    features_src = os.path.join(BASE_DIR, "FEATURES.md")
+    if os.path.exists(changelog_src):
+        shutil.copy2(changelog_src, os.path.join(deliv_dir, "CHANGELOG.md"))
+    if os.path.exists(features_src):
+        shutil.copy2(features_src, os.path.join(deliv_dir, "FEATURES.md"))
+
+    # Auto-calculate and update project development time in CHANGELOG.md
+    try:
+        import calc_time
+        calc_time.update_changelog()
+    except Exception as e:
+        print(f"Notice: dev time metrics update skipped: {e}")
+
+    return {
+        "variant": variant_key,
+        "appName": v_info["appName"],
+        "outputFile": proj_out,
+        "deliverablesDir": deliv_dir,
+        "sizeMb": size_mb
+    }
+
+def main():
+    default_variant = "B" if "SWBIM Scope" in BASE_DIR else "A"
+
+    parser = argparse.ArgumentParser(description="Compile standalone single-file BIM viewer.")
+    parser.add_argument("--variant", choices=["A", "B", "all"], default=default_variant,
+                        help=f"Variant edition to build (default: {default_variant})")
+    parser.add_argument("--project-dir", default=None, help="Custom project output directory")
+    parser.add_argument("--deliverables-dir", default=None, help="Custom deliverables output directory")
+    args = parser.parse_args()
+
+    cfg = load_config()
+    sources = load_sources(BASE_DIR)
+
+    if args.variant == "all":
+        build_variant("A", cfg, args.project_dir, args.deliverables_dir, sources)
+        build_variant("B", cfg, args.project_dir, args.deliverables_dir, sources)
+    else:
+        build_variant(args.variant, cfg, args.project_dir, args.deliverables_dir, sources)
+
+if __name__ == "__main__":
+    main()

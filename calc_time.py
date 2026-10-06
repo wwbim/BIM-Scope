@@ -16,7 +16,7 @@ MILESTONES = {
     "2026-10-03": "墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor",
     "2026-10-04": "正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover",
     "2026-10-05": "左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow",
-    "2026-10-06": "多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync"
+    "2026-10-06": "双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync"
 }
 
 def calculate_time_metrics():

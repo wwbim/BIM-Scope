@@ -1,0 +1,26 @@
+{
+  "variants": {
+    "A": {
+      "key": "A",
+      "appName": "BIM Scope",
+      "htmlTitle": "BIM Scope - 3D BIM Viewer",
+      "owner": "WWBIM",
+      "authorComment": "Author: WWBIM | BIM Scope 3D Viewer",
+      "topLogo": "logo_ww_b64.txt",
+      "outputHtml": "BIMScope.html",
+      "projectDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Project",
+      "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Deliverables"
+    },
+    "B": {
+      "key": "B",
+      "appName": "SWBIM Scope",
+      "htmlTitle": "SWBIM Scope - 3D BIM Viewer",
+      "owner": "Samwoh Corporation, Wang Wei",
+      "authorComment": "Author: Samwoh Corporation, Wang Wei | SWBIM Scope 3D Viewer",
+      "topLogo": "icon_red_b64.txt",
+      "outputHtml": "SWBIMScope.html",
+      "projectDir": "H:\\我的云端硬盘\\Software Develop\\SWBIM Scope\\Project",
+      "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\SWBIM Scope\\Deliverables"
+    }
+  }
+}
