@@ -47,5 +47,8 @@ test_ff.html
 .DS_Store
 Thumbs.db
 .vscode/
-.idea/
 *.bat
+
+# Local-only AI handover and internal development documents (DO NOT PUBLISH)
+AI_HANDOVER.md
+*_HANDOVER.md
