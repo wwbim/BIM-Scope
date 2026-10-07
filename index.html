@@ -24048,6 +24048,40 @@ class ModelCompareEngine {
     if (btnStart) btnStart.addEventListener('click', () => this.startComparison());
     if (btnSwap) btnSwap.addEventListener('click', () => this.swapFiles());
 
+    if (modal) {
+      let isBackdropMouseDown = false;
+      modal.addEventListener('mousedown', (e) => {
+        isBackdropMouseDown = (e.target === modal);
+      });
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal && isBackdropMouseDown) {
+          this.closeSetupModal();
+        }
+        isBackdropMouseDown = false;
+      });
+
+      // Intercept and swallow drag events over modal backdrop so they never reach the viewport
+      ['dragenter', 'dragover', 'dragleave'].forEach(evt => {
+        modal.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const dropzone = document.getElementById('dropzone-overlay');
+          if (dropzone) dropzone.classList.remove('active');
+        });
+      });
+
+      modal.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dropzone = document.getElementById('dropzone-overlay');
+        if (dropzone) dropzone.classList.remove('active');
+      });
+
+      modal.addEventListener('wheel', (e) => {
+        e.stopPropagation();
+      });
+    }
+
     // File input handlers
     const inputNew = document.getElementById('input-compare-new');
     const inputOld = document.getElementById('input-compare-old');
@@ -24075,11 +24109,18 @@ class ModelCompareEngine {
     }
   }
 
+  isModalOpen() {
+    const modal = document.getElementById('compare-setup-modal');
+    return !!(modal && modal.classList.contains('active'));
+  }
+
   setupDropZone(el, onFileDrop) {
     el.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.stopPropagation();
       el.classList.add('drag-over');
+      const dropzone = document.getElementById('dropzone-overlay');
+      if (dropzone) dropzone.classList.remove('active');
     });
     el.addEventListener('dragleave', (e) => {
       e.preventDefault();
@@ -24090,6 +24131,8 @@ class ModelCompareEngine {
       e.preventDefault();
       e.stopPropagation();
       el.classList.remove('drag-over');
+      const dropzone = document.getElementById('dropzone-overlay');
+      if (dropzone) dropzone.classList.remove('active');
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
         onFileDrop(e.dataTransfer.files[0]);
       }
@@ -24100,16 +24143,21 @@ class ModelCompareEngine {
     const modal = document.getElementById('compare-setup-modal');
     if (!modal) return;
 
-    // Check currently loaded model in viewport
+    // Defensively ensure viewport dropzone prompt is hidden
+    const dropzone = document.getElementById('dropzone-overlay');
+    if (dropzone) dropzone.classList.remove('active');
+
+    // Check currently loaded model in viewport (retain previous selection if user chose custom file)
     const curInfo = this.app.currentModelInfo;
     if (curInfo && !curInfo.isDemo && this.app.activeModel) {
-      // Default left (New) to currently loaded model
-      this.fileNew = {
-        name: curInfo.fileName,
-        isCurrent: true,
-        size: curInfo.fileSize || '',
-        model: this.app.activeModel
-      };
+      if (!this.fileNew || this.fileNew.isCurrent) {
+        this.fileNew = {
+          name: curInfo.fileName,
+          isCurrent: true,
+          size: curInfo.fileSize || '',
+          model: this.app.activeModel
+        };
+      }
     }
 
     this.renderZoneUI('new');
@@ -24122,6 +24170,8 @@ class ModelCompareEngine {
   closeSetupModal() {
     const modal = document.getElementById('compare-setup-modal');
     if (modal) modal.classList.remove('active');
+    const dropzone = document.getElementById('dropzone-overlay');
+    if (dropzone) dropzone.classList.remove('active');
   }
 
   setFile(target, file) {
@@ -33147,6 +33197,18 @@ class BIMViewerApp {
       window.addEventListener(evt, (e) => {
         e.preventDefault();
         e.stopPropagation();
+
+        // If compare modal or texture modal is open, completely suppress viewport dropzone prompt
+        if (this.compareEngine && this.compareEngine.isModalOpen()) {
+          if (dropzone) dropzone.classList.remove('active');
+          return;
+        }
+        const texModal = document.getElementById('texture-modal');
+        if (texModal && texModal.classList.contains('active')) {
+          if (dropzone) dropzone.classList.remove('active');
+          return;
+        }
+
         if (dropzone) dropzone.classList.add('active');
       });
     });
@@ -33163,6 +33225,12 @@ class BIMViewerApp {
       e.preventDefault();
       e.stopPropagation();
       if (dropzone) dropzone.classList.remove('active');
+
+      // If compare modal or texture modal is open, do not load into main viewport
+      if (this.compareEngine && this.compareEngine.isModalOpen()) return;
+      const texModal = document.getElementById('texture-modal');
+      if (texModal && texModal.classList.contains('active')) return;
+
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         this.handleFileInput(e.dataTransfer.files);
       }
@@ -33408,7 +33476,19 @@ class BIMViewerApp {
     });
 
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.hideContextMenu();
+      if (e.key === 'Escape') {
+        this.hideContextMenu();
+        if (this.compareEngine && this.compareEngine.isModalOpen()) {
+          this.compareEngine.closeSetupModal();
+          return;
+        }
+      }
+
+      // If compare modal is active, mask background shortcuts
+      if (this.compareEngine && this.compareEngine.isModalOpen()) {
+        return;
+      }
+
       if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         this.undoView();

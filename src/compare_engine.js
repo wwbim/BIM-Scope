@@ -59,6 +59,40 @@ class ModelCompareEngine {
     if (btnStart) btnStart.addEventListener('click', () => this.startComparison());
     if (btnSwap) btnSwap.addEventListener('click', () => this.swapFiles());
 
+    if (modal) {
+      let isBackdropMouseDown = false;
+      modal.addEventListener('mousedown', (e) => {
+        isBackdropMouseDown = (e.target === modal);
+      });
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal && isBackdropMouseDown) {
+          this.closeSetupModal();
+        }
+        isBackdropMouseDown = false;
+      });
+
+      // Intercept and swallow drag events over modal backdrop so they never reach the viewport
+      ['dragenter', 'dragover', 'dragleave'].forEach(evt => {
+        modal.addEventListener(evt, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const dropzone = document.getElementById('dropzone-overlay');
+          if (dropzone) dropzone.classList.remove('active');
+        });
+      });
+
+      modal.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dropzone = document.getElementById('dropzone-overlay');
+        if (dropzone) dropzone.classList.remove('active');
+      });
+
+      modal.addEventListener('wheel', (e) => {
+        e.stopPropagation();
+      });
+    }
+
     // File input handlers
     const inputNew = document.getElementById('input-compare-new');
     const inputOld = document.getElementById('input-compare-old');
@@ -86,11 +120,18 @@ class ModelCompareEngine {
     }
   }
 
+  isModalOpen() {
+    const modal = document.getElementById('compare-setup-modal');
+    return !!(modal && modal.classList.contains('active'));
+  }
+
   setupDropZone(el, onFileDrop) {
     el.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.stopPropagation();
       el.classList.add('drag-over');
+      const dropzone = document.getElementById('dropzone-overlay');
+      if (dropzone) dropzone.classList.remove('active');
     });
     el.addEventListener('dragleave', (e) => {
       e.preventDefault();
@@ -101,6 +142,8 @@ class ModelCompareEngine {
       e.preventDefault();
       e.stopPropagation();
       el.classList.remove('drag-over');
+      const dropzone = document.getElementById('dropzone-overlay');
+      if (dropzone) dropzone.classList.remove('active');
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
         onFileDrop(e.dataTransfer.files[0]);
       }
@@ -111,16 +154,21 @@ class ModelCompareEngine {
     const modal = document.getElementById('compare-setup-modal');
     if (!modal) return;
 
-    // Check currently loaded model in viewport
+    // Defensively ensure viewport dropzone prompt is hidden
+    const dropzone = document.getElementById('dropzone-overlay');
+    if (dropzone) dropzone.classList.remove('active');
+
+    // Check currently loaded model in viewport (retain previous selection if user chose custom file)
     const curInfo = this.app.currentModelInfo;
     if (curInfo && !curInfo.isDemo && this.app.activeModel) {
-      // Default left (New) to currently loaded model
-      this.fileNew = {
-        name: curInfo.fileName,
-        isCurrent: true,
-        size: curInfo.fileSize || '',
-        model: this.app.activeModel
-      };
+      if (!this.fileNew || this.fileNew.isCurrent) {
+        this.fileNew = {
+          name: curInfo.fileName,
+          isCurrent: true,
+          size: curInfo.fileSize || '',
+          model: this.app.activeModel
+        };
+      }
     }
 
     this.renderZoneUI('new');
@@ -133,6 +181,8 @@ class ModelCompareEngine {
   closeSetupModal() {
     const modal = document.getElementById('compare-setup-modal');
     if (modal) modal.classList.remove('active');
+    const dropzone = document.getElementById('dropzone-overlay');
+    if (dropzone) dropzone.classList.remove('active');
   }
 
   setFile(target, file) {

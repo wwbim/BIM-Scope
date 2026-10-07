@@ -6602,6 +6602,18 @@ class BIMViewerApp {
       window.addEventListener(evt, (e) => {
         e.preventDefault();
         e.stopPropagation();
+
+        // If compare modal or texture modal is open, completely suppress viewport dropzone prompt
+        if (this.compareEngine && this.compareEngine.isModalOpen()) {
+          if (dropzone) dropzone.classList.remove('active');
+          return;
+        }
+        const texModal = document.getElementById('texture-modal');
+        if (texModal && texModal.classList.contains('active')) {
+          if (dropzone) dropzone.classList.remove('active');
+          return;
+        }
+
         if (dropzone) dropzone.classList.add('active');
       });
     });
@@ -6618,6 +6630,12 @@ class BIMViewerApp {
       e.preventDefault();
       e.stopPropagation();
       if (dropzone) dropzone.classList.remove('active');
+
+      // If compare modal or texture modal is open, do not load into main viewport
+      if (this.compareEngine && this.compareEngine.isModalOpen()) return;
+      const texModal = document.getElementById('texture-modal');
+      if (texModal && texModal.classList.contains('active')) return;
+
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         this.handleFileInput(e.dataTransfer.files);
       }
@@ -6863,7 +6881,19 @@ class BIMViewerApp {
     });
 
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.hideContextMenu();
+      if (e.key === 'Escape') {
+        this.hideContextMenu();
+        if (this.compareEngine && this.compareEngine.isModalOpen()) {
+          this.compareEngine.closeSetupModal();
+          return;
+        }
+      }
+
+      // If compare modal is active, mask background shortcuts
+      if (this.compareEngine && this.compareEngine.isModalOpen()) {
+        return;
+      }
+
       if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         this.undoView();
