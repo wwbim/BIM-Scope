@@ -2841,6 +2841,764 @@ input:checked + .slider:before {
   }
 }
 
+/* ==========================================================================
+   MODEL COMPARISON MODE (IFC & Universal 3D)
+   ========================================================================== */
+
+/* Compare Setup Modal */
+.compare-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 13, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.compare-modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.compare-modal-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 680px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(12px) scale(0.98);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.compare-modal-backdrop.active .compare-modal-card {
+  transform: translateY(0) scale(1);
+}
+
+.compare-modal-header {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-panel-header);
+}
+
+.compare-modal-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.compare-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compare-modal-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.compare-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compare-modal-close-btn:hover {
+  background: var(--bg-hover);
+  color: #fff;
+}
+
+.compare-modal-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.compare-zones-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.compare-zone {
+  flex: 1;
+  border-radius: 9px;
+  padding: 16px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  border-width: 1.5px;
+  border-style: dashed;
+}
+
+/* Left zone: New Revision (Light Green) */
+.compare-zone-new {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.compare-zone-new:hover,
+.compare-zone-new.drag-over {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.2);
+}
+
+/* Right zone: Old Baseline (Light Red) */
+.compare-zone-old {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.compare-zone-old:hover,
+.compare-zone-old.drag-over {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: #ef4444;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.2);
+}
+
+.compare-zone-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.compare-role-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.compare-role-tag.tag-new {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.compare-role-tag.tag-old {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.compare-zone-status {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.compare-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 0;
+  gap: 8px;
+}
+
+.compare-zone-icon {
+  width: 32px;
+  height: 32px;
+  opacity: 0.6;
+}
+
+.compare-zone-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  word-break: break-all;
+  max-width: 220px;
+  line-height: 1.3;
+}
+
+.compare-zone-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.compare-zone-size {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* Center Swap Button */
+.compare-swap-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.compare-swap-btn:hover {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent);
+  transform: rotate(180deg) scale(1.08);
+}
+
+.compare-swap-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Modal Footer */
+.compare-modal-footer {
+  padding: 14px 22px;
+  background: var(--bg-panel-header);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  color: #fff;
+}
+
+.btn-compare-primary {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+}
+
+.btn-compare-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-compare-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Sticky Top Compare Banner */
+#compare-status-banner {
+  position: absolute;
+  top: calc(var(--header-height) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(56, 189, 248, 0.2);
+  border-radius: 24px;
+  padding: 5px 14px 5px 16px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+  pointer-events: auto;
+  font-size: 12px;
+  color: #fff;
+}
+
+#compare-status-banner.active {
+  display: flex;
+  animation: bannerSlideDown 0.25s ease-out;
+}
+
+@keyframes bannerSlideDown {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.banner-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: pulseDot 1.8s infinite;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+
+.banner-files-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.banner-badge-new {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.banner-badge-old {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.banner-exit-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.banner-exit-btn:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+/* Sidebar Compare Tab Styling */
+.tab-compare-badge {
+  border-bottom: 2px solid #38bdf8 !important;
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
+}
+
+.compare-controls-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Opacity Slider for Unchanged Elements */
+.compare-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compare-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.compare-slider-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.compare-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border-color);
+  outline: none;
+  cursor: pointer;
+}
+
+.compare-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+  transition: transform 0.1s ease;
+}
+
+.compare-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* 3 Rounded Metric Pill Badges */
+.compare-pills-row {
+  display: flex;
+  gap: 6px;
+}
+
+.compare-pill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.compare-pill-count {
+  font-size: 15px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1.1;
+}
+
+.compare-pill-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+
+/* Added (Green) */
+.compare-pill.pill-green {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: #4ade80;
+}
+
+.compare-pill.pill-green:hover,
+.compare-pill.pill-green.active {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+}
+
+/* Deleted (Red) */
+.compare-pill.pill-red {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.compare-pill.pill-red:hover,
+.compare-pill.pill-red.active {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+/* Modified (Orange) */
+.compare-pill.pill-orange {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.compare-pill.pill-orange:hover,
+.compare-pill.pill-orange.active {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+/* Organization Mode Switcher */
+.compare-mode-row {
+  display: flex;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.compare-mode-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.compare-mode-btn:hover {
+  color: var(--text-primary);
+}
+
+.compare-mode-btn.active {
+  background: var(--bg-hover);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Difference Tree Nodes */
+.diff-tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-size: 12px;
+}
+
+.diff-tree-node:hover {
+  background: var(--bg-hover);
+}
+
+.diff-tree-node.selected {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.diff-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.diff-status-dot.dot-added {
+  background: #22c55e;
+  box-shadow: 0 0 5px #22c55e;
+}
+
+.diff-status-dot.dot-deleted {
+  background: #ef4444;
+  box-shadow: 0 0 5px #ef4444;
+}
+
+.diff-status-dot.dot-modified {
+  background: #f59e0b;
+  box-shadow: 0 0 5px #f59e0b;
+}
+
+.diff-tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-tag-ghost {
+  font-size: 9px;
+  background: rgba(234, 179, 8, 0.2);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+/* Group Headers for Status-Grouped mode */
+.compare-group-card {
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.compare-group-header {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.15s ease;
+}
+
+.compare-group-header:hover {
+  background: var(--bg-hover);
+}
+
+.compare-group-header .group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.compare-group-header .group-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.compare-group-card.collapsed .group-arrow {
+  transform: rotate(-90deg);
+}
+
+.compare-group-card.collapsed .compare-group-body {
+  display: none;
+}
+
+.compare-group-body {
+  padding: 4px;
+  border-top: 1px solid var(--border-color);
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+/* Inspector Diff Table */
+.diff-inspector-card {
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.05);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.diff-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.diff-summary-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.diff-table th {
+  text-align: left;
+  padding: 5px 6px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+}
+
+.diff-table td {
+  padding: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: top;
+}
+
+.diff-table .prop-name {
+  color: var(--text-secondary);
+  font-weight: 600;
+  width: 32%;
+}
+
+.diff-table .old-val {
+  color: #f87171;
+  text-decoration: line-through;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  word-break: break-all;
+}
+
+.diff-table .new-val {
+  color: #4ade80;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  word-break: break-all;
+}
+
+.diff-ghost-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 5px;
+  color: #fde047;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
 
 
   </style>
@@ -2916,6 +3674,14 @@ input:checked + .slider:before {
 
       <div class="nav-right">
         <!-- Tools Group -->
+        <button class="tool-btn" id="btn-tool-compare" data-i18n="toolCompare" title="Model Comparison Mode">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
+            <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/>
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <path d="M12 2v20"/>
+          </svg>
+          <span data-i18n="toolCompare">Compare</span>
+        </button>
         <button class="tool-btn" id="btn-tool-measure" data-i18n="toolMeasure" title="Distance Measure Tool">
           <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h3v8z"/></svg>
           Measure
@@ -2933,6 +3699,24 @@ input:checked + .slider:before {
         <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
     </header>
+
+    <!-- STICKY TOP COMPARE BANNER -->
+    <div id="compare-status-banner">
+      <div class="banner-pulse-dot"></div>
+      <span style="font-weight:700;color:var(--accent)" data-i18n="compareStatusBanner">Model Comparison Active</span>
+      <div class="banner-files-text">
+        <span class="banner-badge-new" id="banner-file-new">New.ifc</span>
+        <span style="color:var(--text-muted);font-size:11px">&rarr;</span>
+        <span class="banner-badge-old" id="banner-file-old">Old.ifc</span>
+      </div>
+      <button class="banner-exit-btn" id="btn-banner-exit-compare" title="Exit Model Comparison">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span data-i18n="compareExitBtn">Exit Compare</span>
+      </button>
+    </div>
 
     <!-- WORKSPACE -->
     <main id="workspace">
@@ -3588,6 +4372,96 @@ input:checked + .slider:before {
           <button class="small-btn" id="texture-btn-cancel" data-i18n="btnCancel">Cancel</button>
           <button class="btn-primary" id="texture-btn-confirm" data-i18n="textureBtnConfirm">Confirm &amp; Load</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODEL COMPARISON SETUP MODAL -->
+  <div class="compare-modal-backdrop" id="compare-setup-modal">
+    <div class="compare-modal-card">
+      <div class="compare-modal-header">
+        <div class="compare-modal-title-box">
+          <div class="compare-modal-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/>
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+              <path d="M12 2v20"/>
+            </svg>
+            <span data-i18n="compareModalTitle">Model Comparison Setup</span>
+          </div>
+          <div class="compare-modal-subtitle" data-i18n="compareModalSubtitle">
+            Select two models of the same format (IFC) to analyze additions, deletions, and modifications.
+          </div>
+        </div>
+        <button class="compare-modal-close-btn" id="btn-compare-modal-close" title="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="compare-modal-body">
+        <div class="compare-zones-wrapper">
+          <!-- Left Zone: New Revision (Light Green) -->
+          <div class="compare-zone compare-zone-new" id="zone-compare-new" title="Click or drag file here">
+            <div class="compare-zone-header">
+              <span class="compare-role-tag tag-new" data-i18n="compareNewModelTitle">New Revision</span>
+              <span class="compare-zone-status" id="zone-new-status"></span>
+            </div>
+            <div class="compare-zone-content">
+              <svg class="compare-zone-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              <div class="compare-zone-filename" id="zone-new-filename" data-i18n="compareSelectFilePrompt">Click or drag IFC file here</div>
+              <div class="compare-zone-size" id="zone-new-size"></div>
+              <div class="compare-zone-hint" id="zone-new-hint"></div>
+            </div>
+            <input type="file" id="input-compare-new" accept=".ifc" style="display:none">
+          </div>
+
+          <!-- Middle: Swap Button -->
+          <button class="compare-swap-btn" id="btn-compare-swap" title="Swap New and Old models" data-i18n-title="compareSwapBtnTitle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m16 3 4 4-4 4"/>
+              <path d="M20 7H4"/>
+              <path d="m8 21-4-4 4-4"/>
+              <path d="M4 17h16"/>
+            </svg>
+          </button>
+
+          <!-- Right Zone: Old Baseline (Light Red) -->
+          <div class="compare-zone compare-zone-old" id="zone-compare-old" title="Click or drag file here">
+            <div class="compare-zone-header">
+              <span class="compare-role-tag tag-old" data-i18n="compareOldModelTitle">Old Baseline</span>
+              <span class="compare-zone-status" id="zone-old-status"></span>
+            </div>
+            <div class="compare-zone-content">
+              <svg class="compare-zone-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              <div class="compare-zone-filename" id="zone-old-filename" data-i18n="compareSelectFilePrompt">Click or drag IFC file here</div>
+              <div class="compare-zone-size" id="zone-old-size"></div>
+              <div class="compare-zone-hint" id="zone-old-hint"></div>
+            </div>
+            <input type="file" id="input-compare-old" accept=".ifc" style="display:none">
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-modal-footer">
+        <button class="btn-secondary" id="btn-compare-cancel" data-i18n="compareCancelBtn">Cancel</button>
+        <button class="btn-compare-primary" id="btn-compare-start" data-i18n="compareStartBtn" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span data-i18n="compareStartBtn">Start Comparison</span>
+        </button>
       </div>
     </div>
   </div>
@@ -16638,6 +17512,42 @@ const I18N = {
       switchedToOrtho: "Switched to Orthogonal View",
       switchedToPersp: "Switched to Perspective View",
       toolMeasure: "Measure",
+      toolCompare: "Compare",
+      toolCompareTitle: "Model Comparison Mode",
+      compareModalTitle: "Model Comparison Setup",
+      compareModalSubtitle: "Select two models of the same format (IFC) to analyze additions, deletions, and modifications.",
+      compareNewModelTitle: "New Revision",
+      compareOldModelTitle: "Old Baseline",
+      compareSelectFilePrompt: "Click or drag IFC file here",
+      compareCurrentLoaded: "Currently loaded in viewport",
+      compareSwapBtnTitle: "Swap New and Old models",
+      compareStartBtn: "Start Comparison",
+      compareCancelBtn: "Cancel",
+      compareStatusBanner: "Model Comparison Active",
+      compareExitBtn: "Exit Compare",
+      compareExitConfirm: "Exited Model Comparison. Restored original model materials.",
+      compareTabTitle: "Compare",
+      compareOpacitySliderLabel: "Unchanged Elements Opacity",
+      compareMetricAdded: "Added",
+      compareMetricDeleted: "Deleted",
+      compareMetricModified: "Modified",
+      compareModeUnified: "Hierarchy",
+      compareModeStatus: "By Status",
+      compareDiffGroupAdded: "Added Elements",
+      compareDiffGroupDeleted: "Deleted Elements",
+      compareDiffGroupModified: "Modified Elements",
+      compareDiffGeomChanged: "Geometry / Position Drift (Ghost Mesh visible)",
+      compareDiffPropsChanged: "Parameters / Attributes Changed",
+      compareInspectorDiffTitle: "Revision Differences",
+      compareInspectorPropCol: "Property / Pset",
+      compareInspectorOldVal: "Old Baseline",
+      compareInspectorNewVal: "New Revision",
+      compareViewFullProps: "View Full Properties",
+      compareViewDiffOnly: "View Differences Only",
+      compareNoDiffsFound: "No structural or property differences detected between the two models.",
+      compareParsingModels: "Analyzing models and calculating differences...",
+      compareFormatMismatch: "File format mismatch: Comparison requires both files to be in the same format ({extA} vs {extB}).",
+      compareNeedFiles: "Please select both New and Old model files to proceed with comparison.",
       toolSection: "Section",
       toolSolar: "Lighting",
       toolLabels: "Labels",
@@ -17008,6 +17918,42 @@ const I18N = {
       switchedToOrtho: "已切换为正交视图",
       switchedToPersp: "已切换为透视视图",
       toolMeasure: "测量",
+      toolCompare: "模型对比",
+      toolCompareTitle: "模型对比模式",
+      compareModalTitle: "模型对比设置",
+      compareModalSubtitle: "选择两个相同格式 (IFC) 的模型文件，分析对比构件的新增、删除与修改状态。",
+      compareNewModelTitle: "新版模型",
+      compareOldModelTitle: "旧版模型",
+      compareSelectFilePrompt: "点击或拖入 IFC 文件",
+      compareCurrentLoaded: "当前视口已打开模型",
+      compareSwapBtnTitle: "互换新旧模型",
+      compareStartBtn: "开始对比",
+      compareCancelBtn: "取消",
+      compareStatusBanner: "模型对比模式中",
+      compareExitBtn: "退出对比",
+      compareExitConfirm: "已退出模型对比模式，保留新版并恢复原始贴图材质。",
+      compareTabTitle: "对比",
+      compareOpacitySliderLabel: "未变构件透明度",
+      compareMetricAdded: "新增",
+      compareMetricDeleted: "删除",
+      compareMetricModified: "修改",
+      compareModeUnified: "按层级组织",
+      compareModeStatus: "按状态分组",
+      compareDiffGroupAdded: "新增构件",
+      compareDiffGroupDeleted: "删除构件",
+      compareDiffGroupModified: "修改构件",
+      compareDiffGeomChanged: "形体/位移改变 (叠显黄色幽灵体)",
+      compareDiffPropsChanged: "参数/属性修改",
+      compareInspectorDiffTitle: "版本变更差异",
+      compareInspectorPropCol: "属性名称 / 属性集",
+      compareInspectorOldVal: "旧版数值",
+      compareInspectorNewVal: "新版数值",
+      compareViewFullProps: "查看完整属性",
+      compareViewDiffOnly: "仅查看差异项",
+      compareNoDiffsFound: "两个版本间未检测到构件差异。",
+      compareParsingModels: "正在解析双版本模型并比对差异...",
+      compareFormatMismatch: "文件格式不匹配：对比模式要求两份文件格式完全一致（{extA} 与 {extB}）。",
+      compareNeedFiles: "请先选择新版和旧版模型文件，然后再开始对比。",
       toolSection: "剖切",
       toolSolar: "光照",
       toolLabels: "标签",
@@ -23041,6 +23987,1121 @@ class IFCParser {
 
   </script>
   <script>
+/**
+ * BIM Scope - Model Comparison Engine (IFC & Universal 3D)
+ * @author WWBIM
+ * Supports dual-revision differential analysis, 4-color semantic shading,
+ * transient yellow ghost mesh on geometry drift, dual-mode difference tree,
+ * 3-metric interactive filter pills, unchanged opacity slider, and property diff inspector.
+ */
+
+class ModelCompareEngine {
+  constructor(app) {
+    this.app = app;
+    this.isActive = false;
+
+    // Files state
+    this.fileNew = null; // { file: File, name: string, isCurrent: boolean, text: string, model: THREE.Group }
+    this.fileOld = null; // { file: File, name: string, isCurrent: boolean, text: string, model: THREE.Group }
+
+    // Diff results
+    this.diffData = null; // { added: [], deleted: [], modified: [], unchanged: [] }
+    this.origMaterials = new Map(); // mesh.id -> THREE.Material
+    this.deletedGroup = null; // THREE.Group for red translucent deleted meshes
+    this.activeGhostMesh = null; // Yellow translucent ghost mesh on selected modified element
+
+    // Viewport & UI preferences
+    this.unchangedOpacity = 0.30; // Default 30%
+    this.activeFilter = null; // null | 'added' | 'deleted' | 'modified'
+    this.treeMode = 'hierarchy'; // 'hierarchy' | 'status'
+
+    this.initDOM();
+  }
+
+  // Initialize DOM event listeners and elements
+  initDOM() {
+    // 1. Navbar tool button
+    const btnCompare = document.getElementById('btn-tool-compare');
+    if (btnCompare) {
+      btnCompare.addEventListener('click', () => {
+        this.openSetupModal();
+      });
+    }
+
+    // 2. Banner exit button
+    const btnBannerExit = document.getElementById('btn-banner-exit-compare');
+    if (btnBannerExit) {
+      btnBannerExit.addEventListener('click', () => {
+        this.exitCompareMode();
+      });
+    }
+
+    // 3. Setup Modal Controls
+    const modal = document.getElementById('compare-setup-modal');
+    const btnClose = document.getElementById('btn-compare-modal-close');
+    const btnCancel = document.getElementById('btn-compare-cancel');
+    const btnStart = document.getElementById('btn-compare-start');
+    const btnSwap = document.getElementById('btn-compare-swap');
+
+    if (btnClose) btnClose.addEventListener('click', () => this.closeSetupModal());
+    if (btnCancel) btnCancel.addEventListener('click', () => this.closeSetupModal());
+    if (btnStart) btnStart.addEventListener('click', () => this.startComparison());
+    if (btnSwap) btnSwap.addEventListener('click', () => this.swapFiles());
+
+    // File input handlers
+    const inputNew = document.getElementById('input-compare-new');
+    const inputOld = document.getElementById('input-compare-old');
+    const zoneNew = document.getElementById('zone-compare-new');
+    const zoneOld = document.getElementById('zone-compare-old');
+
+    if (zoneNew && inputNew) {
+      zoneNew.addEventListener('click', () => inputNew.click());
+      inputNew.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this.setFile('new', e.target.files[0]);
+        }
+      });
+      this.setupDropZone(zoneNew, (f) => this.setFile('new', f));
+    }
+
+    if (zoneOld && inputOld) {
+      zoneOld.addEventListener('click', () => inputOld.click());
+      inputOld.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this.setFile('old', e.target.files[0]);
+        }
+      });
+      this.setupDropZone(zoneOld, (f) => this.setFile('old', f));
+    }
+  }
+
+  setupDropZone(el, onFileDrop) {
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      el.classList.remove('drag-over');
+    });
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      el.classList.remove('drag-over');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+        onFileDrop(e.dataTransfer.files[0]);
+      }
+    });
+  }
+
+  openSetupModal() {
+    const modal = document.getElementById('compare-setup-modal');
+    if (!modal) return;
+
+    // Check currently loaded model in viewport
+    const curInfo = this.app.currentModelInfo;
+    if (curInfo && !curInfo.isDemo && this.app.activeModel) {
+      // Default left (New) to currently loaded model
+      this.fileNew = {
+        name: curInfo.fileName,
+        isCurrent: true,
+        size: curInfo.fileSize || '',
+        model: this.app.activeModel
+      };
+    }
+
+    this.renderZoneUI('new');
+    this.renderZoneUI('old');
+    this.updateStartButtonState();
+
+    modal.classList.add('active');
+  }
+
+  closeSetupModal() {
+    const modal = document.getElementById('compare-setup-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  setFile(target, file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext !== 'ifc') {
+      showToast(I18N.t('compareFormatMismatch', { extA: 'ifc', extB: ext }), 'warning');
+      return;
+    }
+
+    const sizeStr = file.size > 1048576 ? 
+      `${(file.size / 1048576).toFixed(2)} MB` : 
+      `${(file.size / 1024).toFixed(1)} KB`;
+
+    if (target === 'new') {
+      this.fileNew = {
+        file: file,
+        name: file.name,
+        isCurrent: false,
+        size: sizeStr,
+        text: null,
+        model: null
+      };
+    } else {
+      this.fileOld = {
+        file: file,
+        name: file.name,
+        isCurrent: false,
+        size: sizeStr,
+        text: null,
+        model: null
+      };
+    }
+
+    this.renderZoneUI(target);
+    this.updateStartButtonState();
+  }
+
+  swapFiles() {
+    const temp = this.fileNew;
+    this.fileNew = this.fileOld;
+    this.fileOld = temp;
+
+    this.renderZoneUI('new');
+    this.renderZoneUI('old');
+    this.updateStartButtonState();
+  }
+
+  renderZoneUI(target) {
+    const info = target === 'new' ? this.fileNew : this.fileOld;
+    const nameEl = document.getElementById(`zone-${target}-filename`);
+    const sizeEl = document.getElementById(`zone-${target}-size`);
+    const hintEl = document.getElementById(`zone-${target}-hint`);
+    const statusEl = document.getElementById(`zone-${target}-status`);
+
+    if (!nameEl) return;
+
+    if (info) {
+      nameEl.textContent = info.name;
+      nameEl.title = info.name;
+      if (sizeEl) sizeEl.textContent = info.size || '';
+      if (hintEl) hintEl.textContent = info.isCurrent ? I18N.t('compareCurrentLoaded') : '';
+      if (statusEl) statusEl.textContent = '✓ Ready';
+    } else {
+      nameEl.textContent = I18N.t('compareSelectFilePrompt');
+      nameEl.title = '';
+      if (sizeEl) sizeEl.textContent = '';
+      if (hintEl) hintEl.textContent = '';
+      if (statusEl) statusEl.textContent = '';
+    }
+  }
+
+  updateStartButtonState() {
+    const btnStart = document.getElementById('btn-compare-start');
+    if (!btnStart) return;
+    const ready = (this.fileNew && this.fileOld);
+    btnStart.disabled = !ready;
+  }
+
+  // Execute comparison loading pipeline
+  async startComparison() {
+    if (!this.fileNew || !this.fileOld) {
+      showToast(I18N.t('compareNeedFiles'), 'warning');
+      return;
+    }
+
+    this.closeSetupModal();
+    this.app.showProgressModal(true);
+    this.app.updateProgress(I18N.t('compareParsingModels'), 15);
+
+    try {
+      // 1. Prepare New Model
+      let modelNew = null;
+      if (this.fileNew.isCurrent && this.fileNew.model) {
+        modelNew = this.fileNew.model;
+      } else if (this.fileNew.file) {
+        this.app.updateProgress(I18N.t('compareParsingModels') + ' (New)', 25);
+        const textNew = await this.readFileAsText(this.fileNew.file);
+        const parserNew = new IFCParser();
+        modelNew = parserNew.parseText(textNew);
+        // Replace active model with New Model
+        this.app.clearModel();
+        this.app.setModel(modelNew);
+        this.fileNew.model = modelNew;
+      }
+
+      // 2. Prepare Old Model
+      this.app.updateProgress(I18N.t('compareParsingModels') + ' (Old)', 55);
+      let modelOld = null;
+      if (this.fileOld.isCurrent && this.fileOld.model) {
+        modelOld = this.fileOld.model;
+      } else if (this.fileOld.file) {
+        const textOld = await this.readFileAsText(this.fileOld.file);
+        const parserOld = new IFCParser();
+        modelOld = parserOld.parseText(textOld);
+        this.fileOld.model = modelOld;
+      }
+
+      if (!modelNew || !modelOld) {
+        throw new Error("Failed to generate 3D representations for comparison models.");
+      }
+
+      this.app.updateProgress(I18N.t('compareParsingModels') + ' (Diffing)', 80);
+
+      // 3. Compute Diff
+      this.computeModelDiff(modelNew, modelOld);
+
+      // 4. Assemble Viewport Materials & Ghosting
+      this.applyComparisonViewportShading(modelNew, modelOld);
+
+      // 5. Activate UI Tab and Banner
+      this.activateComparisonUI();
+
+      this.app.showProgressModal(false);
+      showToast(`${I18N.t('compareStatusBanner')}: +${this.diffData.added.length} | -${this.diffData.deleted.length} | ~${this.diffData.modified.length}`, 'success');
+
+    } catch (err) {
+      console.error("Comparison execution error:", err);
+      this.app.showProgressModal(false);
+      showToast("Comparison error: " + err.message, "danger");
+    }
+  }
+
+  readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(new Error("File read error: " + e.target.error));
+      reader.readAsText(file);
+    });
+  }
+
+  // Core Differential Algorithm (IFC GUID & Geometric / Property Analysis)
+  computeModelDiff(modelNew, modelOld) {
+    if (modelNew.updateMatrixWorld) modelNew.updateMatrixWorld(true);
+    if (modelOld.updateMatrixWorld) modelOld.updateMatrixWorld(true);
+
+    const getMeshes = (root) => {
+      const list = [];
+      root.traverse(o => {
+        if (o.isMesh && this.app.isModelElementMesh(o) && o.geometry) {
+          list.push(o);
+        }
+      });
+      return list;
+    };
+
+    const meshesNew = getMeshes(modelNew);
+    const meshesOld = getMeshes(modelOld);
+
+    const mapNew = new Map();
+    const mapOld = new Map();
+
+    meshesNew.forEach(m => {
+      const key = (m.userData && (m.userData.guid || m.userData.id)) || m.name || m.uuid;
+      mapNew.set(String(key), m);
+    });
+
+    meshesOld.forEach(m => {
+      const key = (m.userData && (m.userData.guid || m.userData.id)) || m.name || m.uuid;
+      mapOld.set(String(key), m);
+    });
+
+    const added = [];
+    const deleted = [];
+    const modified = [];
+    const unchanged = [];
+
+    // Find Added & Modified vs Unchanged
+    mapNew.forEach((meshNew, key) => {
+      if (!mapOld.has(key)) {
+        // Exists in New, not in Old -> ADDED
+        meshNew.userData = meshNew.userData || {};
+        meshNew.userData.compareStatus = 'added';
+        added.push(meshNew);
+      } else {
+        // Exists in both -> Check modifications
+        const meshOld = mapOld.get(key);
+        const geomDiff = this.checkGeometryDrift(meshNew, meshOld);
+        const propDiff = this.checkPropertyDiff(meshNew, meshOld);
+
+        if (geomDiff.changed || propDiff.changed) {
+          meshNew.userData = meshNew.userData || {};
+          meshNew.userData.compareStatus = 'modified';
+          meshNew.userData.compareGeomChanged = geomDiff.changed;
+          meshNew.userData.compareGeomDetails = geomDiff.details;
+          meshNew.userData.comparePropsChanged = propDiff.changed;
+          meshNew.userData.compareDiffList = propDiff.diffList;
+          meshNew.userData.compareOldMesh = meshOld; // Cached reference for ghost mesh
+          modified.push(meshNew);
+        } else {
+          meshNew.userData = meshNew.userData || {};
+          meshNew.userData.compareStatus = 'unchanged';
+          unchanged.push(meshNew);
+        }
+      }
+    });
+
+    // Find Deleted (Exists in Old, not in New)
+    mapOld.forEach((meshOld, key) => {
+      if (!mapNew.has(key)) {
+        meshOld.userData = meshOld.userData || {};
+        meshOld.userData.compareStatus = 'deleted';
+        deleted.push(meshOld);
+      }
+    });
+
+    this.diffData = {
+      added: added,
+      deleted: deleted,
+      modified: modified,
+      unchanged: unchanged,
+      mapNew: mapNew,
+      mapOld: mapOld
+    };
+  }
+
+  // Geometric shape & positional drift detection (> 2mm threshold)
+  checkGeometryDrift(mNew, mOld) {
+    if (mNew.updateWorldMatrix) mNew.updateWorldMatrix(true, false);
+    if (mOld.updateWorldMatrix) mOld.updateWorldMatrix(true, false);
+
+    if (!mNew.geometry.boundingBox) mNew.geometry.computeBoundingBox();
+    if (!mOld.geometry.boundingBox) mOld.geometry.computeBoundingBox();
+
+    const boxNew = mNew.geometry.boundingBox.clone().applyMatrix4(mNew.matrixWorld);
+    const boxOld = mOld.geometry.boundingBox.clone().applyMatrix4(mOld.matrixWorld);
+
+    const centerNew = new THREE.Vector3();
+    const centerOld = new THREE.Vector3();
+    boxNew.getCenter(centerNew);
+    boxOld.getCenter(centerOld);
+
+    const centerDist = centerNew.distanceTo(centerOld);
+    const sizeNew = new THREE.Vector3();
+    const sizeOld = new THREE.Vector3();
+    boxNew.getSize(sizeNew);
+    boxOld.getSize(sizeOld);
+
+    const sizeDelta = sizeNew.distanceTo(sizeOld);
+
+    const TOLERANCE = 0.002; // 2mm tolerance
+    const changed = (centerDist > TOLERANCE || sizeDelta > TOLERANCE);
+
+    return {
+      changed: changed,
+      details: {
+        centerDrift: centerDist,
+        sizeDelta: sizeDelta,
+        oldCenter: centerOld,
+        newCenter: centerNew
+      }
+    };
+  }
+
+  // Deep comparison of IFC metadata, Psets, and basic attributes
+  checkPropertyDiff(mNew, mOld) {
+    const uNew = mNew.userData || {};
+    const uOld = mOld.userData || {};
+    const diffList = [];
+
+    // Basic attributes
+    const attrs = [
+      { key: 'name', label: 'Name' },
+      { key: 'type', label: 'IFC Type' },
+      { key: 'category', label: 'Category' },
+      { key: 'level', label: 'Storey Level' }
+    ];
+
+    attrs.forEach(a => {
+      const vOld = (uOld[a.key] != null) ? String(uOld[a.key]).trim() : '';
+      const vNew = (uNew[a.key] != null) ? String(uNew[a.key]).trim() : '';
+      if (vOld && vNew && vOld !== vNew) {
+        diffList.push({
+          group: 'Attributes',
+          prop: a.label,
+          oldVal: vOld,
+          newVal: vNew
+        });
+      }
+    });
+
+    // Psets map
+    const getPsetDict = (psets) => {
+      const dict = {};
+      if (!Array.isArray(psets)) return dict;
+      psets.forEach(pset => {
+        const psetName = pset.name || 'Custom';
+        if (Array.isArray(pset.properties)) {
+          pset.properties.forEach(p => {
+            const propName = p.name || '';
+            const propVal = p.value != null ? String(p.value).trim() : '';
+            if (propName) {
+              dict[`${psetName}::${propName}`] = { psetName, propName, propVal };
+            }
+          });
+        }
+      });
+      return dict;
+    };
+
+    const dictOld = getPsetDict(uOld.psets);
+    const dictNew = getPsetDict(uNew.psets);
+
+    // Check changed or removed in new
+    Object.keys(dictOld).forEach(key => {
+      const itemOld = dictOld[key];
+      const itemNew = dictNew[key];
+      if (!itemNew) {
+        diffList.push({
+          group: itemOld.psetName,
+          prop: itemOld.propName,
+          oldVal: itemOld.propVal,
+          newVal: '— (Deleted)'
+        });
+      } else if (itemOld.propVal !== itemNew.propVal) {
+        diffList.push({
+          group: itemOld.psetName,
+          prop: itemOld.propName,
+          oldVal: itemOld.propVal,
+          newVal: itemNew.propVal
+        });
+      }
+    });
+
+    // Check newly added properties
+    Object.keys(dictNew).forEach(key => {
+      if (!dictOld[key]) {
+        const itemNew = dictNew[key];
+        diffList.push({
+          group: itemNew.psetName,
+          prop: itemNew.propName,
+          oldVal: '— (None)',
+          newVal: itemNew.propVal
+        });
+      }
+    });
+
+    return {
+      changed: diffList.length > 0,
+      diffList: diffList
+    };
+  }
+
+  // 3D Viewport Semantic Shaders and Deleted Elements Injection
+  applyComparisonViewportShading(modelNew, modelOld) {
+    this.isActive = true;
+    this.origMaterials.clear();
+
+    // 1. Backup and override materials for New Model
+    modelNew.traverse(obj => {
+      if (obj.isMesh && this.app.isModelElementMesh(obj)) {
+        this.origMaterials.set(obj.id, obj.material);
+
+        const status = obj.userData.compareStatus || 'unchanged';
+        let compMat;
+
+        if (status === 'added') {
+          // Vibrant Green
+          compMat = new THREE.MeshStandardMaterial({
+            color: 0x22c55e,
+            roughness: 0.5,
+            metalness: 0.1
+          });
+        } else if (status === 'modified') {
+          // Orange-Yellow
+          compMat = new THREE.MeshStandardMaterial({
+            color: 0xf59e0b,
+            roughness: 0.5,
+            metalness: 0.1
+          });
+        } else {
+          // Unchanged: Neutral Gray-White with opacity slider
+          compMat = new THREE.MeshStandardMaterial({
+            color: 0xd8dce2,
+            roughness: 0.75,
+            metalness: 0.05,
+            transparent: true,
+            opacity: this.unchangedOpacity,
+            depthWrite: this.unchangedOpacity >= 0.95
+          });
+        }
+
+        // Preserve clipping planes
+        if (this.app.clippingEngine && this.app.clippingEngine.clippingPlanes) {
+          compMat.clippingPlanes = this.app.clippingEngine.clippingPlanes;
+        }
+
+        obj.material = compMat;
+      }
+    });
+
+    // 2. Inject Deleted Elements (from Old Model) into Scene
+    if (this.deletedGroup) {
+      this.app.scene.remove(this.deletedGroup);
+    }
+
+    this.deletedGroup = new THREE.Group();
+    this.deletedGroup.name = "CompareDeletedGroup";
+
+    const delMaterial = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      roughness: 0.5,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+
+    if (this.app.clippingEngine && this.app.clippingEngine.clippingPlanes) {
+      delMaterial.clippingPlanes = this.app.clippingEngine.clippingPlanes;
+    }
+
+    this.diffData.deleted.forEach(oldMesh => {
+      const delMesh = new THREE.Mesh(oldMesh.geometry.clone(), delMaterial);
+      delMesh.matrixAutoUpdate = false;
+      delMesh.matrix.copy(oldMesh.matrixWorld);
+      delMesh.userData = Object.assign({}, oldMesh.userData, {
+        isDeletedCompare: true,
+        compareStatus: 'deleted'
+      });
+      this.deletedGroup.add(delMesh);
+    });
+
+    this.app.scene.add(this.deletedGroup);
+  }
+
+  // Update opacity of unchanged elements in realtime
+  setUnchangedOpacity(opacityVal) {
+    this.unchangedOpacity = opacityVal;
+    if (!this.diffData || !this.diffData.unchanged) return;
+
+    const op = opacityVal / 100;
+    this.diffData.unchanged.forEach(m => {
+      if (m.material) {
+        m.material.opacity = op;
+        m.material.transparent = op < 0.99;
+        m.material.depthWrite = op >= 0.95;
+        m.visible = op > 0.01;
+      }
+    });
+  }
+
+  // Ghost Mesh Handling on Element Selection
+  onElementSelected(mesh) {
+    this.clearGhostMesh();
+
+    if (!this.isActive || !mesh || !mesh.userData) return;
+
+    // Only render ghost mesh if this is a modified element with geometric shape / position drift!
+    if (mesh.userData.compareStatus === 'modified' && mesh.userData.compareGeomChanged) {
+      const oldMesh = mesh.userData.compareOldMesh;
+      if (oldMesh && oldMesh.geometry) {
+        const ghostMat = new THREE.MeshStandardMaterial({
+          color: 0xfbbf24, // Warm yellow
+          emissive: 0x713f12,
+          transparent: true,
+          opacity: 0.48,
+          depthWrite: false,
+          roughness: 0.3,
+          metalness: 0.1,
+          side: THREE.DoubleSide
+        });
+
+        if (this.app.clippingEngine && this.app.clippingEngine.clippingPlanes) {
+          ghostMat.clippingPlanes = this.app.clippingEngine.clippingPlanes;
+        }
+
+        const ghostMesh = new THREE.Mesh(oldMesh.geometry.clone(), ghostMat);
+        ghostMesh.matrixAutoUpdate = false;
+        ghostMesh.matrix.copy(oldMesh.matrixWorld);
+        ghostMesh.userData = { isGhostMesh: true, isGizmo: true };
+        ghostMesh.renderOrder = 999;
+
+        this.app.scene.add(ghostMesh);
+        this.activeGhostMesh = ghostMesh;
+      }
+    }
+  }
+
+  onSelectionCleared() {
+    this.clearGhostMesh();
+  }
+
+  clearGhostMesh() {
+    if (this.activeGhostMesh) {
+      this.app.scene.remove(this.activeGhostMesh);
+      if (this.activeGhostMesh.geometry) this.activeGhostMesh.geometry.dispose();
+      if (this.activeGhostMesh.material) this.activeGhostMesh.material.dispose();
+      this.activeGhostMesh = null;
+    }
+  }
+
+  // Comparison UI: Top Sticky Banner & Sidebar Tab Setup
+  activateComparisonUI() {
+    // 1. Top Banner
+    const banner = document.getElementById('compare-status-banner');
+    const fileNewEl = document.getElementById('banner-file-new');
+    const fileOldEl = document.getElementById('banner-file-old');
+
+    if (banner && fileNewEl && fileOldEl) {
+      fileNewEl.textContent = this.fileNew ? this.fileNew.name : 'New';
+      fileOldEl.textContent = this.fileOld ? this.fileOld.name : 'Old';
+      banner.classList.add('active');
+    }
+
+    // 2. Insert Compare Tab into Sidebar if not present
+    const tabsNav = document.getElementById('sidebar-tabs-nav');
+    const contentPanel = document.getElementById('sidebar-tab-content-panel');
+
+    let btnCompareTab = document.getElementById('tab-btn-compare');
+    if (!btnCompareTab && tabsNav) {
+      btnCompareTab = document.createElement('button');
+      btnCompareTab.id = 'tab-btn-compare';
+      btnCompareTab.className = 'tab-btn tab-compare-badge active';
+      btnCompareTab.setAttribute('data-tab', 'tab-compare-content');
+      btnCompareTab.textContent = I18N.t('compareTabTitle');
+      tabsNav.insertBefore(btnCompareTab, tabsNav.firstChild);
+
+      btnCompareTab.addEventListener('click', () => {
+        this.app.switchLeftTab('tab-compare-content');
+      });
+    }
+
+    let tabContent = document.getElementById('tab-compare-content');
+    if (!tabContent && contentPanel) {
+      tabContent = document.createElement('div');
+      tabContent.id = 'tab-compare-content';
+      tabContent.className = 'tab-content active';
+      contentPanel.insertBefore(tabContent, contentPanel.firstChild);
+    }
+
+    // Deactivate other tabs and activate Compare tab
+    document.querySelectorAll('.sidebar-tabs-nav .tab-btn').forEach(b => {
+      b.classList.toggle('active', b.id === 'tab-btn-compare');
+    });
+    document.querySelectorAll('.sidebar-tab-content-panel .tab-content').forEach(c => {
+      c.classList.toggle('active', c.id === 'tab-compare-content');
+    });
+
+    // 3. Render Compare Tab Content
+    this.renderCompareTabContent();
+  }
+
+  renderCompareTabContent() {
+    const container = document.getElementById('tab-compare-content');
+    if (!container || !this.diffData) return;
+
+    const addCount = this.diffData.added.length;
+    const delCount = this.diffData.deleted.length;
+    const modCount = this.diffData.modified.length;
+
+    container.innerHTML = `
+      <div class="compare-controls-card">
+        <!-- 1. Opacity Slider for Unchanged -->
+        <div class="compare-slider-row">
+          <div class="compare-slider-header">
+            <span>${I18N.t('compareOpacitySliderLabel')}</span>
+            <span class="compare-slider-val" id="compare-opacity-val">${Math.round(this.unchangedOpacity * 100)}%</span>
+          </div>
+          <input type="range" min="0" max="100" step="5" value="${Math.round(this.unchangedOpacity * 100)}" 
+            class="compare-slider" id="compare-opacity-slider">
+        </div>
+
+        <!-- 2. Three Metric Pill Badges (Filter Chips) -->
+        <div class="compare-pills-row">
+          <div class="compare-pill pill-green ${this.activeFilter === 'added' ? 'active' : ''}" id="pill-added" title="Click to filter added elements">
+            <span class="compare-pill-count">+${addCount}</span>
+            <span class="compare-pill-label">${I18N.t('compareMetricAdded')}</span>
+          </div>
+          <div class="compare-pill pill-red ${this.activeFilter === 'deleted' ? 'active' : ''}" id="pill-deleted" title="Click to filter deleted elements">
+            <span class="compare-pill-count">-${delCount}</span>
+            <span class="compare-pill-label">${I18N.t('compareMetricDeleted')}</span>
+          </div>
+          <div class="compare-pill pill-orange ${this.activeFilter === 'modified' ? 'active' : ''}" id="pill-modified" title="Click to filter modified elements">
+            <span class="compare-pill-count">~${modCount}</span>
+            <span class="compare-pill-label">${I18N.t('compareMetricModified')}</span>
+          </div>
+        </div>
+
+        <!-- 3. Dual Organization Mode Switcher -->
+        <div class="compare-mode-row">
+          <button class="compare-mode-btn ${this.treeMode === 'hierarchy' ? 'active' : ''}" id="btn-mode-hierarchy">
+            ${I18N.t('compareModeUnified')}
+          </button>
+          <button class="compare-mode-btn ${this.treeMode === 'status' ? 'active' : ''}" id="btn-mode-status">
+            ${I18N.t('compareModeStatus')}
+          </button>
+        </div>
+      </div>
+
+      <!-- Difference Tree Container -->
+      <div class="tree-container" id="compare-diff-tree"></div>
+    `;
+
+    // Bind slider
+    const slider = document.getElementById('compare-opacity-slider');
+    const valText = document.getElementById('compare-opacity-val');
+    if (slider) {
+      slider.oninput = (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (valText) valText.textContent = `${val}%`;
+        this.setUnchangedOpacity(val);
+      };
+    }
+
+    // Bind pill filters
+    const pillAdd = document.getElementById('pill-added');
+    const pillDel = document.getElementById('pill-deleted');
+    const pillMod = document.getElementById('pill-modified');
+
+    const toggleFilter = (status) => {
+      this.activeFilter = (this.activeFilter === status) ? null : status;
+      this.renderCompareTabContent();
+    };
+
+    if (pillAdd) pillAdd.onclick = () => toggleFilter('added');
+    if (pillDel) pillDel.onclick = () => toggleFilter('deleted');
+    if (pillMod) pillMod.onclick = () => toggleFilter('modified');
+
+    // Bind mode switcher
+    const btnHier = document.getElementById('btn-mode-hierarchy');
+    const btnStat = document.getElementById('btn-mode-status');
+    if (btnHier) {
+      btnHier.onclick = () => {
+        this.treeMode = 'hierarchy';
+        this.renderCompareTabContent();
+      };
+    }
+    if (btnStat) {
+      btnStat.onclick = () => {
+        this.treeMode = 'status';
+        this.renderCompareTabContent();
+      };
+    }
+
+    // Render tree based on mode
+    this.renderDiffTree();
+  }
+
+  // Render Difference Tree
+  renderDiffTree() {
+    const container = document.getElementById('compare-diff-tree');
+    if (!container || !this.diffData) return;
+
+    container.innerHTML = '';
+
+    // Filter elements
+    let elements = [];
+    if (this.activeFilter === 'added') elements = this.diffData.added;
+    else if (this.activeFilter === 'deleted') elements = this.diffData.deleted;
+    else if (this.activeFilter === 'modified') elements = this.diffData.modified;
+    else elements = [...this.diffData.added, ...this.diffData.deleted, ...this.diffData.modified];
+
+    if (elements.length === 0) {
+      container.innerHTML = `
+        <div style="padding:20px 10px;text-align:center;color:var(--text-muted);font-size:12px">
+          ${I18N.t('compareNoDiffsFound')}
+        </div>
+      `;
+      return;
+    }
+
+    if (this.treeMode === 'hierarchy') {
+      this.renderUnifiedHierarchyTree(container, elements);
+    } else {
+      this.renderStatusGroupedTree(container, elements);
+    }
+  }
+
+  // Mode 1: Unified Spatial Hierarchy Tree (Storey -> Category -> Element)
+  renderUnifiedHierarchyTree(container, elements) {
+    const tree = {};
+
+    elements.forEach(mesh => {
+      const u = mesh.userData || {};
+      const level = u.level || 'Ground Level';
+      const cat = u.category || u.rawCategory || 'Elements';
+
+      if (!tree[level]) tree[level] = {};
+      if (!tree[level][cat]) tree[level][cat] = [];
+
+      tree[level][cat].push(mesh);
+    });
+
+    Object.keys(tree).sort().forEach(levelName => {
+      const branchLevel = document.createElement('div');
+      branchLevel.className = 'tree-node expanded';
+
+      const levelHeader = document.createElement('div');
+      levelHeader.className = 'tree-header';
+      levelHeader.innerHTML = `
+        <span class="tree-arrow">&#9660;</span>
+        <span class="tree-icon">🏢</span>
+        <span class="tree-label">${this.app.escapeHtml(levelName)}</span>
+      `;
+
+      const levelChildren = document.createElement('div');
+      levelChildren.className = 'tree-children';
+
+      levelHeader.onclick = (e) => {
+        e.stopPropagation();
+        branchLevel.classList.toggle('expanded');
+        const arrow = levelHeader.querySelector('.tree-arrow');
+        if (arrow) arrow.innerHTML = branchLevel.classList.contains('expanded') ? '&#9660;' : '&#9654;';
+      };
+
+      Object.keys(tree[levelName]).sort().forEach(catName => {
+        const catGroup = document.createElement('div');
+        catGroup.className = 'tree-node expanded';
+
+        const catHeader = document.createElement('div');
+        catHeader.className = 'tree-header';
+        catHeader.innerHTML = `
+          <span class="tree-arrow">&#9660;</span>
+          <span class="tree-icon">📦</span>
+          <span class="tree-label">${this.app.escapeHtml(catName)} (${tree[levelName][catName].length})</span>
+        `;
+
+        const catChildren = document.createElement('div');
+        catChildren.className = 'tree-children';
+
+        catHeader.onclick = (e) => {
+          e.stopPropagation();
+          catGroup.classList.toggle('expanded');
+          const arrow = catHeader.querySelector('.tree-arrow');
+          if (arrow) arrow.innerHTML = catGroup.classList.contains('expanded') ? '&#9660;' : '&#9654;';
+        };
+
+        tree[levelName][catName].forEach(mesh => {
+          const item = this.createDiffTreeNode(mesh);
+          catChildren.appendChild(item);
+        });
+
+        catGroup.appendChild(catHeader);
+        catGroup.appendChild(catChildren);
+        levelChildren.appendChild(catGroup);
+      });
+
+      branchLevel.appendChild(levelHeader);
+      branchLevel.appendChild(levelChildren);
+      container.appendChild(branchLevel);
+    });
+  }
+
+  // Mode 2: Status-Grouped Tree (Added Group, Deleted Group, Modified Group)
+  renderStatusGroupedTree(container, elements) {
+    const groups = [
+      { key: 'added', title: I18N.t('compareDiffGroupAdded'), items: this.diffData.added, dotClass: 'dot-added', color: '#22c55e' },
+      { key: 'deleted', title: I18N.t('compareDiffGroupDeleted'), items: this.diffData.deleted, dotClass: 'dot-deleted', color: '#ef4444' },
+      { key: 'modified', title: I18N.t('compareDiffGroupModified'), items: this.diffData.modified, dotClass: 'dot-modified', color: '#f59e0b' }
+    ];
+
+    groups.forEach(g => {
+      // If activeFilter is set and doesn't match this group, skip
+      if (this.activeFilter && this.activeFilter !== g.key) return;
+      if (g.items.length === 0) return;
+
+      const card = document.createElement('div');
+      card.className = 'compare-group-card';
+
+      const header = document.createElement('div');
+      header.className = 'compare-group-header';
+      header.innerHTML = `
+        <div class="group-title" style="color:${g.color}">
+          <span class="diff-status-dot ${g.dotClass}"></span>
+          <span>${g.title}</span>
+          <span style="font-size:11px;opacity:0.8">(${g.items.length})</span>
+        </div>
+        <span class="group-arrow">&#9660;</span>
+      `;
+
+      const body = document.createElement('div');
+      body.className = 'compare-group-body';
+
+      header.onclick = () => {
+        card.classList.toggle('collapsed');
+      };
+
+      g.items.forEach(mesh => {
+        const item = this.createDiffTreeNode(mesh);
+        body.appendChild(item);
+      });
+
+      card.appendChild(header);
+      card.appendChild(body);
+      container.appendChild(card);
+    });
+  }
+
+  // Create single difference tree leaf element
+  createDiffTreeNode(mesh) {
+    const u = mesh.userData || {};
+    const status = u.compareStatus || 'modified';
+    const name = u.name || `${u.type || 'Element'} #${u.id || ''}`;
+
+    let dotClass = 'dot-modified';
+    if (status === 'added') dotClass = 'dot-added';
+    else if (status === 'deleted') dotClass = 'dot-deleted';
+
+    const item = document.createElement('div');
+    item.className = 'diff-tree-node';
+
+    let ghostBadge = '';
+    if (status === 'modified' && u.compareGeomChanged) {
+      ghostBadge = `<span class="diff-tag-ghost" title="${I18N.t('compareDiffGeomChanged')}">Ghost</span>`;
+    }
+
+    item.innerHTML = `
+      <span class="diff-status-dot ${dotClass}"></span>
+      <span class="diff-tree-name" title="${this.app.escapeHtml(name)}">${this.app.escapeHtml(name)}</span>
+      ${ghostBadge}
+    `;
+
+    item.onclick = (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.diff-tree-node').forEach(n => n.classList.remove('selected'));
+      item.classList.add('selected');
+
+      // Select element and focus in 3D
+      this.app.selectElement(mesh);
+      if (this.app.zoomToElement) {
+        this.app.zoomToElement(mesh);
+      }
+    };
+
+    return item;
+  }
+
+  // Render Diff Inspector Table when Modified Element is selected
+  renderDiffInspectorCard(mesh, container) {
+    if (!this.isActive || !mesh || !mesh.userData) return;
+    const u = mesh.userData;
+
+    if (u.compareStatus !== 'modified') return;
+
+    const diffList = u.compareDiffList || [];
+    const geomChanged = u.compareGeomChanged;
+
+    let rowsHtml = '';
+    if (diffList.length > 0) {
+      diffList.forEach(d => {
+        rowsHtml += `
+          <tr>
+            <td class="prop-name">${this.app.escapeHtml(d.prop)}</td>
+            <td class="old-val">${this.app.escapeHtml(d.oldVal)}</td>
+            <td class="new-val">${this.app.escapeHtml(d.newVal)}</td>
+          </tr>
+        `;
+      });
+    } else {
+      rowsHtml = `
+        <tr>
+          <td colspan="3" style="color:var(--text-muted);text-align:center;padding:10px">
+            ${I18N.t('compareDiffGeomChanged')}
+          </td>
+        </tr>
+      `;
+    }
+
+    let ghostNotice = '';
+    if (geomChanged) {
+      ghostNotice = `
+        <div class="diff-ghost-indicator">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          <span>${I18N.t('compareDiffGeomChanged')}</span>
+        </div>
+      `;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'diff-inspector-card';
+    card.innerHTML = `
+      <div class="diff-summary-row">
+        <span class="diff-summary-badge">${I18N.t('compareInspectorDiffTitle')}</span>
+        <span style="font-size:11px;color:var(--text-secondary)">${diffList.length} changed</span>
+      </div>
+      <table class="diff-table">
+        <thead>
+          <tr>
+            <th>${I18N.t('compareInspectorPropCol')}</th>
+            <th>${I18N.t('compareInspectorOldVal')}</th>
+            <th>${I18N.t('compareInspectorNewVal')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+      ${ghostNotice}
+    `;
+
+    container.insertBefore(card, container.firstChild);
+  }
+
+  // Exit Comparison Mode and Restore Original Materials
+  exitCompareMode() {
+    if (!this.isActive) return;
+    this.isActive = false;
+
+    // 1. Hide Top Banner
+    const banner = document.getElementById('compare-status-banner');
+    if (banner) banner.classList.remove('active');
+
+    // 2. Remove Ghost Mesh
+    this.clearGhostMesh();
+
+    // 3. Restore Original Materials & Clean Metadata for Active Model
+    if (this.app.activeModel) {
+      this.app.activeModel.traverse(obj => {
+        if (obj.isMesh) {
+          if (this.origMaterials.has(obj.id)) {
+            obj.material = this.origMaterials.get(obj.id);
+          }
+          if (obj.userData) {
+            delete obj.userData.compareStatus;
+            delete obj.userData.compareGeomChanged;
+            delete obj.userData.comparePropsChanged;
+            delete obj.userData.compareDiffList;
+            delete obj.userData.compareOldMesh;
+          }
+        }
+      });
+    }
+    this.origMaterials.clear();
+
+    // 4. Remove Injected Deleted Meshes
+    if (this.deletedGroup) {
+      this.app.scene.remove(this.deletedGroup);
+      this.deletedGroup.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+      this.deletedGroup = null;
+    }
+
+    // 5. Remove Compare Tab from Sidebar
+    const btnCompareTab = document.getElementById('tab-btn-compare');
+    if (btnCompareTab) btnCompareTab.remove();
+
+    const tabContent = document.getElementById('tab-compare-content');
+    if (tabContent) tabContent.remove();
+
+    // 6. Switch back to Structures tab
+    this.app.switchLeftTab('tab-struct-content');
+
+    // 7. Clear selection to refresh inspector
+    this.app.clearSelection();
+
+    showToast(I18N.t('compareExitConfirm'), 'success');
+  }
+}
+
+  </script>
+  <script>
 // Procedural BIM Generator for Modern Hillside Villa
 // Master Refined Architecture:
 // 1. Continuous Seamless 3-Layer Geological Soil Strata (Topsoil, Subsoil, Bedrock) with no surface breaching
@@ -25024,6 +27085,9 @@ class BIMViewerApp {
     // Setup 3D orientation compass & category filter states
     this.categoryStates = new Map();
     this.compass3d = new True3DCompass(this);
+    if (typeof ModelCompareEngine !== 'undefined') {
+      this.compareEngine = new ModelCompareEngine(this);
+    }
     this.initPivotHelper();
     this.initSelectionHelper();
     this.initContextMenu();
@@ -27017,7 +29081,8 @@ class BIMViewerApp {
     if (obj.userData && (obj.userData.isGizmo || obj.userData.isStencilHelper || 
         obj.userData.isBoxHelper || obj.userData.isPlaneHelperMesh || 
         obj.userData.isPivotHelper || obj.userData.isHighlightOverlay || 
-        obj.userData.isHoverOverlay || obj.userData.isCapHelper)) {
+        obj.userData.isHoverOverlay || obj.userData.isCapHelper ||
+        obj.userData.isGhostMesh)) {
       return false;
     }
     let curr = obj.parent;
@@ -27713,6 +29778,11 @@ class BIMViewerApp {
     this.createHighlightOverlay(mesh);
     if (this.highlightBox) this.highlightBox.visible = false;
     
+    // Trigger Compare Engine ghost mesh
+    if (this.compareEngine) {
+      this.compareEngine.onElementSelected(mesh);
+    }
+    
     // Update Inspector
     const meta = mesh.userData || {};
     const content = document.getElementById('inspector-content');
@@ -27730,7 +29800,15 @@ class BIMViewerApp {
       { key: 'raw', label: I18N.t('tabRaw'), icon: '⚡' }
     ];
 
-    if (!tabDefs.some(t => t.key === this.activeInspectorTab)) {
+    if (this.compareEngine && this.compareEngine.isActive && meta.compareStatus === 'modified') {
+      tabDefs.unshift({
+        key: 'diff',
+        label: I18N.t('compareInspectorDiffTitle'),
+        icon: '⚡',
+        badge: (meta.compareDiffList && meta.compareDiffList.length) ? meta.compareDiffList.length : '!'
+      });
+      this.activeInspectorTab = 'diff';
+    } else if (!tabDefs.some(t => t.key === this.activeInspectorTab)) {
       this.activeInspectorTab = 'overview';
     }
 
@@ -27748,11 +29826,21 @@ class BIMViewerApp {
     }
 
     const titleName = meta.element || meta.name || mesh.name || 'Unnamed Element';
+    let compareStatusBadge = '';
+    if (meta.compareStatus === 'added') {
+      compareStatusBadge = `<span class="compare-role-tag tag-new" style="margin-left:6px;font-size:9.5px;padding:2px 5px">+${I18N.t('compareMetricAdded')}</span>`;
+    } else if (meta.compareStatus === 'deleted') {
+      compareStatusBadge = `<span class="compare-role-tag tag-old" style="margin-left:6px;font-size:9.5px;padding:2px 5px">-${I18N.t('compareMetricDeleted')}</span>`;
+    } else if (meta.compareStatus === 'modified') {
+      compareStatusBadge = `<span class="compare-role-tag" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);margin-left:6px;font-size:9.5px;padding:2px 5px">~${I18N.t('compareMetricModified')}</span>`;
+    }
+
     content.innerHTML = `
       <div class="element-highlight-card">
         <div class="element-title-row">
           <div class="category-dot" style="background:${colorHex}"></div>
           <div class="element-title" title="${this.escapeHtml(titleName)}">${this.escapeHtml(titleName)}</div>
+          ${compareStatusBadge}
         </div>
         <div class="element-opacity-control">
           <div class="element-opacity-header">
@@ -28192,6 +30280,76 @@ class BIMViewerApp {
       `X ${mesh.position.x.toFixed(2)}  Y ${northing.toFixed(2)}  RL ${mesh.position.y.toFixed(2)}`;
 
     switch (tabKey) {
+      case 'diff': {
+        const diffList = meta.compareDiffList || [];
+        const geomChanged = meta.compareGeomChanged;
+        let rowsHtml = '';
+        if (diffList.length > 0) {
+          diffList.forEach(d => {
+            rowsHtml += `
+              <tr>
+                <td class="prop-name">${this.escapeHtml(d.prop)}</td>
+                <td class="old-val">${this.escapeHtml(d.oldVal)}</td>
+                <td class="new-val">${this.escapeHtml(d.newVal)}</td>
+              </tr>
+            `;
+          });
+        } else {
+          rowsHtml = `
+            <tr>
+              <td colspan="3" style="color:var(--text-muted);text-align:center;padding:12px">
+                ${I18N.t('compareDiffGeomChanged')}
+              </td>
+            </tr>
+          `;
+        }
+
+        let ghostNotice = '';
+        if (geomChanged) {
+          ghostNotice = `
+            <div class="diff-ghost-indicator" style="margin-top:10px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+              <span>${I18N.t('compareDiffGeomChanged')}</span>
+            </div>
+          `;
+        }
+
+        tabPane.innerHTML = `
+          <div class="diff-inspector-card">
+            <div class="diff-summary-row">
+              <span class="diff-summary-badge">${I18N.t('compareInspectorDiffTitle')}</span>
+              <span style="font-size:11px;color:var(--text-secondary)">${diffList.length} items</span>
+            </div>
+            <table class="diff-table">
+              <thead>
+                <tr>
+                  <th>${I18N.t('compareInspectorPropCol')}</th>
+                  <th>${I18N.t('compareInspectorOldVal')}</th>
+                  <th>${I18N.t('compareInspectorNewVal')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            ${ghostNotice}
+            <div style="margin-top:12px;display:flex;justify-content:flex-end">
+              <button class="small-btn" id="btn-view-full-props" style="width:100%">${I18N.t('compareViewFullProps')} &rarr;</button>
+            </div>
+          </div>
+        `;
+
+        const btnFull = document.getElementById('btn-view-full-props');
+        if (btnFull) {
+          btnFull.onclick = () => {
+            const btnOverview = document.querySelector(`.inspector-tab-btn[data-tab="overview"]`);
+            if (btnOverview) btnOverview.click();
+          };
+        }
+        break;
+      }
       case 'overview': {
         tabPane.innerHTML = `
           <div class="pset-card open" style="margin-bottom:8px">
@@ -28804,6 +30962,9 @@ class BIMViewerApp {
     if (this.highlightBox) this.highlightBox.visible = false;
     this.clearHighlightOverlay();
     this.clearHoverOverlay();
+    if (this.compareEngine) {
+      this.compareEngine.onSelectionCleared();
+    }
     this.syncTreeSelection();
     this.renderModelInfoInspector();
   }

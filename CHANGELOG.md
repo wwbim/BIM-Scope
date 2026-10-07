@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **34 小时 40 分钟 (34.67 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 20 小时 27 分钟** (2026-09-29 22:17 至 2026-10-07 18:45)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,017 Steps** (跨 16 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **35 小时 53 分钟 (35.89 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 21 小时 40 分钟** (2026-09-29 22:17 至 2026-10-07 19:58)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,477 Steps** (跨 16 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -29,7 +29,60 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
-| **2026-10-07** | 18:43~18:45 | 0h 01m (0.02h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-07** | 18:43~19:58 | 1h 14m (1.25h) | IFC 模型版本对比模式研发、浅绿浅红双区选卡与一键互换、形体/位姿形变检测与旧版幽灵体、差异树与Diff表 / IFC Model Comparison Mode, dual-zone setup modal & swap, geometric drift & ghost mesh, diff tree & inspector diff table |
+---
+
+## [v1.2610072000] - 2026-10-07 20:00
+
+### 多版本同格式模型对比模式研发（IFC 首发）/ Multi-Version Model Comparison Mode Engine (IFC Launch)
+- **全局对比模式入口与浅绿/浅红双区弹窗 / Compare Mode Top Entry & Dual-Zone Setup Modal**
+  - **中文**:
+    1. **顶部导航栏独立入口与弹窗唤起**: 顶部工具栏新增 `[模型对比 / Compare]` 入口按钮；点击后呼出专业对比设置弹窗，支持选择两个同格式模型文件进行工程版本比对。
+    2. **浅绿/浅红双区暗示与一键互换**: 弹窗左侧为“新版模型（New Revision）”，采用柔和浅绿背景色（`#f0fdf4`）；若当前视口已有打开模型，则默认自动预填入左侧；右侧为“旧版模型（Old Baseline）”，采用柔和浅红背景色（`#fef2f2`）；两区域中央提供 `⇄` 一键互换按钮，点击即可对调左右文件并自动翻转新旧角色；支持拖拽或点击独立拾取文件。
+  - **English**:
+    1. **Top Navbar Dedicated Entry & Setup Modal**: Added `[模型对比 / Compare]` entry button to top navbar; triggers a dual-zone modal to select two files of the same format for version diffing.
+    2. **Light Green/Red Dual Zones & One-Click Swap**: Left zone designated for "New Revision" with subtle green tint (`#f0fdf4`), pre-populating currently active model; right zone for "Old Baseline" with subtle red tint (`#fef2f2`); center `⇄` swap button instantly switches files and roles; supports drag-and-drop or file pickers.
+
+- **IFC 全局唯一 GUID 深度差分对比引擎 / IFC GlobalId Alignment & Deep Topology Diff Engine**
+  - **中文**:
+    1. **GUID 拓扑对齐与生命周期分类**: 采用 IFC 国际标准 `GlobalId` 进行新旧模型实体的一一配准；新版独有图元标记为绿色新增（Added）；旧版独有图元标记为红色删除（Deleted，动态克隆并注入当前场景作为半透明红色辅助网格 `CompareDeletedGroup`）；两版本均有的图元则深度检测变动状态。
+    2. **几何与位姿形变精确探测**: 提取构件世界矩阵包围盒中心与几何拓扑进行比对，若中心位移或包围盒最大尺寸偏差超过 2mm 阈值，则判定为“几何/位姿改变（Geometric Shift）”；若几何未变但 IFC 属性集（Psets）或参数值存在差异，则判定为“纯参数改动（Metadata Only）”。
+  - **English**:
+    1. **GlobalId Alignment & Lifecycle Classification**: Aligns entities via IFC standard `GlobalId`; elements exclusive to new model are classified as Added (Green); elements exclusive to old baseline are classified as Deleted (Red, cloned and injected as translucent red meshes into `CompareDeletedGroup`); matched elements undergo deep difference inspection.
+    2. **Geometric & Spatial Drift Detection**: Computes world bounding box center and extent deviations against a 2mm threshold; if exceeded, classified as "Geometric Shift"; if unchanged geometrically but Pset properties differ, classified as "Metadata Only".
+
+- **四色工程语义着色剥离贴图与未变构件连续透明度 / 4-Color Semantic Rendering & Unchanged Opacity Control**
+  - **中文**:
+    1. **纹理剥离与四色着色标准**: 自动剥离模型原本材质纹理，统一覆写为高对比工程着色：未变构件显示为低饱和灰白色（#d8dce2）、新增构件显示为高亮翠绿色（#22c55e）、已删除构件显示为红色半透明（#ef4444，透明度 0.45）、发生变动构件显示为警示橙黄色（#f59e0b）。
+    2. **未变构件 0%~100% 连续透明度滑块**: 左侧对比面板顶部提供“未变构件透明度（Unchanged Opacity）”滑动条，默认值为 30% 低饱和半透明，支持拖动至 0% 完全隐去未变构件以极度突出改动部位，或拖动至 100% 完全实体显示。
+  - **English**:
+    1. **Texture Stripping & 4-Color Semantic Material Override**: Original materials and textures are stripped in favor of high-contrast engineering colors: Unchanged in matte gray-white (`#d8dce2`), Added in vivid green (`#22c55e`), Deleted in translucent red (`#ef4444`, opacity 0.45), Modified in warning orange-yellow (`#f59e0b`).
+    2. **Continuous 0%-100% Unchanged Opacity Slider**: Top of left comparison panel provides an "Unchanged Opacity" slider defaulting to 30% translucent; users can slide down to 0% to completely hide unchanged elements, or up to 100% for full solid rendering.
+
+- **交互式黄色旧版幽灵体叠加（Ghost Mesh）/ Interactive Pre-Revision Ghost Geometry Overlay**
+  - **中文**:
+    1. **形变构件旧版幽灵体重构**: 当用户在 3D 视口或差异树中选中发生“几何/位姿变动”的橙黄色构件时，系统在视口中自动生成并叠加半透明黄色幽灵体（`#fbbf24`，透明度 0.48），精确呈现修改前的空间位置与形体轮廓；若仅为参数属性变更则不显示幽灵网格。
+    2. **光标穿透保护与无缝清理**: 幽灵体具备 `raycast = null` 拾取穿透保护，避免干扰正常构件点选；取消选择或切换选择时平滑释放并销毁幽灵网格几何体与材质内存。
+  - **English**:
+    1. **Pre-Revision Ghost Mesh Reconstruction**: Selecting a modified element with geometric/spatial shifts renders a yellow translucent ghost overlay (`#fbbf24`, opacity 0.48) depicting its pre-revision shape and position; elements with metadata-only changes omit the ghost mesh.
+    2. **Raycast Pass-Through & Memory Disposal**: Ghost mesh is protected from raycast picking to preserve normal selection; smooth geometry and material disposal upon deselection or element switching.
+
+- **左侧对比面板：三态计数胶囊与双形态差异树 / Left Sidebar HUD Pills & Dual-Mode Difference Tree**
+  - **中文**:
+    1. **三态指标胶囊与交互过滤**: 左侧面板自适应切换为专用对比结果视界，顶部呈现绿（+新增）、红（-删除）、橙（~修改）三个圆角方块指示芯片，实时统计对应数量；点击任意芯片即可触发快速过滤隔离，仅显示该类型变动构件。
+    2. **双重形态差异树无缝切换**: 差异树仅展示变动构件，支持一键切换两种组织形式：①「按层级组织」——严格遵循 IFC 空间层级（Project > Site > Building > Storey），各节点附带绿/红/橙状态圆点与幽灵体标识；②「按状态分组」——分为新增、删除、修改三大分组卡片，组内继续依原本构件层级嵌套组织。
+  - **English**:
+    1. **Tri-Color Metrics HUD & Filter Chips**: Left sidebar switches to dedicated comparison view featuring Green (+Added), Red (-Deleted), and Orange (~Modified) pills; clicking any pill acts as a filter chip isolating matching elements.
+    2. **Dual-Mode Difference Tree**: Difference tree filters out unchanged components and provides two toggleable views: ① "Hierarchy Mode" preserving original IFC spatial hierarchy with colored status dots and Ghost badges; ② "Status Group Mode" grouping elements under Added, Deleted, and Modified cards while preserving internal nesting.
+
+- **右侧检查器版本变更差异表与退出状态管理 / Inspector Diff Table & Sticky Banner Clean Exit**
+  - **中文**:
+    1. **属性差异对照表（Diff Table）**: 选中修改构件时，右侧检查器顶部自动插入“版本变更差异”卡片，清晰罗列发生变动的属性名、旧版原值与新版现值（`Old Value ➔ New Value`），并支持一键切换查看完整工程属性集。
+    2. **顶部常驻状态条与一键退出还原**: 视口顶部悬浮显眼的常驻对比状态栏（`● 模型对比模式中 | 新版: <A> ➔ 旧版: <B> | [退出对比]`），带有绿色呼吸脉冲圆点；点击“退出对比”即可一键无痕退出：视口保留新版模型、完整恢复原始材质贴图纹理、销毁删除构件组与幽灵体、重置左侧面板，确保零内存泄漏。
+  - **English**:
+    1. **Inspector Property Diff Table**: Selecting modified elements renders a top Diff card highlighting altered properties with old and new values (`Old Value ➔ New Value`), along with a toggle for full property sets.
+    2. **Sticky Status Banner & Clean Exit**: Viewport features a floating status banner with green pulse dot indicating active comparison; clicking "Exit" seamlessly restores original textures/materials, removes injected deleted meshes and ghost overlays, and resets the sidebar with zero memory leaks.
+
 ---
 
 ## [v1.2610062100] - 2026-10-06 21:00

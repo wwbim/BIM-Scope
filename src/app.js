@@ -540,6 +540,9 @@ class BIMViewerApp {
     // Setup 3D orientation compass & category filter states
     this.categoryStates = new Map();
     this.compass3d = new True3DCompass(this);
+    if (typeof ModelCompareEngine !== 'undefined') {
+      this.compareEngine = new ModelCompareEngine(this);
+    }
     this.initPivotHelper();
     this.initSelectionHelper();
     this.initContextMenu();
@@ -2533,7 +2536,8 @@ class BIMViewerApp {
     if (obj.userData && (obj.userData.isGizmo || obj.userData.isStencilHelper || 
         obj.userData.isBoxHelper || obj.userData.isPlaneHelperMesh || 
         obj.userData.isPivotHelper || obj.userData.isHighlightOverlay || 
-        obj.userData.isHoverOverlay || obj.userData.isCapHelper)) {
+        obj.userData.isHoverOverlay || obj.userData.isCapHelper ||
+        obj.userData.isGhostMesh)) {
       return false;
     }
     let curr = obj.parent;
@@ -3229,6 +3233,11 @@ class BIMViewerApp {
     this.createHighlightOverlay(mesh);
     if (this.highlightBox) this.highlightBox.visible = false;
     
+    // Trigger Compare Engine ghost mesh
+    if (this.compareEngine) {
+      this.compareEngine.onElementSelected(mesh);
+    }
+    
     // Update Inspector
     const meta = mesh.userData || {};
     const content = document.getElementById('inspector-content');
@@ -3246,7 +3255,15 @@ class BIMViewerApp {
       { key: 'raw', label: I18N.t('tabRaw'), icon: '⚡' }
     ];
 
-    if (!tabDefs.some(t => t.key === this.activeInspectorTab)) {
+    if (this.compareEngine && this.compareEngine.isActive && meta.compareStatus === 'modified') {
+      tabDefs.unshift({
+        key: 'diff',
+        label: I18N.t('compareInspectorDiffTitle'),
+        icon: '⚡',
+        badge: (meta.compareDiffList && meta.compareDiffList.length) ? meta.compareDiffList.length : '!'
+      });
+      this.activeInspectorTab = 'diff';
+    } else if (!tabDefs.some(t => t.key === this.activeInspectorTab)) {
       this.activeInspectorTab = 'overview';
     }
 
@@ -3264,11 +3281,21 @@ class BIMViewerApp {
     }
 
     const titleName = meta.element || meta.name || mesh.name || 'Unnamed Element';
+    let compareStatusBadge = '';
+    if (meta.compareStatus === 'added') {
+      compareStatusBadge = `<span class="compare-role-tag tag-new" style="margin-left:6px;font-size:9.5px;padding:2px 5px">+${I18N.t('compareMetricAdded')}</span>`;
+    } else if (meta.compareStatus === 'deleted') {
+      compareStatusBadge = `<span class="compare-role-tag tag-old" style="margin-left:6px;font-size:9.5px;padding:2px 5px">-${I18N.t('compareMetricDeleted')}</span>`;
+    } else if (meta.compareStatus === 'modified') {
+      compareStatusBadge = `<span class="compare-role-tag" style="background:rgba(245,158,11,0.2);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);margin-left:6px;font-size:9.5px;padding:2px 5px">~${I18N.t('compareMetricModified')}</span>`;
+    }
+
     content.innerHTML = `
       <div class="element-highlight-card">
         <div class="element-title-row">
           <div class="category-dot" style="background:${colorHex}"></div>
           <div class="element-title" title="${this.escapeHtml(titleName)}">${this.escapeHtml(titleName)}</div>
+          ${compareStatusBadge}
         </div>
         <div class="element-opacity-control">
           <div class="element-opacity-header">
@@ -3708,6 +3735,76 @@ class BIMViewerApp {
       `X ${mesh.position.x.toFixed(2)}  Y ${northing.toFixed(2)}  RL ${mesh.position.y.toFixed(2)}`;
 
     switch (tabKey) {
+      case 'diff': {
+        const diffList = meta.compareDiffList || [];
+        const geomChanged = meta.compareGeomChanged;
+        let rowsHtml = '';
+        if (diffList.length > 0) {
+          diffList.forEach(d => {
+            rowsHtml += `
+              <tr>
+                <td class="prop-name">${this.escapeHtml(d.prop)}</td>
+                <td class="old-val">${this.escapeHtml(d.oldVal)}</td>
+                <td class="new-val">${this.escapeHtml(d.newVal)}</td>
+              </tr>
+            `;
+          });
+        } else {
+          rowsHtml = `
+            <tr>
+              <td colspan="3" style="color:var(--text-muted);text-align:center;padding:12px">
+                ${I18N.t('compareDiffGeomChanged')}
+              </td>
+            </tr>
+          `;
+        }
+
+        let ghostNotice = '';
+        if (geomChanged) {
+          ghostNotice = `
+            <div class="diff-ghost-indicator" style="margin-top:10px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+              <span>${I18N.t('compareDiffGeomChanged')}</span>
+            </div>
+          `;
+        }
+
+        tabPane.innerHTML = `
+          <div class="diff-inspector-card">
+            <div class="diff-summary-row">
+              <span class="diff-summary-badge">${I18N.t('compareInspectorDiffTitle')}</span>
+              <span style="font-size:11px;color:var(--text-secondary)">${diffList.length} items</span>
+            </div>
+            <table class="diff-table">
+              <thead>
+                <tr>
+                  <th>${I18N.t('compareInspectorPropCol')}</th>
+                  <th>${I18N.t('compareInspectorOldVal')}</th>
+                  <th>${I18N.t('compareInspectorNewVal')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            ${ghostNotice}
+            <div style="margin-top:12px;display:flex;justify-content:flex-end">
+              <button class="small-btn" id="btn-view-full-props" style="width:100%">${I18N.t('compareViewFullProps')} &rarr;</button>
+            </div>
+          </div>
+        `;
+
+        const btnFull = document.getElementById('btn-view-full-props');
+        if (btnFull) {
+          btnFull.onclick = () => {
+            const btnOverview = document.querySelector(`.inspector-tab-btn[data-tab="overview"]`);
+            if (btnOverview) btnOverview.click();
+          };
+        }
+        break;
+      }
       case 'overview': {
         tabPane.innerHTML = `
           <div class="pset-card open" style="margin-bottom:8px">
@@ -4320,6 +4417,9 @@ class BIMViewerApp {
     if (this.highlightBox) this.highlightBox.visible = false;
     this.clearHighlightOverlay();
     this.clearHoverOverlay();
+    if (this.compareEngine) {
+      this.compareEngine.onSelectionCleared();
+    }
     this.syncTreeSelection();
     this.renderModelInfoInspector();
   }

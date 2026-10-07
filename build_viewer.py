@@ -84,6 +84,8 @@ def load_sources(base_dir=BASE_DIR):
         clipping_js = f.read()
     with open(os.path.join(src_dir, "ifc_parser.js"), "r", encoding="utf-8") as f:
         ifc_parser_js = f.read()
+    with open(os.path.join(src_dir, "compare_engine.js"), "r", encoding="utf-8") as f:
+        compare_engine_js = f.read()
     with open(os.path.join(src_dir, "demo_model.js"), "r", encoding="utf-8") as f:
         demo_model_js = f.read()
     with open(os.path.join(src_dir, "app.js"), "r", encoding="utf-8") as f:
@@ -107,6 +109,7 @@ def load_sources(base_dir=BASE_DIR):
         "solar_js": solar_js,
         "clipping_js": clipping_js,
         "ifc_parser_js": ifc_parser_js,
+        "compare_engine_js": compare_engine_js,
         "demo_model_js": demo_model_js,
         "app_js": app_js,
         "icon_red_b64": icon_red_b64,
@@ -141,6 +144,7 @@ def generate_html(variant_cfg, sources):
     solar_js = sources["solar_js"]
     clipping_js = sources["clipping_js"]
     ifc_parser_js = sources["ifc_parser_js"]
+    compare_engine_js = sources["compare_engine_js"]
     demo_model_js = sources["demo_model_js"]
     app_js = sources["app_js"]
 
@@ -231,6 +235,14 @@ def generate_html(variant_cfg, sources):
 
       <div class="nav-right">
         <!-- Tools Group -->
+        <button class="tool-btn" id="btn-tool-compare" data-i18n="toolCompare" title="Model Comparison Mode">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
+            <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/>
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <path d="M12 2v20"/>
+          </svg>
+          <span data-i18n="toolCompare">Compare</span>
+        </button>
         <button class="tool-btn" id="btn-tool-measure" data-i18n="toolMeasure" title="Distance Measure Tool">
           <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h3v8z"/></svg>
           Measure
@@ -248,6 +260,24 @@ def generate_html(variant_cfg, sources):
         <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
     </header>
+
+    <!-- STICKY TOP COMPARE BANNER -->
+    <div id="compare-status-banner">
+      <div class="banner-pulse-dot"></div>
+      <span style="font-weight:700;color:var(--accent)" data-i18n="compareStatusBanner">Model Comparison Active</span>
+      <div class="banner-files-text">
+        <span class="banner-badge-new" id="banner-file-new">New.ifc</span>
+        <span style="color:var(--text-muted);font-size:11px">&rarr;</span>
+        <span class="banner-badge-old" id="banner-file-old">Old.ifc</span>
+      </div>
+      <button class="banner-exit-btn" id="btn-banner-exit-compare" title="Exit Model Comparison">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <span data-i18n="compareExitBtn">Exit Compare</span>
+      </button>
+    </div>
 
     <!-- WORKSPACE -->
     <main id="workspace">
@@ -907,6 +937,96 @@ def generate_html(variant_cfg, sources):
     </div>
   </div>
 
+  <!-- MODEL COMPARISON SETUP MODAL -->
+  <div class="compare-modal-backdrop" id="compare-setup-modal">
+    <div class="compare-modal-card">
+      <div class="compare-modal-header">
+        <div class="compare-modal-title-box">
+          <div class="compare-modal-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/>
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+              <path d="M12 2v20"/>
+            </svg>
+            <span data-i18n="compareModalTitle">Model Comparison Setup</span>
+          </div>
+          <div class="compare-modal-subtitle" data-i18n="compareModalSubtitle">
+            Select two models of the same format (IFC) to analyze additions, deletions, and modifications.
+          </div>
+        </div>
+        <button class="compare-modal-close-btn" id="btn-compare-modal-close" title="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="compare-modal-body">
+        <div class="compare-zones-wrapper">
+          <!-- Left Zone: New Revision (Light Green) -->
+          <div class="compare-zone compare-zone-new" id="zone-compare-new" title="Click or drag file here">
+            <div class="compare-zone-header">
+              <span class="compare-role-tag tag-new" data-i18n="compareNewModelTitle">New Revision</span>
+              <span class="compare-zone-status" id="zone-new-status"></span>
+            </div>
+            <div class="compare-zone-content">
+              <svg class="compare-zone-icon" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              <div class="compare-zone-filename" id="zone-new-filename" data-i18n="compareSelectFilePrompt">Click or drag IFC file here</div>
+              <div class="compare-zone-size" id="zone-new-size"></div>
+              <div class="compare-zone-hint" id="zone-new-hint"></div>
+            </div>
+            <input type="file" id="input-compare-new" accept=".ifc" style="display:none">
+          </div>
+
+          <!-- Middle: Swap Button -->
+          <button class="compare-swap-btn" id="btn-compare-swap" title="Swap New and Old models" data-i18n-title="compareSwapBtnTitle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m16 3 4 4-4 4"/>
+              <path d="M20 7H4"/>
+              <path d="m8 21-4-4 4-4"/>
+              <path d="M4 17h16"/>
+            </svg>
+          </button>
+
+          <!-- Right Zone: Old Baseline (Light Red) -->
+          <div class="compare-zone compare-zone-old" id="zone-compare-old" title="Click or drag file here">
+            <div class="compare-zone-header">
+              <span class="compare-role-tag tag-old" data-i18n="compareOldModelTitle">Old Baseline</span>
+              <span class="compare-zone-status" id="zone-old-status"></span>
+            </div>
+            <div class="compare-zone-content">
+              <svg class="compare-zone-icon" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              <div class="compare-zone-filename" id="zone-old-filename" data-i18n="compareSelectFilePrompt">Click or drag IFC file here</div>
+              <div class="compare-zone-size" id="zone-old-size"></div>
+              <div class="compare-zone-hint" id="zone-old-hint"></div>
+            </div>
+            <input type="file" id="input-compare-old" accept=".ifc" style="display:none">
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-modal-footer">
+        <button class="btn-secondary" id="btn-compare-cancel" data-i18n="compareCancelBtn">Cancel</button>
+        <button class="btn-compare-primary" id="btn-compare-start" data-i18n="compareStartBtn" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span data-i18n="compareStartBtn">Start Comparison</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- EMBEDDED JAVASCRIPT LIBS & APP CODE (100% OFFLINE) -->
   <script>
 {three_js}
@@ -940,6 +1060,9 @@ def generate_html(variant_cfg, sources):
   </script>
   <script>
 {ifc_parser_js}
+  </script>
+  <script>
+{compare_engine_js}
   </script>
   <script>
 {demo_model_js}
