@@ -322,6 +322,27 @@ svg.nav-arrow-icon {
   box-shadow: 0 0 10px var(--accent-glow);
 }
 
+/* TOP NAVBAR ROUNDED ACTION BUTTONS (COMPARE & OPEN MODEL) */
+#btn-tool-compare,
+#btn-open-file {
+  border-radius: 20px;
+  padding: 5px 14px;
+  height: 28px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+#btn-tool-compare:hover,
+#btn-open-file:hover {
+  background: #0369a1;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+#btn-tool-compare:active,
+#btn-open-file:active {
+  transform: translateY(1px);
+}
+
 /* MAIN CONTENT WORKSPACE */
 #workspace {
   flex: 1;
@@ -3677,14 +3698,6 @@ input:checked + .slider:before {
 
       <div class="nav-right">
         <!-- Tools Group -->
-        <button class="tool-btn" id="btn-tool-compare" data-i18n="toolCompare" title="Model Comparison Mode">
-          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
-            <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/>
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-            <path d="M12 2v20"/>
-          </svg>
-          <span data-i18n="toolCompare">Compare</span>
-        </button>
         <button class="tool-btn" id="btn-tool-measure" data-i18n="toolMeasure" title="Distance Measure Tool">
           <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h3v8z"/></svg>
           Measure
@@ -3695,9 +3708,17 @@ input:checked + .slider:before {
         <!-- Language Switcher & File Actions -->
         <button class="tool-btn" id="btn-lang-toggle" title="Switch English / 中文">🌐 中文</button>
         <button class="tool-btn" id="btn-load-demo" data-i18n="loadDemo" title="Reload Demo Model">Demo</button>
-        <button class="btn-primary" id="btn-open-file" data-i18n="openFile">
+        <button class="btn-primary" id="btn-tool-compare" title="Model Comparison Mode" data-i18n-title="toolCompareTitle">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
+            <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/>
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <path d="M12 2v20"/>
+          </svg>
+          <span data-i18n="toolCompare">Compare</span>
+        </button>
+        <button class="btn-primary" id="btn-open-file" title="Open Model" data-i18n-title="openFile">
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
-          Open Model
+          <span data-i18n="openFile">Open Model</span>
         </button>
         <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
@@ -18411,6 +18432,13 @@ const I18N = {
         return;
       }
       const key = el.getAttribute('data-i18n');
+      if (el.querySelector && el.querySelector('svg')) {
+        const textSpan = el.querySelector('span');
+        if (textSpan) {
+          textSpan.textContent = this.t(key);
+          return;
+        }
+      }
       el.textContent = this.t(key);
     });
     document.querySelectorAll('[data-i18n-title]').forEach(el => {

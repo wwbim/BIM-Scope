@@ -922,6 +922,13 @@ const I18N = {
         return;
       }
       const key = el.getAttribute('data-i18n');
+      if (el.querySelector && el.querySelector('svg')) {
+        const textSpan = el.querySelector('span');
+        if (textSpan) {
+          textSpan.textContent = this.t(key);
+          return;
+        }
+      }
       el.textContent = this.t(key);
     });
     document.querySelectorAll('[data-i18n-title]').forEach(el => {
