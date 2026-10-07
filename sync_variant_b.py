@@ -301,7 +301,7 @@ def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
     with open(dst_changelog_path, "w", encoding="utf-8") as f:
         f.write(swbim_content)
 
-def run_sync():
+def run_sync(do_push=False):
     print("=" * 60)
     print("  SWBIM Scope (Variant B) Synchronizer")
     print("=" * 60)
@@ -374,37 +374,36 @@ def run_sync():
         py_exe = sys.executable
         subprocess.run([py_exe, "build_viewer.py", "--variant=B"], cwd=target_proj_dir, check=True)
 
-    # 4. Git status & auto-commit/push for Account B
-    print("\n[4/4] Checking Git repository status & auto-push for Account B...")
+    # 4. Git status & auto-commit/push for Account B (disabled by default)
+    print("\n[4/4] Checking Git repository status...")
     git_dir = os.path.join(target_proj_dir, ".git")
     if os.path.exists(git_dir):
         try:
             status_res = subprocess.run(["git", "status", "-s"], cwd=target_proj_dir, capture_output=True, text=True)
             changes = status_res.stdout.strip()
             if changes:
-                print(f"  - Detected changes in {target_proj_dir}:\n{changes}")
-                subprocess.run(["git", "add", "."], cwd=target_proj_dir, check=True)
-
-                # Fetch recent commit message from Project A
-                try:
-                    log_res = subprocess.run(["git", "log", "-1", "--pretty=%B"], cwd=BASE_DIR, capture_output=True, text=True)
-                    commit_msg = log_res.stdout.strip()
-                    commit_msg = commit_msg.replace("BIM Scope", "SWBIM Scope")
-                    if not commit_msg or "variant" in commit_msg.lower():
+                print(f"  - Detected local changes in {target_proj_dir}:\n{changes}")
+                if do_push:
+                    subprocess.run(["git", "add", "."], cwd=target_proj_dir, check=True)
+                    try:
+                        log_res = subprocess.run(["git", "log", "-1", "--pretty=%B"], cwd=BASE_DIR, capture_output=True, text=True)
+                        commit_msg = log_res.stdout.strip()
+                        commit_msg = commit_msg.replace("BIM Scope", "SWBIM Scope")
+                        if not commit_msg or "variant" in commit_msg.lower():
+                            commit_msg = "feat: synchronize features and updates with core engine"
+                    except Exception:
                         commit_msg = "feat: synchronize features and updates with core engine"
-                except Exception:
-                    commit_msg = "feat: synchronize features and updates with core engine"
 
-                subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_proj_dir, check=True)
-                print(f"  - Created commit: {commit_msg}")
-
-                # Push to remote origin
-                print("  - Pushing changes to https://github.com/Samwoh-WW/SWBIM-Scope.git...")
-                push_res = subprocess.run(["git", "push", "origin", "main"], cwd=target_proj_dir, capture_output=True, text=True)
-                if push_res.returncode == 0:
-                    print("  - Successfully pushed to remote repository! (origin/main)")
+                    subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_proj_dir, check=True)
+                    print(f"  - Created commit: {commit_msg}")
+                    print("  - Pushing changes to https://github.com/Samwoh-WW/SWBIM-Scope.git...")
+                    push_res = subprocess.run(["git", "push", "origin", "main"], cwd=target_proj_dir, capture_output=True, text=True)
+                    if push_res.returncode == 0:
+                        print("  - Successfully pushed to remote repository! (origin/main)")
+                    else:
+                        print(f"  - Notice: Push failed: {push_res.stderr.strip()}")
                 else:
-                    print(f"  - Notice: Push failed: {push_res.stderr.strip()}")
+                    print("  - ⏸️ Remote publish is DISABLED by default. Changes remain local until user explicitly instructs push.")
             else:
                 print("  - Working tree is clean, repository is up to date.")
         except Exception as e:
@@ -417,4 +416,8 @@ def run_sync():
     print("=" * 60)
 
 if __name__ == "__main__":
-    run_sync()
+    import argparse
+    parser = argparse.ArgumentParser(description="SWBIM Scope Synchronizer")
+    parser.add_argument("--push", action="store_true", default=False, help="Explicitly push to remote GitHub repository upon user command")
+    args = parser.parse_args()
+    run_sync(do_push=args.push)
