@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **37 小时 28 分钟 (37.48 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 23 小时 15 分钟** (2026-09-29 22:17 至 2026-10-07 21:33)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,826 Steps** (跨 16 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **37 小时 38 分钟 (37.64 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 23 小时 25 分钟** (2026-09-29 22:17 至 2026-10-07 21:43)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,880 Steps** (跨 16 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -29,7 +29,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
-| **2026-10-07** | 18:43~21:33 | 2h 49m (2.83h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-07** | 18:43~21:43 | 2h 59m (3.00h) | 功能迭代与持续优化 / Feature development |
 ---
 
 ## [v1.2610072000] - 2026-10-07 20:00
@@ -86,6 +86,14 @@ This document records all formal version iterations and major changes of BIMScop
   - **English**:
     1. **Inspector Property Diff Table**: Selecting modified elements renders a top Diff card highlighting altered properties with old and new values (`Old Value ➔ New Value`), along with a toggle for full property sets.
     2. **Sticky Status Banner & Clean Exit**: Viewport features a floating status banner with green pulse dot indicating active comparison; clicking "Exit" seamlessly restores original textures/materials, removes injected deleted meshes and ghost overlays, and resets the sidebar with zero memory leaks.
+
+- **项目全量功能简述与文档高精度特性校准 / Accurate Comprehensive Documentation & High-Precision Highlights**
+  - **中文**:
+    1. **README.md 核心特色与功能全量重构**: 纠正旧版文档中关于支持格式的失真陈述（剔除未实际接入的 OBJ/MTL、STL、PLY，精准收敛至当前已上线的 IFC 2x3/4/4.3、GLTF/GLB、FBX 及 COLLADA .dae）；全面补充多版本 IFC 深度对比模式、CAD 双向框选、视口居中正交立面预设、50 步视图撤销重做、三维 Stencil 实体封口剖切及通用三维动画播放条等上线功能。
+    2. **超越商业软件的高保真几何解析与平滑着色重点收录**: 详尽阐述自主研发的 IFC 解析优势：① 针对部分商业 BIM 软件因多层映射遍历缺陷导致“多层屋檐只显示最高一层、其余图元缺失”的顽疾，通过递归映射堆栈与 Newell-Earcut 三角剖分实现多层屋檐/悬挑 100% 完整复原；② 针对 IFC 离散三角面导致的破碎表面，自研空间哈希折角法向重构算法（`computeCreasedNormals`，`creaseAngle = 55°`），将粗糙三角面重构为平滑连续曲面，同时精确锁死 90° 结构锐边；③ 门窗洞口布尔减运算（CSG）与金属拉伸网程序化识别。
+  - **English**:
+    1. **Comprehensive README.md Restructuring & Accurate Feature Matrix**: Corrected inaccurate format claims in legacy documentation (removed unintegrated OBJ/MTL, STL, PLY; focused strictly on released IFC 2x3/4/4.3, GLTF/GLB, FBX, and COLLADA .dae); systematically added Multi-Version IFC Comparison Mode, CAD-standard dual-direction marquee selection, viewport-centered elevation presets, 50-step view history, Stencil Buffer solid capping, and universal 3D animation bar.
+    2. **Detailed Superior Geometric Precision & Creased Normal Smoothing**: Highlighted proprietary IFC parser strengths surpassing commercial tools: ① Full recursive mapped item traversal and Newell-Earcut triangulation solving commercial tool bugs where only topmost roof tiers render; ② Proprietary spatial-hashed creased normal reconstruction (`computeCreasedNormals`, 55° threshold) transforming faceted tessellations into smooth continuous curved surfaces while preserving sharp 90° structural edges; ③ Real-time CSG wall void cutouts and procedural expanded mesh detection.
 
 ---
 
