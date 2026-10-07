@@ -2242,26 +2242,29 @@ input:checked + .slider:before {
 
 /* TOAST NOTIFICATION */
 #toast-container {
-  position: absolute;
+  position: fixed;
   top: 60px;
   right: 20px;
-  z-index: 300;
+  z-index: 100000;
   display: flex;
   flex-direction: column;
   gap: 8px;
   pointer-events: none;
+  max-width: 480px;
 }
 
 .toast {
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.96);
   border-left: 4px solid var(--accent);
   border: 1px solid var(--border-light);
   border-left-width: 4px;
   color: #fff;
-  padding: 8px 14px;
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  font-size: 12px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  font-size: 12.5px;
+  line-height: 1.45;
+  pointer-events: auto;
   opacity: 0;
   transform: translateY(-10px);
   transition: all 0.25s ease;
@@ -17545,6 +17548,7 @@ const I18N = {
       compareViewFullProps: "View Full Properties",
       compareViewDiffOnly: "View Differences Only",
       compareNoDiffsFound: "No structural or property differences detected between the two models.",
+      compareNoSimilarity: "No matching elements or similarities found between the two models (0% match). All components are completely added or deleted. Please check if you selected the wrong files!",
       compareParsingModels: "Analyzing models and calculating differences...",
       compareFormatMismatch: "File format mismatch: Comparison requires both files to be in the same format ({extA} vs {extB}).",
       compareNeedFiles: "Please select both New and Old model files to proceed with comparison.",
@@ -17951,6 +17955,7 @@ const I18N = {
       compareViewFullProps: "查看完整属性",
       compareViewDiffOnly: "仅查看差异项",
       compareNoDiffsFound: "两个版本间未检测到构件差异。",
+      compareNoSimilarity: "未检测到两个模型存在任何相似或关联构件（匹配度为 0%），所有构件均为全新增或全删除。请检查是否选错了对比文件！",
       compareParsingModels: "正在解析双版本模型并比对差异...",
       compareFormatMismatch: "文件格式不匹配：对比模式要求两份文件格式完全一致（{extA} 与 {extB}）。",
       compareNeedFiles: "请先选择新版和旧版模型文件，然后再开始对比。",
@@ -24257,6 +24262,10 @@ class ModelCompareEngine {
       return;
     }
 
+    // Preserve original model & info before attempting parse/comparison
+    const originalActiveModel = this.app.activeModel;
+    const originalModelInfo = this.app.currentModelInfo;
+
     this.closeSetupModal();
     this.app.showProgressModal(true);
     this.app.updateProgress(I18N.t('compareParsingModels'), 15);
@@ -24264,7 +24273,7 @@ class ModelCompareEngine {
     try {
       // 1. Prepare New Model
       let modelNew = null;
-      if (this.fileNew.isCurrent && this.fileNew.model) {
+      if (this.fileNew.model) {
         modelNew = this.fileNew.model;
       } else if (this.fileNew.file) {
         this.app.updateProgress(I18N.t('compareParsingModels') + ' (New)', 25);
@@ -24280,7 +24289,7 @@ class ModelCompareEngine {
       // 2. Prepare Old Model
       this.app.updateProgress(I18N.t('compareParsingModels') + ' (Old)', 55);
       let modelOld = null;
-      if (this.fileOld.isCurrent && this.fileOld.model) {
+      if (this.fileOld.model) {
         modelOld = this.fileOld.model;
       } else if (this.fileOld.file) {
         const textOld = await this.readFileAsText(this.fileOld.file);
@@ -24298,6 +24307,34 @@ class ModelCompareEngine {
       // 3. Compute Diff
       this.computeModelDiff(modelNew, modelOld);
 
+      // EXCEPTION HANDLING: Detect whether the two models have any similarity
+      const totalNew = this.diffData.added.length + this.diffData.modified.length + this.diffData.unchanged.length;
+      const totalOld = this.diffData.deleted.length + this.diffData.modified.length + this.diffData.unchanged.length;
+      const matchedCount = this.diffData.unchanged.length + this.diffData.modified.length;
+
+      if (matchedCount === 0 && (totalNew > 0 || totalOld > 0)) {
+        console.warn("[CompareEngine] No similarity detected between models (0% match). Aborting 3D comparison.");
+
+        // Restore original active model if it was replaced during parsing
+        if (originalActiveModel && originalActiveModel !== this.app.activeModel) {
+          this.app.clearModel();
+          this.app.setModel(originalActiveModel);
+          if (originalModelInfo) {
+            this.app.currentModelInfo = originalModelInfo;
+          }
+        }
+
+        // Hide progress modal
+        this.app.showProgressModal(false);
+
+        // Prompt user asking if they selected the wrong file
+        showToast(I18N.t('compareNoSimilarity'), 'warning', 7000);
+
+        // Restore comparison setup window
+        this.openSetupModal();
+        return;
+      }
+
       // 4. Assemble Viewport Materials & Ghosting
       this.applyComparisonViewportShading(modelNew, modelOld);
 
@@ -24309,8 +24346,17 @@ class ModelCompareEngine {
 
     } catch (err) {
       console.error("Comparison execution error:", err);
+      // Restore original active model if error occurred
+      if (originalActiveModel && originalActiveModel !== this.app.activeModel) {
+        this.app.clearModel();
+        this.app.setModel(originalActiveModel);
+        if (originalModelInfo) {
+          this.app.currentModelInfo = originalModelInfo;
+        }
+      }
       this.app.showProgressModal(false);
       showToast("Comparison error: " + err.message, "danger");
+      this.openSetupModal();
     }
   }
 
@@ -35412,7 +35458,7 @@ class BIMViewerApp {
 }
 
 // Global Toast System
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', duration = 3500) {
   const container = document.getElementById('toast-container');
   if (!container) return;
   const t = document.createElement('div');
@@ -35423,7 +35469,7 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     t.classList.remove('show');
     setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
-  }, 3500);
+  }, duration);
 }
 
   </script>

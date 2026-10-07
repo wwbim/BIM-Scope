@@ -2229,26 +2229,29 @@ input:checked + .slider:before {
 
 /* TOAST NOTIFICATION */
 #toast-container {
-  position: absolute;
+  position: fixed;
   top: 60px;
   right: 20px;
-  z-index: 300;
+  z-index: 100000;
   display: flex;
   flex-direction: column;
   gap: 8px;
   pointer-events: none;
+  max-width: 480px;
 }
 
 .toast {
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.96);
   border-left: 4px solid var(--accent);
   border: 1px solid var(--border-light);
   border-left-width: 4px;
   color: #fff;
-  padding: 8px 14px;
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  font-size: 12px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  font-size: 12.5px;
+  line-height: 1.45;
+  pointer-events: auto;
   opacity: 0;
   transform: translateY(-10px);
   transition: all 0.25s ease;

@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **36 小时 23 分钟 (36.39 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 22 小时 10 分钟** (2026-09-29 22:17 至 2026-10-07 20:28)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,597 Steps** (跨 16 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **36 小时 32 分钟 (36.55 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 22 小时 20 分钟** (2026-09-29 22:17 至 2026-10-07 20:37)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,699 Steps** (跨 16 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -29,7 +29,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
-| **2026-10-07** | 18:43~20:28 | 1h 44m (1.75h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-07** | 18:43~20:37 | 1h 54m (1.90h) | 功能迭代与持续优化 / Feature development |
 ---
 
 ## [v1.2610072000] - 2026-10-07 20:00
@@ -40,10 +40,12 @@ This document records all formal version iterations and major changes of BIMScop
     1. **顶部导航栏独立入口与弹窗唤起**: 顶部工具栏新增 `[模型对比 / Compare]` 入口按钮；点击后呼出专业对比设置弹窗，支持选择两个同格式模型文件进行工程版本比对。
     2. **浅绿/浅红双区暗示与一键互换**: 弹窗左侧为“新版模型（New Revision）”，采用柔和浅绿背景色（`#f0fdf4`）；若当前视口已有打开模型，则默认自动预填入左侧；右侧为“旧版模型（Old Baseline）”，采用柔和浅红背景色（`#fef2f2`）；两区域中央提供 `⇄` 一键互换按钮，点击即可对调左右文件并自动翻转新旧角色；支持拖拽或点击独立拾取文件。
     3. **全屏模态遮蔽与视口拖拽提示冲突修复**: 对比窗口开启时全屏深色磨砂遮罩覆盖顶栏、侧栏与视口，阻断底层点击、滚轮穿透与背景快捷键；彻底解决文件向弹窗拖拽经过3D视口时误激活视口 Drop 提示并残留遮挡视口的 Bug；支持点击遮罩空白区域或按 Escape 键快速退出弹窗，且退出后智能保留已拖入的新旧文件信息。
+    4. **无相似度异常熔断与防误选保护**: 当比对的两份模型不存在任何相似或关联构件（匹配度为 0%，所有图元均为全新增或全删除，判定为可能选错文件或无关项目）时，系统自动中断进入 3D 对比流水线，在视口右上角弹出高优先级警告通知，并无损恢复对比设置窗口，同时保留用户已选文件槽位以便快速核对替换。
   - **English**:
     1. **Top Navbar Dedicated Entry & Setup Modal**: Added `[模型对比 / Compare]` entry button to top navbar; triggers a dual-zone modal to select two files of the same format for version diffing.
     2. **Light Green/Red Dual Zones & One-Click Swap**: Left zone designated for "New Revision" with subtle green tint (`#f0fdf4`), pre-populating currently active model; right zone for "Old Baseline" with subtle red tint (`#fef2f2`); center `⇄` swap button instantly switches files and roles; supports drag-and-drop or file pickers.
     3. **Full-Screen Modal Masking & Drag Conflict Elimination**: Comparing modal employs a full-screen frosted glass backdrop covering top navbar, sidebars, and viewport, intercepting background clicks, wheel zoom, and hotkeys; completely eliminates the bug where dragging files across the 3D viewport falsely triggered and stuck the viewport's drop prompt overlay; supports dismiss via backdrop click or Escape key while retaining chosen file slots upon reopening.
+    4. **Zero-Similarity Exception Interception & Mis-Selection Guard**: When two selected models share zero matching or related components (0% match, all elements classified as wholly added or deleted, indicating an accidental file mis-selection or unrelated projects), automatically halts entry into 3D comparison mode, displays a high-priority warning toast, and non-destructively restores the comparison setup modal while preserving chosen file slots for swift review and re-selection.
 
 - **IFC 全局唯一 GUID 深度差分对比引擎 / IFC GlobalId Alignment & Deep Topology Diff Engine**
   - **中文**:

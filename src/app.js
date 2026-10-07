@@ -8817,7 +8817,7 @@ class BIMViewerApp {
 }
 
 // Global Toast System
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', duration = 3500) {
   const container = document.getElementById('toast-container');
   if (!container) return;
   const t = document.createElement('div');
@@ -8828,5 +8828,5 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     t.classList.remove('show');
     setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
-  }, 3500);
+  }, duration);
 }

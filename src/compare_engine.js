@@ -268,6 +268,10 @@ class ModelCompareEngine {
       return;
     }
 
+    // Preserve original model & info before attempting parse/comparison
+    const originalActiveModel = this.app.activeModel;
+    const originalModelInfo = this.app.currentModelInfo;
+
     this.closeSetupModal();
     this.app.showProgressModal(true);
     this.app.updateProgress(I18N.t('compareParsingModels'), 15);
@@ -275,7 +279,7 @@ class ModelCompareEngine {
     try {
       // 1. Prepare New Model
       let modelNew = null;
-      if (this.fileNew.isCurrent && this.fileNew.model) {
+      if (this.fileNew.model) {
         modelNew = this.fileNew.model;
       } else if (this.fileNew.file) {
         this.app.updateProgress(I18N.t('compareParsingModels') + ' (New)', 25);
@@ -291,7 +295,7 @@ class ModelCompareEngine {
       // 2. Prepare Old Model
       this.app.updateProgress(I18N.t('compareParsingModels') + ' (Old)', 55);
       let modelOld = null;
-      if (this.fileOld.isCurrent && this.fileOld.model) {
+      if (this.fileOld.model) {
         modelOld = this.fileOld.model;
       } else if (this.fileOld.file) {
         const textOld = await this.readFileAsText(this.fileOld.file);
@@ -309,6 +313,34 @@ class ModelCompareEngine {
       // 3. Compute Diff
       this.computeModelDiff(modelNew, modelOld);
 
+      // EXCEPTION HANDLING: Detect whether the two models have any similarity
+      const totalNew = this.diffData.added.length + this.diffData.modified.length + this.diffData.unchanged.length;
+      const totalOld = this.diffData.deleted.length + this.diffData.modified.length + this.diffData.unchanged.length;
+      const matchedCount = this.diffData.unchanged.length + this.diffData.modified.length;
+
+      if (matchedCount === 0 && (totalNew > 0 || totalOld > 0)) {
+        console.warn("[CompareEngine] No similarity detected between models (0% match). Aborting 3D comparison.");
+
+        // Restore original active model if it was replaced during parsing
+        if (originalActiveModel && originalActiveModel !== this.app.activeModel) {
+          this.app.clearModel();
+          this.app.setModel(originalActiveModel);
+          if (originalModelInfo) {
+            this.app.currentModelInfo = originalModelInfo;
+          }
+        }
+
+        // Hide progress modal
+        this.app.showProgressModal(false);
+
+        // Prompt user asking if they selected the wrong file
+        showToast(I18N.t('compareNoSimilarity'), 'warning', 7000);
+
+        // Restore comparison setup window
+        this.openSetupModal();
+        return;
+      }
+
       // 4. Assemble Viewport Materials & Ghosting
       this.applyComparisonViewportShading(modelNew, modelOld);
 
@@ -320,8 +352,17 @@ class ModelCompareEngine {
 
     } catch (err) {
       console.error("Comparison execution error:", err);
+      // Restore original active model if error occurred
+      if (originalActiveModel && originalActiveModel !== this.app.activeModel) {
+        this.app.clearModel();
+        this.app.setModel(originalActiveModel);
+        if (originalModelInfo) {
+          this.app.currentModelInfo = originalModelInfo;
+        }
+      }
       this.app.showProgressModal(false);
       showToast("Comparison error: " + err.message, "danger");
+      this.openSetupModal();
     }
   }
 
