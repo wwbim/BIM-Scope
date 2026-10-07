@@ -49,46 +49,140 @@ def replace_branding_to_swbim(content):
     return content
 
 def generate_swbim_readme(src_readme_path, dst_readme_path):
-    """Adapts project README for SWBIM Scope."""
+    """Adapts project README for SWBIM Scope into pure English."""
     if not os.path.exists(src_readme_path):
         return
     with open(src_readme_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    swbim_content = replace_branding_to_swbim(content)
+    lines = content.splitlines()
+    out = []
+    in_code = False
+    for line in lines:
+        if line.strip().startswith('```'):
+            in_code = not in_code
+            out.append(line)
+            continue
+        if in_code:
+            if '#' in line:
+                pre, comment = line.split('#', 1)
+                if '/' in comment:
+                    comment = comment.rsplit('/', 1)[1]
+                elif re.search(r'[\u4e00-\u9fff]', comment):
+                    comment = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', comment).strip()
+                line = f'{pre}# {comment.strip()}'
+            out.append(line)
+            continue
+        
+        # Headings
+        if line.startswith('#'):
+            if '/' in line:
+                hashes = re.match(r'^(#+)\s*', line).group(1)
+                title = line[len(hashes):].strip()
+                eng_title = title.rsplit('/', 1)[1].strip()
+                m = re.match(r'^([\d\.\s\U00010000-\U0010ffff\u2600-\u27ff]+)', title)
+                if m and not re.match(r'^([\d\.\s\U00010000-\U0010ffff\u2600-\u27ff]+)', eng_title):
+                    eng_title = m.group(1).strip() + ' ' + eng_title
+                out.append(f'{hashes} {eng_title}')
+            else:
+                out.append(line)
+            continue
+
+        # Blockquote
+        if line.startswith('>'):
+            if not re.search(r'[\u4e00-\u9fff]', line):
+                out.append(line)
+            continue
+
+        # Bullet lists: Chinese bullet starts with - **
+        if line.strip().startswith('- **') and re.search(r'[\u4e00-\u9fff]', line):
+            continue
+        if line.startswith('  **') and not re.search(r'[\u4e00-\u9fff]', line):
+            out.append('- ' + line.strip())
+            continue
+
+        # Plain text
+        if re.search(r'[\u4e00-\u9fff]', line):
+            continue
+
+        out.append(line)
+
+    res = '\n'.join(out)
+    res = re.sub(r'\n{3,}', '\n\n', res)
+    swbim_content = replace_branding_to_swbim(res)
 
     with open(dst_readme_path, "w", encoding="utf-8") as f:
         f.write(swbim_content)
 
 def generate_swbim_features(src_features_path, dst_features_path):
-    """Adapts FEATURES.md for SWBIM Scope:
-    1. Removes any rows referring to multi-variant release pipelines.
-    2. Substitutes BIM Scope / BIMScope branding to SWBIM Scope / SWBIMScope.
-    """
+    """Adapts FEATURES.md for SWBIM Scope into pure English."""
     if not os.path.exists(src_features_path):
         return
     with open(src_features_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Filter out multi-variant pipeline rows
-    lines = []
-    for line in content.splitlines():
+    lines = content.splitlines()
+    out = []
+    
+    out.append('# Features & Backlog Matrix\n')
+    out.append('This document systematically organizes all features and UI elements of SWBIM Scope into a unified data table.\n')
+    out.append('> **Status Legend**:  ')
+    out.append('> - `✅ Released`: Feature is implemented and verified.  ')
+    out.append('> - `🟡 In Progress`: Feature is active but undergoing active iteration.  ')
+    out.append('> - `📋 Backlog`: Accepted feature requirement in queue.  ')
+    out.append('> - `💡 Idea`: Exploratory proposal or early-stage idea.\n')
+    out.append('---\n')
+    out.append('## Unified Features & Backlog Matrix\n')
+    out.append('| Module | Category & UI Element | Feature Name | Description | Status | Version |')
+    out.append('| :--- | :--- | :--- | :--- | :---: | :---: |')
+
+    for line in lines:
+        if not line.strip().startswith('|'):
+            continue
+        if ':---' in line or '模块' in line or 'Module' in line:
+            continue
         if "双版本参数化发布管线" in line or "Dual-Variant Parametric Release Pipeline" in line or "多版本发布" in line:
             continue
-        lines.append(line)
-    content = "\n".join(lines)
+        
+        cells = [c.strip() for c in line.split('|')[1:-1]]
+        if len(cells) < 6:
+            continue
 
-    content = replace_branding_to_swbim(content)
+        new_cells = []
+        for c in cells:
+            if '<br>' in c:
+                parts = c.split('<br>')
+                eng = parts[-1].strip()
+                if parts[0].startswith('**') and not eng.startswith('**'):
+                    eng = f'**{eng}**'
+                eng = re.sub(r'\s*/\s*[\u4e00-\u9fff]+', '', eng)
+                eng = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', eng).strip()
+                new_cells.append(eng)
+            elif '/' in c:
+                eng = c.rsplit('/', 1)[1].strip()
+                eng = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', eng).strip()
+                new_cells.append(eng)
+            else:
+                clean_c = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', c).strip()
+                new_cells.append(clean_c)
+
+        out.append('| ' + ' | '.join(new_cells) + ' |')
+
+    out.append('\n---\n')
+    out.append('## Backlog Workflow\n')
+    out.append('When you suggest new feature ideas, UX refinements, or enhancements:')
+    out.append('1. **Instant Addition**: Added to this matrix with `📋 Backlog` or `💡 Idea` status;')
+    out.append('2. **Lifecycle Tracking**: Marked as `🟡 In Progress` during active development, and `✅ Released` upon full verification with version number (`v1.<YYMMDDHHMM>`);')
+    out.append('3. **Release Notes Sync**: Formally documented in [`CHANGELOG.md`](./CHANGELOG.md).\n')
+
+    res = '\n'.join(out)
+    swbim_content = replace_branding_to_swbim(res)
 
     with open(dst_features_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(swbim_content)
 
 def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
-    """Adapts CHANGELOG.md for SWBIM Scope:
-    1. Removes dual-variant branching version entries (e.g. [v1.2610062100]).
-    2. Rewrites 2026-10-06 milestone in the time metrics table to the clean feature milestone.
-    3. Substitutes all BIM Scope / BIMScope branding to SWBIM Scope / SWBIMScope.
-    """
+    """Adapts CHANGELOG.md for SWBIM Scope into pure English."""
     if not os.path.exists(src_changelog_path):
         return
     with open(src_changelog_path, "r", encoding="utf-8") as f:
@@ -98,16 +192,114 @@ def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
     pattern = r"\n## \[v1\.2610062100\].*?\n---\n(?=\n## \[v1\.)"
     content = re.sub(pattern, "", content, flags=re.DOTALL)
 
-    # 2. Ensure milestone in development time metrics table is the clean feature milestone
-    old_ms = "双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync"
-    new_ms = "多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync"
-    content = content.replace(old_ms, new_ms)
+    lines = content.splitlines()
+    out = []
+    i = 0
+    n = len(lines)
 
-    # 3. Replace all software name occurrences
-    content = replace_branding_to_swbim(content)
+    out.append('# Changelog\n')
+    out.append('This document records all formal version iterations and major changes of SWBIM Scope since project initiation.\n')
+    out.append('> **Versioning Convention**:  ')
+    out.append('> - Major version is fixed at `v1` (displayed as `v1` in everyday usage);  ')
+    out.append('> - Full sub-version follows `v1.<YYMMDDHHMM>`, where the 10-digit timestamp represents Year, Month, Day, Hour, Minute.\n')
+    out.append('---\n')
+
+    # Find where the first version begins
+    v_pos = -1
+    for idx, l in enumerate(lines):
+        if re.match(r'^## \[v1\.', l):
+            v_pos = idx
+            break
+
+    i = v_pos
+    while i < n:
+        line = lines[i]
+
+        if line.startswith('## ['):
+            out.append(line)
+            i += 1
+            continue
+
+        if line.strip() == '---':
+            out.append(line)
+            i += 1
+            continue
+
+        if line.startswith('### '):
+            title = line[4:].strip()
+            if '/' in title:
+                title = title.rsplit('/', 1)[1].strip()
+            out.append(f'### {title}')
+            i += 1
+            continue
+
+        # Language section: - **中文**:
+        if re.search(r'-\s*\*\*中文\*\*', line):
+            i += 1
+            while i < n:
+                if re.search(r'-\s*\*\*English\*\*', lines[i]):
+                    break
+                if lines[i].startswith('##') or lines[i].strip() == '---':
+                    break
+                if lines[i].startswith('- **') and not re.search(r'-\s*\*\*English\*\*', lines[i]):
+                    break
+                i += 1
+            continue
+
+        # Language section: - **English**:
+        if re.search(r'-\s*\*\*English\*\*', line):
+            inline = re.sub(r'^\s*-\s*\*\*English\*\*:\s*', '', line).strip()
+            if inline:
+                inline = re.sub(r'\s*/\s*[\u4e00-\u9fff]+', '', inline)
+                inline = re.sub(r'\(keeping\s*\"[^\"]+\"\s*in\s*Chinese\)', '(with Chinese localization)', inline)
+                inline = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', inline).strip()
+                out.append(f'  - {inline}')
+            i += 1
+            while i < n:
+                cur = lines[i]
+                if cur.startswith('##') or cur.strip() == '---':
+                    break
+                if cur.startswith('- **'):
+                    break
+                cur_cleaned = cur
+                if re.search(r'[\u4e00-\u9fff]', cur_cleaned):
+                    cur_cleaned = re.sub(r'\s*/\s*[\u4e00-\u9fff]+', '', cur_cleaned)
+                    cur_cleaned = re.sub(r'\(keeping\s*\"[^\"]+\"\s*in\s*Chinese\)', '(with Chinese localization)', cur_cleaned)
+                    cur_cleaned = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', cur_cleaned)
+                if cur_cleaned.startswith('    '):
+                    out.append('  ' + cur_cleaned.strip())
+                elif cur_cleaned.strip() == '':
+                    out.append('')
+                else:
+                    out.append(cur_cleaned)
+                i += 1
+            continue
+
+        # Sub-bullet: - **...**
+        if line.strip().startswith('- **'):
+            raw = line.strip()
+            m = re.match(r'^-\s*\*\*(.*?)\*\*(.*)$', raw)
+            if m:
+                inner = m.group(1)
+                rest = m.group(2)
+                if '/' in inner:
+                    inner = inner.rsplit('/', 1)[1].strip()
+                out.append(f'- **{inner}**{rest}')
+            else:
+                out.append(line)
+            i += 1
+            continue
+
+        if not re.search(r'[\u4e00-\u9fff]', line):
+            out.append(line)
+        i += 1
+
+    res = '\n'.join(out)
+    res = re.sub(r'\n{3,}', '\n\n', res)
+    swbim_content = replace_branding_to_swbim(res)
 
     with open(dst_changelog_path, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write(swbim_content)
 
 def run_sync():
     print("=" * 60)

@@ -127,7 +127,30 @@ def calculate_time_metrics(base_dir=BASE_DIR):
         "breakdown": breakdown
     }
 
-def format_metrics_markdown(metrics):
+def format_metrics_markdown(metrics, is_swbim=False):
+    if is_swbim:
+        rows = []
+        for b in metrics["breakdown"]:
+            ms = b['milestone']
+            if ' / ' in ms:
+                ms = ms.split(' / ', 1)[1]
+            intervals = re.sub(r'\(共\s*(\d+)\s*个时段\)', r'(\1 sessions)', b['intervals'])
+            rows.append(f"| **{b['date']}** | {intervals} | {b['time_str']} | {ms} |")
+        breakdown_table = "\n".join(rows)
+
+        return f"""## Development Time Metrics
+
+> ⏱️ **Total Active Development Time**: **{metrics['active_hrs']} Hours {metrics['active_mins']:02d} Minutes ({metrics['active_hrs_dec']:.2f} Hours)**  
+> 📅 **Total Calendar Span**: **{metrics['cal_days']} Days {metrics['cal_hours']} Hours {metrics['cal_mins']:02d} Minutes** ({metrics['start_str']} to {metrics['end_str']})  
+> 🔢 **Total Engineering Steps**: **{metrics['total_steps']:,} Steps** (across {metrics['total_sessions']} active development sprints)  
+> 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
+
+### Daily Breakdown
+| Date | Active Sprints | Active Hours | Milestones |
+| :--- | :--- | :---: | :--- |
+{breakdown_table}
+"""
+
     rows = []
     for b in metrics["breakdown"]:
         rows.append(f"| **{b['date']}** | {b['intervals']} | {b['time_str']} | {b['milestone']} |")
@@ -157,10 +180,11 @@ def update_changelog(changelog_path=None):
     with open(target_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    new_section = format_metrics_markdown(metrics)
+    is_swbim = "SWBIM Scope" in target_dir
+    new_section = format_metrics_markdown(metrics, is_swbim=is_swbim)
 
     # Check if section already exists in CHANGELOG.md
-    pattern = r"## 项目开发耗时统计 / Development Time Metrics.*?(?=\n---\n\n## \[v1\.|\Z)"
+    pattern = r"## (项目开发耗时统计 / )?Development Time Metrics.*?(?=\n---\n\n## \[v1\.|\Z)"
     if re.search(pattern, content, flags=re.DOTALL):
         updated_content = re.sub(pattern, new_section.rstrip(), content, flags=re.DOTALL)
     else:
