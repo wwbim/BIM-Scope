@@ -182,26 +182,43 @@ def run_sync():
         py_exe = sys.executable
         subprocess.run([py_exe, "build_viewer.py", "--variant=B"], cwd=target_proj_dir, check=True)
 
-    # 4. Git status & instructions for Account B
-    print("\n[4/4] Checking Git repository status for Account B...")
+    # 4. Git status & auto-commit/push for Account B
+    print("\n[4/4] Checking Git repository status & auto-push for Account B...")
     git_dir = os.path.join(target_proj_dir, ".git")
     if os.path.exists(git_dir):
-        print("  - Git repository exists in target directory.")
         try:
-            res = subprocess.run(["git", "status", "-s"], cwd=target_proj_dir, capture_output=True, text=True)
-            print("  - Git status summary:\n" + (res.stdout.strip() if res.stdout.strip() else "    (working tree clean)"))
-        except Exception:
-            pass
+            status_res = subprocess.run(["git", "status", "-s"], cwd=target_proj_dir, capture_output=True, text=True)
+            changes = status_res.stdout.strip()
+            if changes:
+                print(f"  - Detected changes in {target_proj_dir}:\n{changes}")
+                subprocess.run(["git", "add", "."], cwd=target_proj_dir, check=True)
+
+                # Fetch recent commit message from Project A
+                try:
+                    log_res = subprocess.run(["git", "log", "-1", "--pretty=%B"], cwd=BASE_DIR, capture_output=True, text=True)
+                    commit_msg = log_res.stdout.strip()
+                    commit_msg = commit_msg.replace("BIM Scope", "SWBIM Scope")
+                    if not commit_msg or "variant" in commit_msg.lower():
+                        commit_msg = "feat: synchronize features and updates with core engine"
+                except Exception:
+                    commit_msg = "feat: synchronize features and updates with core engine"
+
+                subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_proj_dir, check=True)
+                print(f"  - Created commit: {commit_msg}")
+
+                # Push to remote origin
+                print("  - Pushing changes to https://github.com/Samwoh-WW/SWBIM-Scope.git...")
+                push_res = subprocess.run(["git", "push", "origin", "main"], cwd=target_proj_dir, capture_output=True, text=True)
+                if push_res.returncode == 0:
+                    print("  - Successfully pushed to remote repository! (origin/main)")
+                else:
+                    print(f"  - Notice: Push failed: {push_res.stderr.strip()}")
+            else:
+                print("  - Working tree is clean, repository is up to date.")
+        except Exception as e:
+            print(f"  - Git operation notice: {e}")
     else:
         print("  - Notice: Target directory is not yet a Git repository.")
-        print("  - When GitHub Account B is ready, execute the following commands:\n")
-        print(f"      cd \"{target_proj_dir}\"")
-        print("      git init")
-        print("      git branch -M main")
-        print("      git remote add origin https://github.com/<account-b-user>/SWBIM-Scope.git")
-        print("      git add .")
-        print("      git commit -m \"feat: initial release of SWBIM Scope\"")
-        print("      git push -u origin main\n")
 
     print("=" * 60)
     print("  Sync and Build for Variant B Complete!")
