@@ -48,3 +48,4 @@ test_ff.html
 Thumbs.db
 .vscode/
 .idea/
+*.bat
