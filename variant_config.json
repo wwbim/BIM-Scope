@@ -9,7 +9,8 @@
       "topLogo": "logo_ww_b64.txt",
       "outputHtml": "BIMScope.html",
       "projectDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Project",
-      "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Deliverables"
+      "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Deliverables",
+      "repoUrl": "https://github.com/wwbim/BIM-Scope.git"
     },
     "B": {
       "key": "B",
@@ -20,7 +21,10 @@
       "topLogo": "icon_red_b64.txt",
       "outputHtml": "SWBIMScope.html",
       "projectDir": "H:\\我的云端硬盘\\Software Develop\\SWBIM Scope\\Project",
-      "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\SWBIM Scope\\Deliverables"
+      "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\SWBIM Scope\\Deliverables",
+      "repoUrl": "https://github.com/samwoh/SWBIM-Scope.git",
+      "userEmail": "wei.wang@samwoh.com",
+      "publishScope": "deliverables_only"
     }
   }
 }
