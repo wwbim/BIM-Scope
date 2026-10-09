@@ -132,6 +132,13 @@ def generate_html(variant_cfg, sources):
     # Watermark logo in viewport is always user logo
     logo_ww_b64 = sources["logo_ww_b64"]
 
+    # Brand Design Tokens
+    brand_accent = variant_cfg.get("brandAccent", "#38bdf8")
+    brand_accent_hover = variant_cfg.get("brandAccentHover", "#0ea5e9")
+    brand_accent_glow = variant_cfg.get("brandAccentGlow", "rgba(56, 189, 248, 0.25)")
+    brand_primary = variant_cfg.get("brandPrimary", "#0284c7")
+    brand_primary_hover = variant_cfg.get("brandPrimaryHover", "#0369a1")
+
     styles_css = sources["styles_css"]
     three_js = sources["three_js"]
     orbit_controls_js = sources["orbit_controls_js"]
@@ -149,7 +156,7 @@ def generate_html(variant_cfg, sources):
     app_js = sources["app_js"]
 
     return f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -163,6 +170,15 @@ def generate_html(variant_cfg, sources):
   <title>{html_title}</title>
   <style>
 {styles_css}
+  </style>
+  <style id="variant-brand-tokens">
+    :root {{
+      --accent: {brand_accent};
+      --accent-hover: {brand_accent_hover};
+      --accent-glow: {brand_accent_glow};
+      --brand-primary: {brand_primary};
+      --brand-primary-hover: {brand_primary_hover};
+    }}
   </style>
 </head>
 <body>
@@ -243,8 +259,24 @@ def generate_html(variant_cfg, sources):
         
         <div class="divider"></div>
         
-        <!-- Language Switcher & File Actions -->
+        <!-- Language & Theme Switcher & File Actions -->
         <button class="tool-btn" id="btn-lang-toggle" title="Switch English / 中文">🌐 中文</button>
+        <button class="tool-btn" id="btn-theme-toggle" title="Switch Theme (Dark / Light)" data-i18n-title="themeToggleTitle">
+          <svg id="theme-icon-sun" class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;width:14px;height:14px;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="theme-icon-moon" class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
         <button class="tool-btn" id="btn-load-demo" data-i18n="loadDemo" title="Reload Demo Model">Demo</button>
         <button class="btn-primary" id="btn-tool-compare" title="Model Comparison Mode" data-i18n-title="toolCompareTitle">
           <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
@@ -771,8 +803,22 @@ def generate_html(variant_cfg, sources):
           </button>
         </div>
 
-        <!-- Unified Preferences Card (Selection Highlight & Edge Lines) -->
+        <!-- Unified Preferences Card (Theme, Selection Highlight & Edge Lines) -->
         <div class="inspector-pref-card">
+          <!-- UI Theme Appearance -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row" style="margin-bottom:6px">
+              <span class="pref-inline-label" data-i18n="uiAppearance">Theme Appearance</span>
+              <div class="segmented-control" id="pref-theme-segmented" style="max-width:130px;margin-left:auto;">
+                <button type="button" class="segment-btn active" id="pref-theme-dark-btn" data-theme-val="dark" data-i18n="themeDark">Dark</button>
+                <button type="button" class="segment-btn" id="pref-theme-light-btn" data-theme-val="light" data-i18n="themeLight">Light</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
           <!-- Selection Highlight Settings (Color & Opacity) -->
           <div class="pref-subgroup">
             <div class="control-title" style="margin-bottom:8px;font-size:11px" data-i18n="highlightSettings">Selection Highlight</div>

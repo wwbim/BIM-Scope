@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,28 +17,121 @@
  * @author WWBIM
  * Copyright (c) WWBIM. All rights reserved.
  */
-:root {
+:root,
+[data-theme="dark"] {
+  /* Dark Theme Palette (Default) */
   --bg-main: #0a0d14;
   --bg-panel: #111622;
   --bg-panel-header: #151c2c;
   --bg-card: #182030;
+  --bg-card-subtle: #141b28;
   --bg-hover: #1f2a3f;
+  --bg-active: #283750;
   --border-color: #202b3d;
   --border-light: #2c3b52;
   --text-primary: #e6edf3;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+  --text-bright: #ffffff;
+  --text-inverse: #0a0d14;
+  --text-on-accent: #ffffff;
+  
+  --input-bg: #0d121c;
+  --input-border: #202b3d;
+  --input-focus-border: var(--accent);
+  
+  --modal-overlay-bg: rgba(6, 9, 15, 0.78);
+  --modal-bg: #111622;
+  --modal-header-bg: #151c2c;
+  
+  --dropdown-bg: #141b2a;
+  --dropdown-border: #243147;
+  --dropdown-hover: #1e283c;
+  
+  --viewport-bg: radial-gradient(circle at 50% 50%, #151c2a 0%, #090c13 100%);
+  --viewport-grid: #1e293b;
+  --viewport-grid-center: #334155;
+  
+  --shadow-edge-color: 21, 28, 44;
+  --tabs-shadow-color: 11, 16, 27;
+  
+  /* Brand Tokens (Defaults: overridden per variant by build_viewer.py) */
   --accent: #38bdf8;
+  --accent-hover: #0ea5e9;
   --accent-glow: rgba(56, 189, 248, 0.25);
   --accent-blue: #0284c7;
+  --brand-primary: #0284c7;
+  --brand-primary-hover: #0369a1;
+  
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+  
+  /* Geometry & Radius Tokens */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 20px;
+  --radius-circle: 50%;
+  
+  /* Elevation Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 12px var(--accent-glow);
+  
+  /* Typography & Layout Metrics */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
   --header-height: 48px;
   --bottom-height: 38px;
   --sidebar-width: 330px;
+  
+  --theme-transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+[data-theme="light"] {
+  /* Crisp Architectural Light Theme Palette */
+  --bg-main: #f1f5f9;
+  --bg-panel: #ffffff;
+  --bg-panel-header: #f8fafc;
+  --bg-card: #f8fafc;
+  --bg-card-subtle: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --bg-active: #cbd5e1;
+  --border-color: #e2e8f0;
+  --border-light: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-bright: #0f172a;
+  --text-inverse: #ffffff;
+  --text-on-accent: #ffffff;
+  
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --input-focus-border: var(--accent);
+  
+  --modal-overlay-bg: rgba(15, 23, 42, 0.45);
+  --modal-bg: #ffffff;
+  --modal-header-bg: #f8fafc;
+  
+  --dropdown-bg: #ffffff;
+  --dropdown-border: #e2e8f0;
+  --dropdown-hover: #f1f5f9;
+  
+  --viewport-bg: radial-gradient(circle at 50% 50%, #ffffff 0%, #e2e8f0 100%);
+  --viewport-grid: #cbd5e1;
+  --viewport-grid-center: #94a3b8;
+  
+  --shadow-edge-color: 248, 250, 252;
+  --tabs-shadow-color: 248, 250, 252;
+  
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 0 10px var(--accent-glow);
 }
 
 * {
@@ -137,8 +230,8 @@ html, body {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.8px;
-  color: #fff;
-  background: linear-gradient(135deg, #ffffff 10%, #38bdf8 100%);
+  color: var(--text-primary);
+  background: linear-gradient(135deg, var(--text-primary) 10%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   white-space: nowrap;
@@ -152,7 +245,7 @@ html, body {
 .project-title {
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   letter-spacing: 0.5px;
   white-space: nowrap;
   display: flex;
@@ -162,10 +255,10 @@ html, body {
 
 .title-badge {
   font-size: 10px;
-  background: #0369a1;
-  color: #e0f2fe;
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   font-weight: 600;
   letter-spacing: 0.5px;
 }
@@ -204,8 +297,8 @@ html, body {
 }
 
 #btn-view-proj.active {
-  background: var(--accent-blue);
-  color: #fff;
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
@@ -223,7 +316,7 @@ html, body {
   align-items: center;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 2px;
   gap: 2px;
   height: 28px;
@@ -233,6 +326,7 @@ html, body {
 .btn-group .tool-btn {
   height: 22px;
   padding: 0 8px;
+  border-radius: var(--radius-xs);
   box-sizing: border-box;
 }
 
@@ -270,7 +364,7 @@ svg.nav-arrow-icon {
   font-size: 11px;
   font-weight: 600;
   padding: 5px 9px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -281,12 +375,12 @@ svg.nav-arrow-icon {
 
 .tool-btn:hover {
   background: var(--bg-hover);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .tool-btn.active {
-  background: var(--accent-blue);
-  color: #fff;
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
@@ -294,6 +388,19 @@ svg.nav-arrow-icon {
   width: 14px;
   height: 14px;
   fill: currentColor;
+}
+
+#btn-theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+}
+
+#btn-theme-toggle .theme-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .divider {
@@ -304,13 +411,13 @@ svg.nav-arrow-icon {
 }
 
 .btn-primary {
-  background: #0284c7;
-  color: #fff;
-  border: 1px solid #38bdf8;
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
+  border: 1px solid var(--accent);
   font-size: 11.5px;
   font-weight: 600;
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -319,14 +426,14 @@ svg.nav-arrow-icon {
 }
 
 .btn-primary:hover {
-  background: #0369a1;
+  background: var(--brand-primary-hover);
   box-shadow: 0 0 10px var(--accent-glow);
 }
 
 /* TOP NAVBAR ROUNDED ACTION BUTTONS (COMPARE & OPEN MODEL) */
 #btn-tool-compare,
 #btn-open-file {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 5px 12px;
   height: 28px;
   box-sizing: border-box;
@@ -335,7 +442,7 @@ svg.nav-arrow-icon {
 
 #btn-tool-compare:hover,
 #btn-open-file:hover {
-  background: #0369a1;
+  background: var(--brand-primary-hover);
   box-shadow: 0 0 12px var(--accent-glow);
 }
 
@@ -358,7 +465,7 @@ svg.nav-arrow-icon {
   flex: 1;
   height: 100%;
   position: relative;
-  background: radial-gradient(circle at 50% 50%, #151c2a 0%, #090c13 100%);
+  background: var(--viewport-bg);
   overflow: hidden;
 }
 
@@ -582,9 +689,10 @@ svg.nav-arrow-icon {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  border-radius: 4px;
-  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
   font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -592,7 +700,14 @@ svg.nav-arrow-icon {
 
 .small-btn:hover {
   background: var(--bg-hover);
-  color: #fff;
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.small-btn.active {
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
 }
 
 /* TREE VIEW & STRUCTURE LIST */
@@ -681,9 +796,9 @@ svg.nav-arrow-icon {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #334155;
+  background-color: var(--border-light);
   transition: .2s;
-  border-radius: 16px;
+  border-radius: var(--radius-pill);
 }
 
 .slider-switch:before,
@@ -701,7 +816,7 @@ svg.nav-arrow-icon {
 
 input:checked + .slider-switch,
 input:checked + .slider {
-  background-color: #0284c7;
+  background-color: var(--brand-primary);
 }
 
 input:checked + .slider-switch:before,
@@ -724,7 +839,7 @@ input:checked + .slider:before {
   -webkit-appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: #334155;
+  background: var(--border-light);
   outline: none;
   margin: 0;
 }
@@ -744,7 +859,7 @@ input:checked + .slider:before {
 .control-section {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -754,7 +869,7 @@ input:checked + .slider:before {
 .control-title {
   font-size: 11.5px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -782,21 +897,27 @@ input:checked + .slider:before {
 }
 
 .select-input, .date-input {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-color);
-  color: #fff;
-  border-radius: 4px;
-  padding: 4px 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
   font-size: 11px;
   outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.select-input:focus, .date-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 /* SEGMENTED CONTROL & AXIS BUTTONS */
 .segmented-control {
   display: flex;
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 2px;
   gap: 3px;
   width: 100%;
@@ -823,7 +944,7 @@ input:checked + .slider:before {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-secondary);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 4px 6px;
   font-size: 11px;
   font-weight: 500;
@@ -834,16 +955,16 @@ input:checked + .slider:before {
 }
 
 .segment-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .segment-btn.active {
-  background: rgba(56, 189, 248, 0.16);
-  border-color: rgba(56, 189, 248, 0.4);
-  color: #38bdf8;
+  background: var(--brand-primary);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
   font-weight: 600;
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .axis-segmented .axis-btn-x.active {
@@ -1290,9 +1411,9 @@ input:checked + .slider:before {
 }
 
 .model-info-banner {
-  background: rgba(3, 105, 161, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 6px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -1309,7 +1430,7 @@ input:checked + .slider:before {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.6px;
-  color: #38bdf8;
+  color: var(--accent);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1404,12 +1525,12 @@ input:checked + .slider:before {
 }
 
 .prop-table tr {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-color);
   transition: background 0.12s ease;
 }
 
 .prop-table tr:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-hover);
 }
 
 .prop-table td {
@@ -1535,11 +1656,11 @@ input:checked + .slider:before {
 }
 .tabs-edge-shadow.shadow-left {
   left: 0;
-  background: linear-gradient(to right, rgba(11, 16, 27, 0.96) 0%, rgba(11, 16, 27, 0.6) 60%, transparent 100%);
+  background: linear-gradient(to right, rgba(var(--tabs-shadow-color), 0.96) 0%, rgba(var(--tabs-shadow-color), 0.6) 60%, transparent 100%);
 }
 .tabs-edge-shadow.shadow-right {
   right: 0;
-  background: linear-gradient(to left, rgba(11, 16, 27, 0.96) 0%, rgba(11, 16, 27, 0.6) 60%, transparent 100%);
+  background: linear-gradient(to left, rgba(var(--tabs-shadow-color), 0.96) 0%, rgba(var(--tabs-shadow-color), 0.6) 60%, transparent 100%);
 }
 .sidebar-tabs-container.has-overflow-left .tabs-edge-shadow.shadow-left,
 .inspector-tabs-container.has-overflow-left .tabs-edge-shadow.shadow-left {
@@ -1562,16 +1683,16 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(56, 189, 248, 0.5);
-  border-radius: 3px;
-  color: #38bdf8;
+  background: var(--bg-panel-header);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xs);
+  color: var(--accent);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
   transition: all 0.15s ease;
   backdrop-filter: blur(6px);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-sm);
 }
 .tabs-chevron-btn.chevron-left {
   left: 3px;
@@ -1592,9 +1713,9 @@ input:checked + .slider:before {
 }
 
 .tabs-chevron-btn:hover {
-  background: #0284c7;
-  color: #fff;
-  border-color: #38bdf8;
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
   opacity: 1 !important;
   transform: translateY(-50%) scale(1.08);
 }
@@ -1610,10 +1731,10 @@ input:checked + .slider:before {
   max-width: none;
   white-space: nowrap;
   padding: 7px 11px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
@@ -1630,37 +1751,37 @@ input:checked + .slider:before {
 
 .tab-btn:hover,
 .inspector-tab-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-light);
 }
 
-/* ACTIVE TAB: Sits proud (elevated), brighter background, top cyan glow bar, bottom melts into content panel */
+/* ACTIVE TAB: Sits proud (elevated), brighter background, top accent glow bar, bottom melts into content panel */
 .tab-btn.active,
 .inspector-tab-btn.active {
-  color: #38bdf8;
+  color: var(--accent);
   font-weight: 700;
   background: var(--bg-panel);
-  border: 1px solid rgba(56, 189, 248, 0.45);
+  border: 1px solid var(--accent);
   border-bottom: 1px solid var(--bg-panel);
   margin-bottom: -1px;
   z-index: 5;
   transform: translateY(-2px);
-  box-shadow: 0 -3px 8px rgba(0, 0, 0, 0.45), inset 0 2px 0 #38bdf8;
+  box-shadow: 0 -3px 8px var(--shadow-sm), inset 0 2px 0 var(--accent);
 }
 
 .tab-btn.active:hover,
 .inspector-tab-btn.active:hover {
   background: var(--bg-panel);
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 .inspector-tab-badge {
-  background: rgba(56, 189, 248, 0.18);
-  color: #7dd3fc;
+  background: var(--accent-glow);
+  color: var(--accent);
   font-size: 9.5px;
   padding: 1px 5px;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   font-weight: 600;
   min-width: 14px;
   text-align: center;
@@ -2157,12 +2278,14 @@ input:checked + .slider:before {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(8, 11, 18, 0.75);
-  backdrop-filter: blur(4px);
+  background: var(--modal-overlay-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 500;
   display: none;
   align-items: center;
   justify-content: center;
+  transition: opacity 0.2s ease;
 }
 
 .modal-overlay.active {
@@ -2172,10 +2295,10 @@ input:checked + .slider:before {
 .modal-card {
   width: 440px;
   max-width: 90vw;
-  background: var(--bg-panel);
+  background: var(--modal-bg);
   border: 1px solid var(--border-light);
-  border-radius: 8px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2183,7 +2306,7 @@ input:checked + .slider:before {
 
 .modal-header {
   padding: 14px 18px;
-  background: var(--bg-panel-header);
+  background: var(--modal-header-bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -2193,7 +2316,7 @@ input:checked + .slider:before {
 .modal-header h3 {
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -2208,7 +2331,7 @@ input:checked + .slider:before {
 
 .modal-footer {
   padding: 12px 18px;
-  background: var(--bg-panel-header);
+  background: var(--modal-header-bg);
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
@@ -2502,11 +2625,12 @@ input:checked + .slider:before {
 .custom-context-menu {
   position: absolute;
   z-index: 1000;
-  background: rgba(15, 23, 42, 0.94);
+  background: var(--dropdown-bg);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-light);
-  border-radius: 6px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
   min-width: 175px;
   padding: 5px 0;
   display: flex;
@@ -2534,7 +2658,7 @@ input:checked + .slider:before {
 
 .context-menu-item:hover {
   background: var(--bg-hover);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .context-menu-item svg {
@@ -2843,7 +2967,7 @@ input:checked + .slider:before {
 .compare-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(4, 7, 13, 0.78);
+  background: var(--modal-overlay-bg);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   z-index: 9999;
@@ -2862,12 +2986,12 @@ input:checked + .slider:before {
 }
 
 .compare-modal-card {
-  background: var(--bg-panel);
+  background: var(--modal-bg);
   border: 1px solid var(--border-light);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   width: 100%;
   max-width: 680px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2880,12 +3004,12 @@ input:checked + .slider:before {
 }
 
 .compare-modal-header {
-  padding: 18px 22px 14px;
+  padding: 16px 20px 14px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--bg-panel-header);
+  background: var(--modal-header-bg);
 }
 
 .compare-modal-title-box {
@@ -2895,9 +3019,9 @@ input:checked + .slider:before {
 }
 
 .compare-modal-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2914,15 +3038,16 @@ input:checked + .slider:before {
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.15s ease;
 }
 
 .compare-modal-close-btn:hover {
   background: var(--bg-hover);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .compare-modal-body {
@@ -3068,8 +3193,8 @@ input:checked + .slider:before {
 }
 
 .compare-swap-btn:hover {
-  background: var(--accent-blue);
-  color: #fff;
+  background: var(--brand-primary);
+  color: var(--text-on-accent);
   border-color: var(--accent);
   transform: rotate(180deg) scale(1.08);
 }
@@ -3097,35 +3222,36 @@ input:checked + .slider:before {
   font-size: 12px;
   font-weight: 600;
   padding: 7px 14px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .btn-secondary:hover {
   background: var(--bg-hover);
-  color: #fff;
+  color: var(--text-primary);
+  border-color: var(--border-light);
 }
 
 .btn-compare-primary {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #fff;
+  background: var(--brand-primary);
+  border: 1px solid var(--accent);
+  color: var(--text-on-accent);
   font-size: 12px;
   font-weight: 700;
   padding: 7px 18px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+  box-shadow: 0 2px 8px var(--accent-glow);
 }
 
 .btn-compare-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.5);
+  background: var(--brand-primary-hover);
+  box-shadow: 0 4px 14px var(--accent-glow);
   transform: translateY(-1px);
 }
 
@@ -3587,14 +3713,65 @@ input:checked + .slider:before {
   padding: 6px 8px;
   background: rgba(234, 179, 8, 0.12);
   border: 1px solid rgba(234, 179, 8, 0.3);
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   color: #fde047;
   font-size: 11px;
   margin-top: 8px;
 }
 
+/* ==========================================================================
+   SEMANTIC UTILITY CLASSES (Design Token Aligned)
+   ========================================================================== */
+.u-flex-row { display: flex; align-items: center; }
+.u-flex-col { display: flex; flex-direction: column; }
+.u-flex-between { display: flex; align-items: center; justify-content: space-between; }
+.u-flex-center { display: flex; align-items: center; justify-content: center; }
+.u-gap-4 { gap: 4px; }
+.u-gap-6 { gap: 6px; }
+.u-gap-8 { gap: 8px; }
+.u-gap-12 { gap: 12px; }
+.u-w-full { width: 100%; }
+.u-text-accent { color: var(--accent); }
+.u-text-primary { color: var(--text-primary); }
+.u-text-secondary { color: var(--text-secondary); }
+.u-text-muted { color: var(--text-muted); }
+.u-text-bright { color: var(--text-bright); }
+.u-bg-card { background: var(--bg-card); }
+.u-bg-panel { background: var(--bg-panel); }
+.u-border { border: 1px solid var(--border-color); }
+.u-border-light { border: 1px solid var(--border-light); }
+.u-radius-xs { border-radius: var(--radius-xs); }
+.u-radius-sm { border-radius: var(--radius-sm); }
+.u-radius-md { border-radius: var(--radius-md); }
+.u-radius-pill { border-radius: var(--radius-pill); }
+.u-font-mono { font-family: var(--font-mono); }
+.u-p-8 { padding: 8px; }
+.u-p-12 { padding: 12px; }
+.u-mt-4 { margin-top: 4px; }
+.u-mt-8 { margin-top: 8px; }
+.u-mb-4 { margin-bottom: 4px; }
+.u-mb-8 { margin-bottom: 8px; }
+
+/* Global Smooth Theme Transition */
+body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-sidebar,
+.sidebar-tab-content-panel, .sidebar-tabs-container, .inspector-tabs-container,
+.modal-card, .compare-modal-card, .btn-group, .tool-btn, .tab-btn, .inspector-tab-btn,
+.control-section, .prop-table, .custom-select, .select-input, .date-input, .input-box {
+  transition: var(--theme-transition);
+}
 
 
+
+
+  </style>
+  <style id="variant-brand-tokens">
+    :root {
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --brand-primary: #0284c7;
+      --brand-primary-hover: #0369a1;
+    }
   </style>
 </head>
 <body>
@@ -3675,8 +3852,24 @@ input:checked + .slider:before {
         
         <div class="divider"></div>
         
-        <!-- Language Switcher & File Actions -->
+        <!-- Language & Theme Switcher & File Actions -->
         <button class="tool-btn" id="btn-lang-toggle" title="Switch English / 中文">🌐 中文</button>
+        <button class="tool-btn" id="btn-theme-toggle" title="Switch Theme (Dark / Light)" data-i18n-title="themeToggleTitle">
+          <svg id="theme-icon-sun" class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;width:14px;height:14px;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="theme-icon-moon" class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
         <button class="tool-btn" id="btn-load-demo" data-i18n="loadDemo" title="Reload Demo Model">Demo</button>
         <button class="btn-primary" id="btn-tool-compare" title="Model Comparison Mode" data-i18n-title="toolCompareTitle">
           <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
@@ -4203,8 +4396,22 @@ input:checked + .slider:before {
           </button>
         </div>
 
-        <!-- Unified Preferences Card (Selection Highlight & Edge Lines) -->
+        <!-- Unified Preferences Card (Theme, Selection Highlight & Edge Lines) -->
         <div class="inspector-pref-card">
+          <!-- UI Theme Appearance -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row" style="margin-bottom:6px">
+              <span class="pref-inline-label" data-i18n="uiAppearance">Theme Appearance</span>
+              <div class="segmented-control" id="pref-theme-segmented" style="max-width:130px;margin-left:auto;">
+                <button type="button" class="segment-btn active" id="pref-theme-dark-btn" data-theme-val="dark" data-i18n="themeDark">Dark</button>
+                <button type="button" class="segment-btn" id="pref-theme-light-btn" data-theme-val="light" data-i18n="themeLight">Light</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
           <!-- Selection Highlight Settings (Color & Opacity) -->
           <div class="pref-subgroup">
             <div class="control-title" style="margin-bottom:8px;font-size:11px" data-i18n="highlightSettings">Selection Highlight</div>
@@ -17487,6 +17694,10 @@ const I18N = {
       switchedToOrtho: "Switched to Orthogonal View",
       switchedToPersp: "Switched to Perspective View",
       toolMeasure: "Measure",
+      themeToggleTitle: "Switch Theme (Dark / Light)",
+      themeDark: "Dark",
+      themeLight: "Light",
+      uiAppearance: "Theme Appearance",
       toolCompare: "Compare",
       toolCompareTitle: "Model Comparison Mode",
       compareModalTitle: "Model Comparison Setup",
@@ -17891,6 +18102,10 @@ const I18N = {
       switchedToOrtho: "已切换为正交视图",
       switchedToPersp: "已切换为透视视图",
       toolMeasure: "测量",
+      themeToggleTitle: "切换界面主题 (暗色 / 浅色)",
+      themeDark: "深色",
+      themeLight: "浅色",
+      uiAppearance: "界面外观与主题",
       toolCompare: "模型对比",
       toolCompareTitle: "模型对比模式",
       compareModalTitle: "模型对比设置",
@@ -27124,6 +27339,9 @@ class BIMViewerApp {
     this.cachedCoordEls = null;
     this.cachedCamEls = null;
     
+    // UI Theme System ('dark' | 'light')
+    this.currentTheme = 'dark';
+    
     // Architectural Edge Lines System
     this.showEdges = true;
     this.edgeThreshold = 28;
@@ -29469,7 +29687,7 @@ class BIMViewerApp {
     content.innerHTML = `
       <div class="element-highlight-card">
         <div class="element-title-row">
-          <div class="category-dot" style="background:var(--accent-primary, #38bdf8)"></div>
+          <div class="category-dot" style="background:var(--accent)"></div>
           <div class="element-title">${I18N.t('multiSelectTitle').replace('{count}', meshes.length)}</div>
         </div>
         <div class="category-breakdown-tags">
@@ -31193,7 +31411,7 @@ class BIMViewerApp {
     if (info.projectPhase) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectPhase')}</td><td class="prop-value">${this.escapeHtml(info.projectPhase)}</td></tr>`);
 
     const statsRows = [
-      `<tr><td class="prop-label">${I18N.t('propTotalElements')}</td><td class="prop-value" style="color:#38bdf8;font-weight:700">${fmtNum(stats.totalElements)}</td></tr>`,
+      `<tr><td class="prop-label">${I18N.t('propTotalElements')}</td><td class="prop-value u-text-accent" style="font-weight:700">${fmtNum(stats.totalElements)}</td></tr>`,
       `<tr><td class="prop-label">${I18N.t('propTotalTriangles')}</td><td class="prop-value">${fmtNum(stats.totalTriangles)}</td></tr>`,
       `<tr><td class="prop-label">${I18N.t('propTotalVertices')}</td><td class="prop-value">${fmtNum(stats.totalVertices)}</td></tr>`
     ];
@@ -31213,7 +31431,7 @@ class BIMViewerApp {
         <!-- Primary Model Card -->
         <div class="element-highlight-card">
           <div class="element-title-row">
-            <div class="category-dot" style="background:#38bdf8"></div>
+            <div class="category-dot" style="background:var(--accent)"></div>
             <div class="element-title" title="${this.escapeHtml(info.fileName)}">${this.escapeHtml(info.fileName)}</div>
           </div>
           <div class="element-opacity-control">
@@ -32012,7 +32230,7 @@ class BIMViewerApp {
         if (tex.isEmbedded) {
           readyCount++;
           itemEl.classList.add('ready');
-          iconSvg.innerHTML = '<path fill="#38bdf8" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/>';
+          iconSvg.innerHTML = '<path fill="var(--accent)" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/>';
           badge.classList.add('embedded');
           badge.textContent = I18N.t('textureStatusEmbedded') || 'Embedded';
           leftEl.appendChild(iconSvg);
@@ -32022,7 +32240,7 @@ class BIMViewerApp {
           if (match && match.matched) {
             readyCount++;
             itemEl.classList.add('ready');
-            iconSvg.innerHTML = '<path fill="#10b981" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
+            iconSvg.innerHTML = '<path fill="var(--success)" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
             badge.classList.add('ready');
             badge.textContent = I18N.t('textureStatusReady') || 'Ready';
 
@@ -34078,8 +34296,95 @@ class BIMViewerApp {
       this.measurePoints = [];
     }
   }
+
+  initThemeSystem() {
+    let savedTheme = 'dark';
+    try {
+      savedTheme = localStorage.getItem('bimscope_theme') || 'dark';
+    } catch (e) {
+      savedTheme = 'dark';
+    }
+    this.setTheme(savedTheme, false);
+
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
+    if (btnThemeToggle) {
+      btnThemeToggle.addEventListener('click', () => {
+        const nextTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+        this.setTheme(nextTheme, true);
+      });
+    }
+
+    const darkBtn = document.getElementById('pref-theme-dark-btn');
+    const lightBtn = document.getElementById('pref-theme-light-btn');
+    if (darkBtn) {
+      darkBtn.addEventListener('click', () => this.setTheme('dark', true));
+    }
+    if (lightBtn) {
+      lightBtn.addEventListener('click', () => this.setTheme('light', true));
+    }
+  }
+
+  setTheme(themeName, save = true) {
+    this.currentTheme = themeName === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', this.currentTheme);
+
+    // Update Navbar Theme Button Icons
+    const sunIcon = document.getElementById('theme-icon-sun');
+    const moonIcon = document.getElementById('theme-icon-moon');
+    if (sunIcon && moonIcon) {
+      if (this.currentTheme === 'dark') {
+        sunIcon.style.display = 'block';
+        moonIcon.style.display = 'none';
+      } else {
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';
+      }
+    }
+
+    // Update Segmented Control Buttons
+    const darkBtn = document.getElementById('pref-theme-dark-btn');
+    const lightBtn = document.getElementById('pref-theme-light-btn');
+    if (darkBtn && lightBtn) {
+      if (this.currentTheme === 'dark') {
+        darkBtn.classList.add('active');
+        lightBtn.classList.remove('active');
+      } else {
+        lightBtn.classList.add('active');
+        darkBtn.classList.remove('active');
+      }
+    }
+
+    // Adapt 3D Viewport Background & Grid
+    this.updateViewportTheme(this.currentTheme);
+
+    if (save) {
+      try {
+        localStorage.setItem('bimscope_theme', this.currentTheme);
+      } catch (e) {}
+    }
+  }
+
+  updateViewportTheme(themeName) {
+    if (!this.scene) return;
+    if (themeName === 'light') {
+      this.scene.background = new THREE.Color(0xf1f5f9);
+      if (this.scene.fog) this.scene.fog.color.set(0xf1f5f9);
+      if (this.grid && this.grid.material) {
+        this.grid.material.color.set(0x94a3b8);
+      }
+    } else {
+      this.scene.background = new THREE.Color(0x0c1017);
+      if (this.scene.fog) this.scene.fog.color.set(0x0c1017);
+      if (this.grid && this.grid.material) {
+        this.grid.material.color.set(0x131a28);
+      }
+    }
+  }
   
   initUI() {
+    // 0. Theme System
+    this.initThemeSystem();
+
     // 1. Language Toggle
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       I18N.toggleLanguage();

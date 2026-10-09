@@ -522,6 +522,9 @@ class BIMViewerApp {
     this.cachedCoordEls = null;
     this.cachedCamEls = null;
     
+    // UI Theme System ('dark' | 'light')
+    this.currentTheme = 'dark';
+    
     // Architectural Edge Lines System
     this.showEdges = true;
     this.edgeThreshold = 28;
@@ -2867,7 +2870,7 @@ class BIMViewerApp {
     content.innerHTML = `
       <div class="element-highlight-card">
         <div class="element-title-row">
-          <div class="category-dot" style="background:var(--accent-primary, #38bdf8)"></div>
+          <div class="category-dot" style="background:var(--accent)"></div>
           <div class="element-title">${I18N.t('multiSelectTitle').replace('{count}', meshes.length)}</div>
         </div>
         <div class="category-breakdown-tags">
@@ -4591,7 +4594,7 @@ class BIMViewerApp {
     if (info.projectPhase) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectPhase')}</td><td class="prop-value">${this.escapeHtml(info.projectPhase)}</td></tr>`);
 
     const statsRows = [
-      `<tr><td class="prop-label">${I18N.t('propTotalElements')}</td><td class="prop-value" style="color:#38bdf8;font-weight:700">${fmtNum(stats.totalElements)}</td></tr>`,
+      `<tr><td class="prop-label">${I18N.t('propTotalElements')}</td><td class="prop-value u-text-accent" style="font-weight:700">${fmtNum(stats.totalElements)}</td></tr>`,
       `<tr><td class="prop-label">${I18N.t('propTotalTriangles')}</td><td class="prop-value">${fmtNum(stats.totalTriangles)}</td></tr>`,
       `<tr><td class="prop-label">${I18N.t('propTotalVertices')}</td><td class="prop-value">${fmtNum(stats.totalVertices)}</td></tr>`
     ];
@@ -4611,7 +4614,7 @@ class BIMViewerApp {
         <!-- Primary Model Card -->
         <div class="element-highlight-card">
           <div class="element-title-row">
-            <div class="category-dot" style="background:#38bdf8"></div>
+            <div class="category-dot" style="background:var(--accent)"></div>
             <div class="element-title" title="${this.escapeHtml(info.fileName)}">${this.escapeHtml(info.fileName)}</div>
           </div>
           <div class="element-opacity-control">
@@ -5410,7 +5413,7 @@ class BIMViewerApp {
         if (tex.isEmbedded) {
           readyCount++;
           itemEl.classList.add('ready');
-          iconSvg.innerHTML = '<path fill="#38bdf8" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/>';
+          iconSvg.innerHTML = '<path fill="var(--accent)" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/>';
           badge.classList.add('embedded');
           badge.textContent = I18N.t('textureStatusEmbedded') || 'Embedded';
           leftEl.appendChild(iconSvg);
@@ -5420,7 +5423,7 @@ class BIMViewerApp {
           if (match && match.matched) {
             readyCount++;
             itemEl.classList.add('ready');
-            iconSvg.innerHTML = '<path fill="#10b981" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
+            iconSvg.innerHTML = '<path fill="var(--success)" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
             badge.classList.add('ready');
             badge.textContent = I18N.t('textureStatusReady') || 'Ready';
 
@@ -7476,8 +7479,95 @@ class BIMViewerApp {
       this.measurePoints = [];
     }
   }
+
+  initThemeSystem() {
+    let savedTheme = 'dark';
+    try {
+      savedTheme = localStorage.getItem('bimscope_theme') || 'dark';
+    } catch (e) {
+      savedTheme = 'dark';
+    }
+    this.setTheme(savedTheme, false);
+
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
+    if (btnThemeToggle) {
+      btnThemeToggle.addEventListener('click', () => {
+        const nextTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+        this.setTheme(nextTheme, true);
+      });
+    }
+
+    const darkBtn = document.getElementById('pref-theme-dark-btn');
+    const lightBtn = document.getElementById('pref-theme-light-btn');
+    if (darkBtn) {
+      darkBtn.addEventListener('click', () => this.setTheme('dark', true));
+    }
+    if (lightBtn) {
+      lightBtn.addEventListener('click', () => this.setTheme('light', true));
+    }
+  }
+
+  setTheme(themeName, save = true) {
+    this.currentTheme = themeName === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', this.currentTheme);
+
+    // Update Navbar Theme Button Icons
+    const sunIcon = document.getElementById('theme-icon-sun');
+    const moonIcon = document.getElementById('theme-icon-moon');
+    if (sunIcon && moonIcon) {
+      if (this.currentTheme === 'dark') {
+        sunIcon.style.display = 'block';
+        moonIcon.style.display = 'none';
+      } else {
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';
+      }
+    }
+
+    // Update Segmented Control Buttons
+    const darkBtn = document.getElementById('pref-theme-dark-btn');
+    const lightBtn = document.getElementById('pref-theme-light-btn');
+    if (darkBtn && lightBtn) {
+      if (this.currentTheme === 'dark') {
+        darkBtn.classList.add('active');
+        lightBtn.classList.remove('active');
+      } else {
+        lightBtn.classList.add('active');
+        darkBtn.classList.remove('active');
+      }
+    }
+
+    // Adapt 3D Viewport Background & Grid
+    this.updateViewportTheme(this.currentTheme);
+
+    if (save) {
+      try {
+        localStorage.setItem('bimscope_theme', this.currentTheme);
+      } catch (e) {}
+    }
+  }
+
+  updateViewportTheme(themeName) {
+    if (!this.scene) return;
+    if (themeName === 'light') {
+      this.scene.background = new THREE.Color(0xf1f5f9);
+      if (this.scene.fog) this.scene.fog.color.set(0xf1f5f9);
+      if (this.grid && this.grid.material) {
+        this.grid.material.color.set(0x94a3b8);
+      }
+    } else {
+      this.scene.background = new THREE.Color(0x0c1017);
+      if (this.scene.fog) this.scene.fog.color.set(0x0c1017);
+      if (this.grid && this.grid.material) {
+        this.grid.material.color.set(0x131a28);
+      }
+    }
+  }
   
   initUI() {
+    // 0. Theme System
+    this.initThemeSystem();
+
     // 1. Language Toggle
     document.getElementById('btn-lang-toggle').addEventListener('click', () => {
       I18N.toggleLanguage();

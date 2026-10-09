@@ -10,7 +10,12 @@
       "outputHtml": "BIMScope.html",
       "projectDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Project",
       "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\BIM Scope\\Deliverables",
-      "repoUrl": "https://github.com/wwbim/BIM-Scope.git"
+      "repoUrl": "https://github.com/wwbim/BIM-Scope.git",
+      "brandAccent": "#38bdf8",
+      "brandAccentHover": "#0ea5e9",
+      "brandAccentGlow": "rgba(56, 189, 248, 0.25)",
+      "brandPrimary": "#0284c7",
+      "brandPrimaryHover": "#0369a1"
     },
     "B": {
       "key": "B",
@@ -24,7 +29,12 @@
       "deliverablesDir": "H:\\我的云端硬盘\\Software Develop\\SWBIM Scope\\Deliverables",
       "repoUrl": "https://github.com/samwoh/SWBIM-Scope.git",
       "userEmail": "wei.wang@samwoh.com",
-      "publishScope": "deliverables_only"
+      "publishScope": "deliverables_only",
+      "brandAccent": "#e91d2d",
+      "brandAccentHover": "#ff3847",
+      "brandAccentGlow": "rgba(233, 29, 45, 0.25)",
+      "brandPrimary": "#19468d",
+      "brandPrimaryHover": "#235bb3"
     }
   }
 }
