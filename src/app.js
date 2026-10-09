@@ -6321,17 +6321,13 @@ class BIMViewerApp {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Section Gizmo Hover detection
+        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover)
         if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
-          const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
-          if (gizmoHits.length > 0) {
-            this.clippingEngine.setHoverGizmo(gizmoHits[0].object);
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster);
+          if (isOverGizmo) {
             this.canvas.style.cursor = 'grab';
             this.clearHoverOverlay();
             return;
-          } else {
-            this.clippingEngine.clearHoverGizmo();
-            this.canvas.style.cursor = 'default';
           }
         }
 
@@ -6384,6 +6380,9 @@ class BIMViewerApp {
         this.hoverRaf = null;
       }
       this.pendingMouseMoveEvt = null;
+      if (this.clippingEngine) {
+        this.clippingEngine.clearHoverState();
+      }
       this.clearHoverOverlay();
       this.canvas.style.cursor = 'default';
     });
