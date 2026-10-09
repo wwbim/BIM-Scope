@@ -156,6 +156,7 @@ def generate_html(variant_cfg, sources):
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none';">
   <meta name="author" content="{owner}">
   <meta name="creator" content="{owner}">
   <!-- {author_comment} -->

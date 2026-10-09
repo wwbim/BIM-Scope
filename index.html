@@ -6,6 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none';">
   <meta name="author" content="WWBIM">
   <meta name="creator" content="WWBIM">
   <!-- Author: WWBIM | BIM Scope 3D Viewer -->
@@ -27117,6 +27118,12 @@ class BIMViewerApp {
     this.lastFrameTime = performance.now();
     this.frameCount = 0;
     
+    // Performance optimization states: rAF throttles & DOM caches
+    this.hoverRaf = null;
+    this.pendingMouseMoveEvt = null;
+    this.cachedCoordEls = null;
+    this.cachedCamEls = null;
+    
     // Architectural Edge Lines System
     this.showEdges = true;
     this.edgeThreshold = 28;
@@ -29625,7 +29632,7 @@ class BIMViewerApp {
                 <td class="prop-label">${I18N.t('propLevel')}</td>
                 <td class="prop-value">
                   ${level === I18N.t('propMultipleValues') ? 
-                    `<span class="prop-multiple-val">${level}</span>` : 
+                    `<span class="prop-multiple-val">${this.escapeHtml(level)}</span>` : 
                     this.escapeHtml(level)}
                 </td>
               </tr>
@@ -30820,7 +30827,7 @@ class BIMViewerApp {
                 </tr>
                 <tr>
                   <td class="prop-label">${I18N.t('propTypeStepId')}</td>
-                  <td class="prop-value">${(meta.typeInfo && (meta.typeInfo.id || meta.typeInfo.typeId)) ? '#' + (meta.typeInfo.id || meta.typeInfo.typeId) : "N/A"}</td>
+                  <td class="prop-value">${(meta.typeInfo && (meta.typeInfo.id || meta.typeInfo.typeId)) ? '#' + this.escapeHtml(meta.typeInfo.id || meta.typeInfo.typeId) : "N/A"}</td>
                 </tr>
                 <tr>
                   <td class="prop-label">Spatial Storey</td>
@@ -32891,61 +32898,86 @@ class BIMViewerApp {
       this.containerResizeObserver.observe(this.container);
     }
     
-    // Mouse Move for Coordinates HUD, Measure, and Gizmo Hover
+    // Mouse Move for Coordinates HUD, Measure, and Gizmo Hover (Throttled with requestAnimationFrame)
     this.canvas.addEventListener('mousemove', (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      
-      this.raycaster.setFromCamera(this.mouse, this.camera);
+      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY };
+      if (this.hoverRaf) return;
 
-      // Section Gizmo Hover detection
-      if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
-        const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
-        if (gizmoHits.length > 0) {
-          this.clippingEngine.setHoverGizmo(gizmoHits[0].object);
-          this.canvas.style.cursor = 'grab';
+      this.hoverRaf = requestAnimationFrame(() => {
+        this.hoverRaf = null;
+        if (!this.pendingMouseMoveEvt) return;
+        const { clientX, clientY } = this.pendingMouseMoveEvt;
+        this.pendingMouseMoveEvt = null;
+
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
+        // Section Gizmo Hover detection
+        if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
+          const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
+          if (gizmoHits.length > 0) {
+            this.clippingEngine.setHoverGizmo(gizmoHits[0].object);
+            this.canvas.style.cursor = 'grab';
+            this.clearHoverOverlay();
+            return;
+          } else {
+            this.clippingEngine.clearHoverGizmo();
+            this.canvas.style.cursor = 'default';
+          }
+        }
+
+        const ctxMenu = document.getElementById('context-menu');
+        if (this.isOrbiting || this.isPanning || this.isLeftInteracting || this.isBoxSelecting || this.isGizmoDragging || this.isMeasureMode || (ctxMenu && ctxMenu.style.display === 'flex')) {
           this.clearHoverOverlay();
           return;
-        } else {
-          this.clippingEngine.clearHoverGizmo();
-          this.canvas.style.cursor = 'default';
         }
-      }
 
-      const ctxMenu = document.getElementById('context-menu');
-      if (this.isOrbiting || this.isPanning || this.isLeftInteracting || this.isBoxSelecting || this.isGizmoDragging || this.isMeasureMode || (ctxMenu && ctxMenu.style.display === 'flex')) {
-        this.clearHoverOverlay();
-        return;
-      }
+        // Target activeModel children instead of entire scene to skip auxiliary cameras/lights/compass
+        const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+        const intersects = this.raycaster.intersectObjects(searchRoots, true);
+        const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+        
+        if (valid.length > 0) {
+          const hitMesh = valid[0].object;
+          const p = valid[0].point;
+          const northing = Math.abs(p.z);
+          
+          if (!this.cachedCoordEls) {
+            this.cachedCoordEls = {
+              x: document.getElementById('coord-x'),
+              y: document.getElementById('coord-y'),
+              rl: document.getElementById('coord-rl')
+            };
+          }
+          if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
+          if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
+          if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
 
-      const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-      const valid = intersects.filter(hit => this.isPickableElement(hit.object));
-      
-      if (valid.length > 0) {
-        const hitMesh = valid[0].object;
-        const p = valid[0].point;
-        const northing = Math.abs(p.z);
-        document.getElementById('coord-x').textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-        document.getElementById('coord-y').textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
-        document.getElementById('coord-rl').textContent = p.y.toFixed(2);
-
-        // Subtle hover highlight on current pointed element
-        const isAlreadySel = (hitMesh === this.selectedMesh) || (this.selectedMeshes && this.selectedMeshes.includes(hitMesh));
-        if (!isAlreadySel) {
-          this.setHoveredElement(hitMesh);
-          this.canvas.style.cursor = 'pointer';
+          // Subtle hover highlight on current pointed element
+          const isAlreadySel = (hitMesh === this.selectedMesh) || (this.selectedMeshes && this.selectedMeshes.includes(hitMesh));
+          if (!isAlreadySel) {
+            this.setHoveredElement(hitMesh);
+            this.canvas.style.cursor = 'pointer';
+          } else {
+            this.clearHoverOverlay();
+            this.canvas.style.cursor = 'pointer';
+          }
         } else {
           this.clearHoverOverlay();
-          this.canvas.style.cursor = 'pointer';
+          this.canvas.style.cursor = 'default';
         }
-      } else {
-        this.clearHoverOverlay();
-        this.canvas.style.cursor = 'default';
-      }
+      });
     });
 
     this.canvas.addEventListener('mouseleave', () => {
+      if (this.hoverRaf) {
+        cancelAnimationFrame(this.hoverRaf);
+        this.hoverRaf = null;
+      }
+      this.pendingMouseMoveEvt = null;
       this.clearHoverOverlay();
       this.canvas.style.cursor = 'default';
     });
@@ -35222,7 +35254,16 @@ class BIMViewerApp {
     this.frameCount++;
     if (time - this.lastFrameTime >= 1000) {
       this.fps = Math.round((this.frameCount * 1000) / (time - this.lastFrameTime));
-      document.getElementById('stat-fps-val').textContent = this.fps;
+      if (!this.cachedCamEls) {
+        this.cachedCamEls = {
+          tab: document.getElementById('tab-camera-content'),
+          pos: document.getElementById('cam-pos-readout'),
+          piv: document.getElementById('cam-pivot-readout'),
+          dist: document.getElementById('cam-dist-readout'),
+          fps: document.getElementById('stat-fps-val')
+        };
+      }
+      if (this.cachedCamEls.fps) this.cachedCamEls.fps.textContent = this.fps;
       this.frameCount = 0;
       this.lastFrameTime = time;
     }
@@ -35265,19 +35306,25 @@ class BIMViewerApp {
       }
     }
 
-    // Live Camera State Readout (updated when Camera tab is visible)
-    const camTab = document.getElementById('tab-camera-content');
+    // Live Camera State Readout (updated when Camera tab is visible, cached DOM elements)
+    if (!this.cachedCamEls) {
+      this.cachedCamEls = {
+        tab: document.getElementById('tab-camera-content'),
+        pos: document.getElementById('cam-pos-readout'),
+        piv: document.getElementById('cam-pivot-readout'),
+        dist: document.getElementById('cam-dist-readout'),
+        fps: document.getElementById('stat-fps-val')
+      };
+    }
+    const camTab = this.cachedCamEls.tab;
     if (this.camera && camTab && camTab.classList.contains('active')) {
       const pos = this.camera.position;
-      const posEl = document.getElementById('cam-pos-readout');
-      if (posEl) posEl.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+      if (this.cachedCamEls.pos) this.cachedCamEls.pos.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
 
-      const piv = this.pivotPoint || this.controls.target;
-      const pivEl = document.getElementById('cam-pivot-readout');
-      if (pivEl && piv) pivEl.textContent = `${piv.x.toFixed(1)}, ${piv.y.toFixed(1)}, ${piv.z.toFixed(1)}`;
+      const piv = this.pivotPoint || (this.controls ? this.controls.target : null);
+      if (this.cachedCamEls.piv && piv) this.cachedCamEls.piv.textContent = `${piv.x.toFixed(1)}, ${piv.y.toFixed(1)}, ${piv.z.toFixed(1)}`;
 
-      const distEl = document.getElementById('cam-dist-readout');
-      if (distEl && piv) distEl.textContent = `${pos.distanceTo(piv).toFixed(1)} m`;
+      if (this.cachedCamEls.dist && piv) this.cachedCamEls.dist.textContent = `${pos.distanceTo(piv).toFixed(1)} m`;
     }
     
     // Continuously keep viewport canvas buffer and camera aspect in sync with container without flicker
