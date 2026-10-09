@@ -510,10 +510,6 @@ class BIMViewerApp {
     this.measurePoints = [];
     this.measureLine = null;
     
-    // Labels & UI state
-    this.showLabels = false;
-    this.labelsOpacity = 1.0;
-    this.billboardElements = [];
     this.activeModel = null;
     this.modelOpacity = 1.0;
     this.fps = 60;
@@ -1282,9 +1278,6 @@ class BIMViewerApp {
     const model = CRLDemoModel.create();
     this.setModel(model);
     
-    // Create Billboards
-    this.createBillboards(CRLDemoModel.getBillboardData());
-
     const stats = this.calculateModelStats(model);
     this.currentModelInfo = {
       isDemo: true,
@@ -1361,7 +1354,6 @@ class BIMViewerApp {
       container.innerHTML = '<span class="legend-title" data-i18n="legendTitle">' + I18N.t('legendTitle') + '</span>';
       this.updateBottomBarOverflow();
     }
-    this.clearBillboards();
     this.clearSelection();
     this.hideAnimationPlayer();
   }
@@ -1603,77 +1595,7 @@ class BIMViewerApp {
     
     showToast(I18N.t('loadingTitle') + " - " + I18N.t('solarDayMsg'), 'success');
   }
-  
-  createBillboards(data) {
-    this.clearBillboards();
-    const container = document.getElementById('viewport-container');
-    
-    data.forEach(item => {
-      const el = document.createElement('div');
-      el.className = 'billboard-label';
-      if (!this.showLabels) el.style.display = 'none';
-      el.textContent = item.text;
-      container.appendChild(el);
-      
-      this.billboardElements.push({
-        dom: el,
-        pos3d: new THREE.Vector3(item.pos[0], item.pos[1], item.pos[2])
-      });
-    });
-  }
-  
-  clearBillboards() {
-    this.billboardElements.forEach(b => {
-      if (b.dom && b.dom.parentNode) b.dom.parentNode.removeChild(b.dom);
-    });
-    this.billboardElements = [];
-  }
-  
-  updateBillboards() {
-    if (!this.showLabels) {
-      this.billboardElements.forEach(b => b.dom.style.display = 'none');
-      return;
-    }
-    
-    const widthHalf = this.container.clientWidth / 2;
-    const heightHalf = this.container.clientHeight / 2;
-    const tempVec = new THREE.Vector3();
-    
-    this.billboardElements.forEach(b => {
-      tempVec.copy(b.pos3d);
-      tempVec.project(this.camera);
-      
-      // Check if in front of camera
-      if (tempVec.z < 1.0) {
-        const x = (tempVec.x * widthHalf) + widthHalf;
-        const y = -(tempVec.y * heightHalf) + heightHalf;
-        b.dom.style.display = 'block';
-        b.dom.style.left = `${x}px`;
-        b.dom.style.top = `${y}px`;
-      } else {
-        b.dom.style.display = 'none';
-      }
-    });
-  }
 
-  setLabelsVisible(visible) {
-    this.showLabels = Boolean(visible);
-    const btnLabels = document.getElementById('btn-tool-labels');
-    if (btnLabels) btnLabels.classList.toggle('active', this.showLabels);
-    const labelChk = document.getElementById('labels-toggle-chk');
-    if (labelChk) labelChk.checked = this.showLabels;
-    this.updateBillboards();
-  }
-
-  setLabelsOpacity(op) {
-    this.labelsOpacity = Math.max(0.1, Math.min(1.0, op));
-    document.documentElement.style.setProperty('--label-opacity', this.labelsOpacity);
-    const labelOpVal = document.getElementById('labels-opacity-val');
-    if (labelOpVal) labelOpVal.textContent = `${Math.round(this.labelsOpacity * 100)}%`;
-    const labelOpSlider = document.getElementById('labels-opacity-slider');
-    if (labelOpSlider) labelOpSlider.value = Math.round(this.labelsOpacity * 100);
-  }
-  
   // Fit View / Camera Framing
   fitView(immediate = true) {
     if (!this.activeModel) return;
@@ -6340,7 +6262,6 @@ class BIMViewerApp {
     if (this.compass3d) {
       this.compass3d.update();
     }
-    this.updateBillboards();
     if (this.updateSidebarTabsOverflow) {
       this.updateSidebarTabsOverflow();
     }
@@ -7725,33 +7646,6 @@ class BIMViewerApp {
       btnCamReset.onclick = () => this.fitView();
     }
     
-    const btnLabels = document.getElementById('btn-tool-labels');
-    if (btnLabels) {
-      btnLabels.onclick = () => {
-        this.setLabelsVisible(!this.showLabels);
-      };
-    }
-
-    // 3D Billboard Labels Controls in Inspector
-    const labelChk = document.getElementById('labels-toggle-chk');
-    if (labelChk) {
-      labelChk.checked = this.showLabels;
-      labelChk.addEventListener('change', () => {
-        this.setLabelsVisible(labelChk.checked);
-      });
-    }
-    this.setLabelsVisible(this.showLabels);
-
-    const labelOpSlider = document.getElementById('labels-opacity-slider');
-    const labelOpVal = document.getElementById('labels-opacity-val');
-    if (labelOpSlider) {
-      labelOpSlider.value = Math.round(this.labelsOpacity * 100);
-      labelOpSlider.addEventListener('input', (e) => {
-        const val = parseInt(e.target.value, 10);
-        this.setLabelsOpacity(val / 100);
-      });
-    }
-
     // Left Sidebar: Persisted Custom Width, Collapse / Expand, and Drag-to-Resize (280px - 600px)
     const lsb = document.getElementById('left-sidebar');
     const btnTree = document.getElementById('btn-tool-tree');
@@ -8741,8 +8635,7 @@ class BIMViewerApp {
       this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
     }
     
-    // Billboards & True 3D Compass
-    this.updateBillboards();
+    // True 3D Compass
     if (this.compass3d) {
       this.compass3d.update();
     }

@@ -387,37 +387,6 @@ svg.nav-arrow-icon {
   background: rgba(82, 196, 26, 0.18);
 }
 
-/* 3D BILLBOARD LABELS */
-.billboard-label {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  background: rgba(14, 20, 32, 0.88);
-  border: 1px solid rgba(56, 189, 248, 0.6);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-  border-radius: 4px;
-  padding: 3px 8px;
-  color: #f8fafc;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  pointer-events: none;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 20;
-  opacity: var(--label-opacity, 1.0);
-}
-
-.billboard-label::after {
-  content: "";
-  position: absolute;
-  bottom: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 5px 5px 0 5px;
-  border-style: solid;
-  border-color: rgba(56, 189, 248, 0.6) transparent transparent transparent;
-}
-
 /* 3D VIEWPORT WATERMARK LOGO */
 .viewport-watermark-logo {
   position: absolute;
@@ -4268,25 +4237,6 @@ input:checked + .slider:before {
               <span class="pref-inline-label" data-i18n="edgeOpacity">Edge Intensity</span>
               <input type="range" min="10" max="100" step="5" value="65" class="range-slider pref-fixed-slider" id="edge-opacity-slider">
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
-            </div>
-          </div>
-
-          <!-- Subtle Divider -->
-          <div class="pref-divider"></div>
-
-          <!-- 3D Billboard Labels -->
-          <div class="pref-subgroup">
-            <div class="pref-inline-row" style="margin-bottom:6px">
-              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="labelsToggle">3D Labels</span>
-              <label class="toggle-switch" style="margin-left:auto">
-                <input type="checkbox" id="labels-toggle-chk">
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-            <div class="pref-inline-row">
-              <span class="pref-inline-label" data-i18n="labelsOpacity">Opacity</span>
-              <input type="range" min="10" max="100" step="5" value="100" class="range-slider pref-fixed-slider" id="labels-opacity-slider">
-              <span class="pref-inline-val" id="labels-opacity-val">100%</span>
             </div>
           </div>
         </div>
@@ -17575,7 +17525,6 @@ const I18N = {
       compareNeedFiles: "Please select both New and Old model files to proceed with comparison.",
       toolSection: "Section",
       toolSolar: "Lighting",
-      toolLabels: "Labels",
       toolTree: "Model",
       toolInspect: "Inspect",
       toolCamera: "Camera",
@@ -17805,8 +17754,6 @@ const I18N = {
       edgeOpacity: "Edge Intensity",
       collapseInspector: "Collapse Inspector",
       expandInspector: "Expand Inspector",
-      labelsToggle: "3D Labels",
-      labelsOpacity: "Label Opacity",
       multiSelectTitle: "{count} Elements Selected",
       batchOpacity: "Selected Elements Opacity",
       propMultipleValues: "multiple",
@@ -17982,7 +17929,6 @@ const I18N = {
       compareNeedFiles: "请先选择新版和旧版模型文件，然后再开始对比。",
       toolSection: "剖切",
       toolSolar: "光照",
-      toolLabels: "标签",
       toolTree: "模型树",
       toolInspect: "检查器",
       toolCamera: "相机",
@@ -18212,8 +18158,6 @@ const I18N = {
       edgeOpacity: "轮廓线浓度",
       collapseInspector: "折叠检查器",
       expandInspector: "展开检查器",
-      labelsToggle: "建筑标签 (Labels)",
-      labelsOpacity: "标签透明度",
       multiSelectTitle: "已选中 {count} 个构件",
       batchOpacity: "选中构件透明度",
       propMultipleValues: "多个值",
@@ -26648,18 +26592,6 @@ class CRLDemoModel {
 
     return root;
   }
-
-  // 3D Billboard Landmark Labels matching the Modern Villa
-  static getBillboardData() {
-    return [
-      { text: "Southwest Glass Curtain Wall", pos: [-6.2, 6.2, 0.0] },
-      { text: "Cantilevered Balcony Deck & Rattan Chairs", pos: [-9.5, 4.4, -0.8] },
-      { text: "Standing Seam Zinc Roof (RL +8.42)", pos: [2.8, 8.8, 0.0] },
-      { text: "Ground Covered Porch & Glass Entrance (RL +0.00)", pos: [-9.2, 2.0, 0.0] },
-      { text: "Living Room Panoramic Sliders & Timber Battens", pos: [2.5, 2.5, 7.3] },
-      { text: "Contoured Turf & Geological Strata (RL -3.80)", pos: [-14.0, 0.2, 8.0] }
-    ];
-  }
 }
 
 // Global alias for compatibility
@@ -27179,10 +27111,6 @@ class BIMViewerApp {
     this.measurePoints = [];
     this.measureLine = null;
     
-    // Labels & UI state
-    this.showLabels = false;
-    this.labelsOpacity = 1.0;
-    this.billboardElements = [];
     this.activeModel = null;
     this.modelOpacity = 1.0;
     this.fps = 60;
@@ -27951,9 +27879,6 @@ class BIMViewerApp {
     const model = CRLDemoModel.create();
     this.setModel(model);
     
-    // Create Billboards
-    this.createBillboards(CRLDemoModel.getBillboardData());
-
     const stats = this.calculateModelStats(model);
     this.currentModelInfo = {
       isDemo: true,
@@ -28030,7 +27955,6 @@ class BIMViewerApp {
       container.innerHTML = '<span class="legend-title" data-i18n="legendTitle">' + I18N.t('legendTitle') + '</span>';
       this.updateBottomBarOverflow();
     }
-    this.clearBillboards();
     this.clearSelection();
     this.hideAnimationPlayer();
   }
@@ -28272,77 +28196,7 @@ class BIMViewerApp {
     
     showToast(I18N.t('loadingTitle') + " - " + I18N.t('solarDayMsg'), 'success');
   }
-  
-  createBillboards(data) {
-    this.clearBillboards();
-    const container = document.getElementById('viewport-container');
-    
-    data.forEach(item => {
-      const el = document.createElement('div');
-      el.className = 'billboard-label';
-      if (!this.showLabels) el.style.display = 'none';
-      el.textContent = item.text;
-      container.appendChild(el);
-      
-      this.billboardElements.push({
-        dom: el,
-        pos3d: new THREE.Vector3(item.pos[0], item.pos[1], item.pos[2])
-      });
-    });
-  }
-  
-  clearBillboards() {
-    this.billboardElements.forEach(b => {
-      if (b.dom && b.dom.parentNode) b.dom.parentNode.removeChild(b.dom);
-    });
-    this.billboardElements = [];
-  }
-  
-  updateBillboards() {
-    if (!this.showLabels) {
-      this.billboardElements.forEach(b => b.dom.style.display = 'none');
-      return;
-    }
-    
-    const widthHalf = this.container.clientWidth / 2;
-    const heightHalf = this.container.clientHeight / 2;
-    const tempVec = new THREE.Vector3();
-    
-    this.billboardElements.forEach(b => {
-      tempVec.copy(b.pos3d);
-      tempVec.project(this.camera);
-      
-      // Check if in front of camera
-      if (tempVec.z < 1.0) {
-        const x = (tempVec.x * widthHalf) + widthHalf;
-        const y = -(tempVec.y * heightHalf) + heightHalf;
-        b.dom.style.display = 'block';
-        b.dom.style.left = `${x}px`;
-        b.dom.style.top = `${y}px`;
-      } else {
-        b.dom.style.display = 'none';
-      }
-    });
-  }
 
-  setLabelsVisible(visible) {
-    this.showLabels = Boolean(visible);
-    const btnLabels = document.getElementById('btn-tool-labels');
-    if (btnLabels) btnLabels.classList.toggle('active', this.showLabels);
-    const labelChk = document.getElementById('labels-toggle-chk');
-    if (labelChk) labelChk.checked = this.showLabels;
-    this.updateBillboards();
-  }
-
-  setLabelsOpacity(op) {
-    this.labelsOpacity = Math.max(0.1, Math.min(1.0, op));
-    document.documentElement.style.setProperty('--label-opacity', this.labelsOpacity);
-    const labelOpVal = document.getElementById('labels-opacity-val');
-    if (labelOpVal) labelOpVal.textContent = `${Math.round(this.labelsOpacity * 100)}%`;
-    const labelOpSlider = document.getElementById('labels-opacity-slider');
-    if (labelOpSlider) labelOpSlider.value = Math.round(this.labelsOpacity * 100);
-  }
-  
   // Fit View / Camera Framing
   fitView(immediate = true) {
     if (!this.activeModel) return;
@@ -33009,7 +32863,6 @@ class BIMViewerApp {
     if (this.compass3d) {
       this.compass3d.update();
     }
-    this.updateBillboards();
     if (this.updateSidebarTabsOverflow) {
       this.updateSidebarTabsOverflow();
     }
@@ -34394,33 +34247,6 @@ class BIMViewerApp {
       btnCamReset.onclick = () => this.fitView();
     }
     
-    const btnLabels = document.getElementById('btn-tool-labels');
-    if (btnLabels) {
-      btnLabels.onclick = () => {
-        this.setLabelsVisible(!this.showLabels);
-      };
-    }
-
-    // 3D Billboard Labels Controls in Inspector
-    const labelChk = document.getElementById('labels-toggle-chk');
-    if (labelChk) {
-      labelChk.checked = this.showLabels;
-      labelChk.addEventListener('change', () => {
-        this.setLabelsVisible(labelChk.checked);
-      });
-    }
-    this.setLabelsVisible(this.showLabels);
-
-    const labelOpSlider = document.getElementById('labels-opacity-slider');
-    const labelOpVal = document.getElementById('labels-opacity-val');
-    if (labelOpSlider) {
-      labelOpSlider.value = Math.round(this.labelsOpacity * 100);
-      labelOpSlider.addEventListener('input', (e) => {
-        const val = parseInt(e.target.value, 10);
-        this.setLabelsOpacity(val / 100);
-      });
-    }
-
     // Left Sidebar: Persisted Custom Width, Collapse / Expand, and Drag-to-Resize (280px - 600px)
     const lsb = document.getElementById('left-sidebar');
     const btnTree = document.getElementById('btn-tool-tree');
@@ -35410,8 +35236,7 @@ class BIMViewerApp {
       this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
     }
     
-    // Billboards & True 3D Compass
-    this.updateBillboards();
+    // True 3D Compass
     if (this.compass3d) {
       this.compass3d.update();
     }

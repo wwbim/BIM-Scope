@@ -1420,18 +1420,6 @@ class CRLDemoModel {
 
     return root;
   }
-
-  // 3D Billboard Landmark Labels matching the Modern Villa
-  static getBillboardData() {
-    return [
-      { text: "Southwest Glass Curtain Wall", pos: [-6.2, 6.2, 0.0] },
-      { text: "Cantilevered Balcony Deck & Rattan Chairs", pos: [-9.5, 4.4, -0.8] },
-      { text: "Standing Seam Zinc Roof (RL +8.42)", pos: [2.8, 8.8, 0.0] },
-      { text: "Ground Covered Porch & Glass Entrance (RL +0.00)", pos: [-9.2, 2.0, 0.0] },
-      { text: "Living Room Panoramic Sliders & Timber Battens", pos: [2.5, 2.5, 7.3] },
-      { text: "Contoured Turf & Geological Strata (RL -3.80)", pos: [-14.0, 0.2, 8.0] }
-    ];
-  }
 }
 
 // Global alias for compatibility

@@ -807,25 +807,6 @@ def generate_html(variant_cfg, sources):
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
             </div>
           </div>
-
-          <!-- Subtle Divider -->
-          <div class="pref-divider"></div>
-
-          <!-- 3D Billboard Labels -->
-          <div class="pref-subgroup">
-            <div class="pref-inline-row" style="margin-bottom:6px">
-              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="labelsToggle">3D Labels</span>
-              <label class="toggle-switch" style="margin-left:auto">
-                <input type="checkbox" id="labels-toggle-chk">
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-            <div class="pref-inline-row">
-              <span class="pref-inline-label" data-i18n="labelsOpacity">Opacity</span>
-              <input type="range" min="10" max="100" step="5" value="100" class="range-slider pref-fixed-slider" id="labels-opacity-slider">
-              <span class="pref-inline-val" id="labels-opacity-val">100%</span>
-            </div>
-          </div>
         </div>
 
         <div class="inspector-content" id="inspector-content">

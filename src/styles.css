@@ -374,37 +374,6 @@ svg.nav-arrow-icon {
   background: rgba(82, 196, 26, 0.18);
 }
 
-/* 3D BILLBOARD LABELS */
-.billboard-label {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  background: rgba(14, 20, 32, 0.88);
-  border: 1px solid rgba(56, 189, 248, 0.6);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-  border-radius: 4px;
-  padding: 3px 8px;
-  color: #f8fafc;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  pointer-events: none;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 20;
-  opacity: var(--label-opacity, 1.0);
-}
-
-.billboard-label::after {
-  content: "";
-  position: absolute;
-  bottom: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 5px 5px 0 5px;
-  border-style: solid;
-  border-color: rgba(56, 189, 248, 0.6) transparent transparent transparent;
-}
-
 /* 3D VIEWPORT WATERMARK LOGO */
 .viewport-watermark-logo {
   position: absolute;
