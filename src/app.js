@@ -1309,13 +1309,6 @@ class BIMViewerApp {
       mvd: "Full Architectural Coordination Model",
       exportTimestamp: "Runtime Dynamic Procedural",
       preprocessor: "Three.js r128 / WWBIM Core",
-      author: "WWBIM Architecture & Computational Design",
-      organization: "WWBIM Design Studio",
-      originatingSystem: "BIM Scope Interactive Engine",
-      authorization: "Open Architectural Sample",
-      projectName: "Modern Hillside Tropical Villa",
-      projectDescription: "Contemporary 2-storey timber residence on sloped terrain with L-shaped retaining wall and resort furniture",
-      projectPhase: "Design Facelift 2.0",
       stats: stats
     };
     this.updateModelSubtitle();
@@ -4588,15 +4581,19 @@ class BIMViewerApp {
     if (info.preprocessor) standardRows.push(`<tr><td class="prop-label">${I18N.t('propPreprocessor')}</td><td class="prop-value">${this.escapeHtml(info.preprocessor)}</td></tr>`);
 
     const authorRows = [];
-    if (info.author) authorRows.push(`<tr><td class="prop-label">${I18N.t('propAuthor')}</td><td class="prop-value">${this.escapeHtml(info.author)}</td></tr>`);
-    if (info.organization) authorRows.push(`<tr><td class="prop-label">${I18N.t('propOrg')}</td><td class="prop-value">${this.escapeHtml(info.organization)}</td></tr>`);
-    if (info.originatingSystem) authorRows.push(`<tr><td class="prop-label">${I18N.t('propOriginatingSystem')}</td><td class="prop-value">${this.escapeHtml(info.originatingSystem)}</td></tr>`);
-    if (info.authorization) authorRows.push(`<tr><td class="prop-label">${I18N.t('propAuthorization')}</td><td class="prop-value">${this.escapeHtml(info.authorization)}</td></tr>`);
+    if (!info.isDemo) {
+      if (info.author) authorRows.push(`<tr><td class="prop-label">${I18N.t('propAuthor')}</td><td class="prop-value">${this.escapeHtml(info.author)}</td></tr>`);
+      if (info.organization) authorRows.push(`<tr><td class="prop-label">${I18N.t('propOrg')}</td><td class="prop-value">${this.escapeHtml(info.organization)}</td></tr>`);
+      if (info.originatingSystem) authorRows.push(`<tr><td class="prop-label">${I18N.t('propOriginatingSystem')}</td><td class="prop-value">${this.escapeHtml(info.originatingSystem)}</td></tr>`);
+      if (info.authorization) authorRows.push(`<tr><td class="prop-label">${I18N.t('propAuthorization')}</td><td class="prop-value">${this.escapeHtml(info.authorization)}</td></tr>`);
+    }
 
     const projectRows = [];
-    if (info.projectName) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectName')}</td><td class="prop-value" style="font-weight:600">${this.escapeHtml(info.projectName)}</td></tr>`);
-    if (info.projectDescription) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectDesc')}</td><td class="prop-value">${this.escapeHtml(info.projectDescription)}</td></tr>`);
-    if (info.projectPhase) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectPhase')}</td><td class="prop-value">${this.escapeHtml(info.projectPhase)}</td></tr>`);
+    if (!info.isDemo) {
+      if (info.projectName) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectName')}</td><td class="prop-value" style="font-weight:600">${this.escapeHtml(info.projectName)}</td></tr>`);
+      if (info.projectDescription) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectDesc')}</td><td class="prop-value">${this.escapeHtml(info.projectDescription)}</td></tr>`);
+      if (info.projectPhase) projectRows.push(`<tr><td class="prop-label">${I18N.t('propProjectPhase')}</td><td class="prop-value">${this.escapeHtml(info.projectPhase)}</td></tr>`);
+    }
 
     const statsRows = [
       `<tr><td class="prop-label">${I18N.t('propTotalElements')}</td><td class="prop-value u-text-accent" style="font-weight:700">${fmtNum(stats.totalElements)}</td></tr>`,
