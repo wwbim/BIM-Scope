@@ -275,10 +275,6 @@ class ClippingEngine {
     this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00e676, 'plane', 'rotateY');
     this.planeRotY.rotation.x = Math.PI / 2;
     this.planeGizmoGroup.add(this.planeRotY);
-    
-    // 3. Roll Ring (around local Z axis / normal) - Blue
-    this.planeRotZ = this.createRingHelper(1.15, 0.025, 0x0066ff, 'plane', 'rotateZ');
-    this.planeGizmoGroup.add(this.planeRotZ);
   }
   
   // ----------------------------------------------------
@@ -1107,8 +1103,7 @@ class ClippingEngine {
         this.planeArrowGroup,
         this.planeCenterKnob,
         this.planeRotX,
-        this.planeRotY,
-        this.planeRotZ
+        this.planeRotY
       ];
     } else {
       if (!this.hoveredBoxFace || !this.faceHandles || !this.faceHandles[this.hoveredBoxFace]) return [];
@@ -1441,11 +1436,8 @@ class ClippingEngine {
           this.dragStartHit.copy(this.planeGroup.position);
         }
         this.dragStartPos = this.planeGroup.position.clone();
-      } else if (data.part.startsWith('rotate')) {
-        let axis = new THREE.Vector3();
-        if (data.part === 'rotateX') axis.set(1, 0, 0);
-        else if (data.part === 'rotateY') axis.set(0, 1, 0);
-        else axis.set(0, 0, 1);
+      } else if (data.part === 'rotateX' || data.part === 'rotateY') {
+        const axis = (data.part === 'rotateX') ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
         axis.applyQuaternion(this.planeGroup.quaternion).normalize();
         
         const pivot = this.planeGroup.position.clone();
@@ -1461,10 +1453,8 @@ class ClippingEngine {
         const startEuler = new THREE.Euler().setFromQuaternion(this.planeGroup.quaternion, 'YXZ');
         if (data.part === 'rotateX') {
           this.dragStartBaseDeg = THREE.MathUtils.radToDeg(startEuler.x);
-        } else if (data.part === 'rotateY') {
-          this.dragStartBaseDeg = THREE.MathUtils.radToDeg(startEuler.y);
         } else {
-          this.dragStartBaseDeg = THREE.MathUtils.radToDeg(startEuler.z);
+          this.dragStartBaseDeg = THREE.MathUtils.radToDeg(startEuler.y);
         }
       }
     } else if (data.type === 'box') {
