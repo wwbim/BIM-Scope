@@ -2270,10 +2270,17 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   gap: 4px;
+  cursor: default;
+  transition: opacity 0.15s ease;
+}
+
+.status-metric[title] {
+  cursor: help;
 }
 
 .status-metric span {
   color: var(--text-primary);
+  transition: color 0.2s ease;
 }
 
 /* MODAL DIALOGS */

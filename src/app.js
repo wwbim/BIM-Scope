@@ -515,12 +515,17 @@ class BIMViewerApp {
     this.fps = 60;
     this.lastFrameTime = performance.now();
     this.frameCount = 0;
+    this.activeFrameTimeTotal = 0;
+    this.cpuLoad = 0;
+    this.drawCalls = 0;
+    this.ramMb = null;
     
     // Performance optimization states: rAF throttles & DOM caches
     this.hoverRaf = null;
     this.pendingMouseMoveEvt = null;
     this.cachedCoordEls = null;
     this.cachedCamEls = null;
+    this.cachedPerfEls = null;
     
     // UI Theme System ('dark' | 'light')
     this.currentTheme = 'dark';
@@ -8736,22 +8741,81 @@ class BIMViewerApp {
 
   
   animate(time) {
+    const frameStart = performance.now();
     requestAnimationFrame(this.animate);
     
-    // FPS calculation
+    // Immediate initialization of performance DOM elements on first frame
+    if (!this.cachedPerfEls) {
+      this.cachedPerfEls = {
+        fps: document.getElementById('stat-fps-val'),
+        ram: document.getElementById('stat-ram-val'),
+        cpu: document.getElementById('stat-cpu-val'),
+        draw: document.getElementById('stat-draw-val')
+      };
+      if (typeof window !== 'undefined' && window.performance && window.performance.memory && window.performance.memory.usedJSHeapSize) {
+        this.ramMb = Math.round(window.performance.memory.usedJSHeapSize / 1048576);
+        if (this.cachedPerfEls.ram) this.cachedPerfEls.ram.textContent = `${this.ramMb} MB`;
+      }
+    }
+
+    // Performance & FPS calculation (1-second sampling window)
     this.frameCount++;
-    if (time - this.lastFrameTime >= 1000) {
-      this.fps = Math.round((this.frameCount * 1000) / (time - this.lastFrameTime));
-      if (!this.cachedCamEls) {
-        this.cachedCamEls = {
-          tab: document.getElementById('tab-camera-content'),
-          pos: document.getElementById('cam-pos-readout'),
-          piv: document.getElementById('cam-pivot-readout'),
-          dist: document.getElementById('cam-dist-readout'),
-          fps: document.getElementById('stat-fps-val')
+    const intervalElapsed = time - this.lastFrameTime;
+    if (intervalElapsed >= 1000) {
+      this.fps = Math.round((this.frameCount * 1000) / intervalElapsed);
+      this.cpuLoad = Math.min(100, Math.max(0, Math.round((this.activeFrameTimeTotal / intervalElapsed) * 100)));
+      this.activeFrameTimeTotal = 0;
+
+      // Draw Calls from Three.js renderer info
+      this.drawCalls = (this.renderer && this.renderer.info && this.renderer.info.render) ? this.renderer.info.render.calls : 0;
+
+      // RAM: JS Heap Memory in MB (Chromium browsers)
+      if (typeof window !== 'undefined' && window.performance && window.performance.memory && window.performance.memory.usedJSHeapSize) {
+        this.ramMb = Math.round(window.performance.memory.usedJSHeapSize / 1048576);
+      } else {
+        this.ramMb = null;
+      }
+
+      // Update DOM metrics
+      if (!this.cachedPerfEls) {
+        this.cachedPerfEls = {
+          fps: document.getElementById('stat-fps-val'),
+          ram: document.getElementById('stat-ram-val'),
+          cpu: document.getElementById('stat-cpu-val'),
+          draw: document.getElementById('stat-draw-val')
         };
       }
-      if (this.cachedCamEls.fps) this.cachedCamEls.fps.textContent = this.fps;
+
+      if (this.cachedPerfEls.fps) {
+        this.cachedPerfEls.fps.textContent = this.fps;
+        if (this.fps >= 45) {
+          this.cachedPerfEls.fps.style.color = 'var(--success)';
+        } else if (this.fps >= 30) {
+          this.cachedPerfEls.fps.style.color = 'var(--warning)';
+        } else {
+          this.cachedPerfEls.fps.style.color = 'var(--danger)';
+        }
+      }
+
+      if (this.cachedPerfEls.ram) {
+        this.cachedPerfEls.ram.textContent = this.ramMb !== null ? `${this.ramMb} MB` : '--';
+      }
+
+      if (this.cachedPerfEls.cpu) {
+        this.cachedPerfEls.cpu.textContent = `${this.cpuLoad}%`;
+        if (this.cpuLoad >= 90) {
+          this.cachedPerfEls.cpu.style.color = 'var(--danger)';
+        } else if (this.cpuLoad >= 70) {
+          this.cachedPerfEls.cpu.style.color = 'var(--warning)';
+        } else {
+          this.cachedPerfEls.cpu.style.color = 'var(--text-primary)';
+        }
+      }
+
+      if (this.cachedPerfEls.draw) {
+        this.cachedPerfEls.draw.textContent = this.drawCalls;
+      }
+
       this.frameCount = 0;
       this.lastFrameTime = time;
     }
@@ -8842,6 +8906,15 @@ class BIMViewerApp {
 
     // Render Scene
     this.renderer.render(this.scene, this.camera);
+
+    // Initial draw call readout on first frame
+    if (this.cachedPerfEls && this.cachedPerfEls.draw && (this.cachedPerfEls.draw.textContent === '0' || !this.cachedPerfEls.draw.textContent)) {
+      const initialCalls = (this.renderer && this.renderer.info && this.renderer.info.render) ? this.renderer.info.render.calls : 0;
+      if (initialCalls > 0) this.cachedPerfEls.draw.textContent = initialCalls;
+    }
+
+    // Track active execution duration for CPU load calculation
+    this.activeFrameTimeTotal += (performance.now() - frameStart);
   }
 }
 

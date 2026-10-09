@@ -903,7 +903,11 @@ def generate_html(variant_cfg, sources):
         <div class="divider"></div>
         <div class="status-metric"><span data-i18n="statTriangles">Triangles</span>: <span id="stat-triangles-val">0</span></div>
         <div class="status-metric"><span data-i18n="statVertices">Vertices</span>: <span id="stat-vertices-val">0</span></div>
-        <div class="status-metric"><span data-i18n="statFps">FPS</span>: <span id="stat-fps-val" style="color:var(--success)">60</span></div>
+        <div class="divider"></div>
+        <div class="status-metric" data-i18n-title="statRamTitle"><span data-i18n="statRam">RAM</span>: <span id="stat-ram-val">--</span></div>
+        <div class="status-metric" data-i18n-title="statCpuTitle"><span data-i18n="statCpu">CPU</span>: <span id="stat-cpu-val">0%</span></div>
+        <div class="status-metric" data-i18n-title="statDrawTitle"><span data-i18n="statDraw">Draw</span>: <span id="stat-draw-val">0</span></div>
+        <div class="status-metric" data-i18n-title="statFpsTitle"><span data-i18n="statFps">FPS</span>: <span id="stat-fps-val" style="color:var(--success)">60</span></div>
       </div>
     </footer>
   </div>
