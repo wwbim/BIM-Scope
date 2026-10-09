@@ -1782,12 +1782,11 @@ input:checked + .slider:before {
   font-weight: 700;
   background: var(--bg-panel);
   border: 1px solid var(--tab-active-border);
-  border-top: 3px solid var(--tab-active-top);
   border-bottom: 1px solid var(--bg-panel);
   margin-bottom: -1px;
   z-index: 5;
   transform: translateY(-2px);
-  box-shadow: var(--tab-active-shadow);
+  box-shadow: var(--tab-active-shadow), inset 0 2px 0 var(--tab-active-top);
 }
 
 .tab-btn.active:hover,
