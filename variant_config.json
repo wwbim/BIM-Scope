@@ -14,8 +14,15 @@
       "brandAccent": "#38bdf8",
       "brandAccentHover": "#0ea5e9",
       "brandAccentGlow": "rgba(56, 189, 248, 0.25)",
+      "brandAccentLight": "#0284c7",
+      "brandAccentLightHover": "#0369a1",
+      "brandAccentLightGlow": "rgba(2, 132, 199, 0.18)",
       "brandPrimary": "#0284c7",
-      "brandPrimaryHover": "#0369a1"
+      "brandPrimaryHover": "#0369a1",
+      "brandPrimaryLight": "#0284c7",
+      "brandPrimaryLightHover": "#0369a1",
+      "brandTabActiveBorderDark": "rgba(56, 189, 248, 0.45)",
+      "brandTabActiveBorderLight": "rgba(2, 132, 199, 0.65)"
     },
     "B": {
       "key": "B",
@@ -33,8 +40,15 @@
       "brandAccent": "#e91d2d",
       "brandAccentHover": "#ff3847",
       "brandAccentGlow": "rgba(233, 29, 45, 0.25)",
+      "brandAccentLight": "#c51221",
+      "brandAccentLightHover": "#9f0e1a",
+      "brandAccentLightGlow": "rgba(197, 18, 33, 0.18)",
       "brandPrimary": "#19468d",
-      "brandPrimaryHover": "#235bb3"
+      "brandPrimaryHover": "#235bb3",
+      "brandPrimaryLight": "#19468d",
+      "brandPrimaryLightHover": "#123469",
+      "brandTabActiveBorderDark": "rgba(233, 29, 45, 0.45)",
+      "brandTabActiveBorderLight": "rgba(197, 18, 33, 0.65)"
     }
   }
 }

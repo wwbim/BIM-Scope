@@ -132,12 +132,20 @@ def generate_html(variant_cfg, sources):
     # Watermark logo in viewport is always user logo
     logo_ww_b64 = sources["logo_ww_b64"]
 
-    # Brand Design Tokens
+    # Brand Design Tokens (Dark & Light)
     brand_accent = variant_cfg.get("brandAccent", "#38bdf8")
     brand_accent_hover = variant_cfg.get("brandAccentHover", "#0ea5e9")
     brand_accent_glow = variant_cfg.get("brandAccentGlow", "rgba(56, 189, 248, 0.25)")
     brand_primary = variant_cfg.get("brandPrimary", "#0284c7")
     brand_primary_hover = variant_cfg.get("brandPrimaryHover", "#0369a1")
+
+    brand_accent_light = variant_cfg.get("brandAccentLight", "#0284c7")
+    brand_accent_light_hover = variant_cfg.get("brandAccentLightHover", "#0369a1")
+    brand_accent_light_glow = variant_cfg.get("brandAccentLightGlow", "rgba(2, 132, 199, 0.18)")
+    brand_primary_light = variant_cfg.get("brandPrimaryLight", "#0284c7")
+    brand_primary_light_hover = variant_cfg.get("brandPrimaryLightHover", "#0369a1")
+    brand_tab_active_border_dark = variant_cfg.get("brandTabActiveBorderDark", "rgba(56, 189, 248, 0.45)")
+    brand_tab_active_border_light = variant_cfg.get("brandTabActiveBorderLight", "rgba(2, 132, 199, 0.65)")
 
     styles_css = sources["styles_css"]
     three_js = sources["three_js"]
@@ -172,12 +180,24 @@ def generate_html(variant_cfg, sources):
 {styles_css}
   </style>
   <style id="variant-brand-tokens">
-    :root {{
+    :root,
+    [data-theme="dark"] {{
       --accent: {brand_accent};
       --accent-hover: {brand_accent_hover};
       --accent-glow: {brand_accent_glow};
       --brand-primary: {brand_primary};
       --brand-primary-hover: {brand_primary_hover};
+      --tab-active-top: {brand_accent};
+      --tab-active-border: {brand_tab_active_border_dark};
+    }}
+    [data-theme="light"] {{
+      --accent: {brand_accent_light};
+      --accent-hover: {brand_accent_light_hover};
+      --accent-glow: {brand_accent_light_glow};
+      --brand-primary: {brand_primary_light};
+      --brand-primary-hover: {brand_primary_light_hover};
+      --tab-active-top: {brand_accent_light};
+      --tab-active-border: {brand_tab_active_border_light};
     }}
   </style>
 </head>
