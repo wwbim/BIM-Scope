@@ -40,7 +40,23 @@ DEFAULT_CONFIG = {
             "topLogo": "icon_red_b64.txt",
             "outputHtml": "SWBIMScope.html",
             "projectDir": r"H:\我的云端硬盘\Software Develop\SWBIM Scope\Project",
-            "deliverablesDir": r"H:\我的云端硬盘\Software Develop\SWBIM Scope\Deliverables"
+            "deliverablesDir": r"H:\我的云端硬盘\Software Develop\SWBIM Scope\Deliverables",
+            "brandAccent": "#c01825",
+            "brandAccentHover": "#d82635",
+            "brandAccentGlow": "rgba(192, 24, 37, 0.22)",
+            "brandAccentLight": "#9e111d",
+            "brandAccentLightHover": "#7f0a14",
+            "brandAccentLightGlow": "rgba(158, 17, 29, 0.18)",
+            "brandPrimary": "#501F2F",
+            "brandPrimaryHover": "#68293e",
+            "brandPrimaryLight": "#501F2F",
+            "brandPrimaryLightHover": "#68293e",
+            "brandTabActiveBorderDark": "rgba(192, 24, 37, 0.45)",
+            "brandTabActiveBorderLight": "rgba(158, 17, 29, 0.65)",
+            "modelInfoBannerBgDark": "#1c2638",
+            "modelInfoBannerBorderDark": "#28374e",
+            "modelInfoBannerBgLight": "#eaeff5",
+            "modelInfoBannerBorderLight": "#cbd5e1"
         }
     }
 }
@@ -146,6 +162,10 @@ def generate_html(variant_cfg, sources):
     brand_primary_light_hover = variant_cfg.get("brandPrimaryLightHover", "#0369a1")
     brand_tab_active_border_dark = variant_cfg.get("brandTabActiveBorderDark", "rgba(56, 189, 248, 0.45)")
     brand_tab_active_border_light = variant_cfg.get("brandTabActiveBorderLight", "rgba(2, 132, 199, 0.65)")
+    model_info_banner_bg_dark = variant_cfg.get("modelInfoBannerBgDark", "var(--accent-glow)")
+    model_info_banner_border_dark = variant_cfg.get("modelInfoBannerBorderDark", "var(--accent)")
+    model_info_banner_bg_light = variant_cfg.get("modelInfoBannerBgLight", "var(--accent-glow)")
+    model_info_banner_border_light = variant_cfg.get("modelInfoBannerBorderLight", "var(--accent)")
 
     styles_css = sources["styles_css"]
     three_js = sources["three_js"]
@@ -189,6 +209,8 @@ def generate_html(variant_cfg, sources):
       --brand-primary-hover: {brand_primary_hover};
       --tab-active-top: {brand_accent};
       --tab-active-border: {brand_tab_active_border_dark};
+      --model-info-banner-bg: {model_info_banner_bg_dark};
+      --model-info-banner-border: {model_info_banner_border_dark};
     }}
     [data-theme="light"] {{
       --accent: {brand_accent_light};
@@ -198,6 +220,8 @@ def generate_html(variant_cfg, sources):
       --brand-primary-hover: {brand_primary_light_hover};
       --tab-active-top: {brand_accent_light};
       --tab-active-border: {brand_tab_active_border_light};
+      --model-info-banner-bg: {model_info_banner_bg_light};
+      --model-info-banner-border: {model_info_banner_border_light};
     }}
   </style>
 </head>

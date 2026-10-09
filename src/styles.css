@@ -51,6 +51,8 @@
   --tab-active-top: var(--accent);
   --tab-active-border: rgba(56, 189, 248, 0.45);
   --tab-active-shadow: 0 -3px 8px rgba(0, 0, 0, 0.4);
+  --model-info-banner-bg: rgba(56, 189, 248, 0.12);
+  --model-info-banner-border: rgba(56, 189, 248, 0.35);
   
   --success: #10b981;
   --warning: #f59e0b;
@@ -101,6 +103,8 @@
   --tab-active-top: var(--accent);
   --tab-active-border: rgba(2, 132, 199, 0.65);
   --tab-active-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+  --model-info-banner-bg: rgba(2, 132, 199, 0.08);
+  --model-info-banner-border: rgba(2, 132, 199, 0.25);
   
   --input-bg: #ffffff;
   --input-border: #cbd5e1;
@@ -960,6 +964,10 @@ input:checked + .slider:before {
   box-shadow: 0 0 6px var(--accent-glow);
 }
 
+.segment-btn.active:hover {
+  background: var(--brand-primary-hover);
+}
+
 .axis-segmented .axis-btn-x.active {
   background: rgba(255, 71, 87, 0.18);
   border-color: rgba(255, 71, 87, 0.5);
@@ -1402,9 +1410,9 @@ input:checked + .slider:before {
 }
 
 .action-btn:hover {
-  background: #0284c7;
+  background: var(--brand-primary-hover);
   color: #fff;
-  border-color: #38bdf8;
+  border-color: var(--accent);
 }
 
 /* MODEL PROFILE CONTAINER (NO ELEMENT SELECTED) */
@@ -1416,8 +1424,8 @@ input:checked + .slider:before {
 }
 
 .model-info-banner {
-  background: var(--accent-glow);
-  border: 1px solid var(--accent);
+  background: var(--model-info-banner-bg, var(--accent-glow));
+  border: 1px solid var(--model-info-banner-border, var(--accent));
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   display: flex;
