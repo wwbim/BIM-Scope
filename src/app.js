@@ -399,6 +399,574 @@ class True3DCompass {
   }
 }
 
+// High-Performance Virtual Scroller for Left Sidebar BIM Hierarchy Tree
+class VirtualBimTree {
+  constructor(options) {
+    this.app = options.app;
+    this.container = options.container;
+    this.type = options.type; // 'structures' | 'levels' | 'elements'
+    this.groups = options.groups || [];
+    this.filterQuery = '';
+    this.flattenedRows = [];
+    this.rowOffsets = [];
+    this.totalHeight = 0;
+    this.pool = [];
+    this.buffer = 8;
+    this.rafId = null;
+
+    this.HEIGHT_GROUP = 32;
+    this.HEIGHT_OPACITY = 24;
+    this.HEIGHT_LEAF = 26;
+    this.SPACING_BRANCH = 4;
+
+    this.onScroll = this.onScroll.bind(this);
+    this.onResize = this.onResize.bind(this);
+
+    this.initDOM();
+  }
+
+  initDOM() {
+    if (!this.container) return;
+    this.container.innerHTML = '';
+    this.container.classList.add('virtual-tree-container');
+
+    this.phantomEl = document.createElement('div');
+    this.phantomEl.className = 'virtual-tree-phantom';
+
+    this.viewportEl = document.createElement('div');
+    this.viewportEl.className = 'virtual-tree-viewport';
+
+    this.phantomEl.appendChild(this.viewportEl);
+    this.container.appendChild(this.phantomEl);
+
+    this.container.addEventListener('scroll', this.onScroll, { passive: true });
+
+    if (window.ResizeObserver) {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.onResize();
+      });
+      this.resizeObserver.observe(this.container);
+    }
+
+    this.computeVisibleRows();
+    this.render();
+  }
+
+  setGroups(groups) {
+    this.groups = groups || [];
+    this.computeVisibleRows();
+    this.render();
+  }
+
+  setFilter(q) {
+    this.filterQuery = q || '';
+    this.computeVisibleRows();
+    if (this.container) this.container.scrollTop = 0;
+    this.render();
+  }
+
+  expandAll() {
+    this.groups.forEach(g => { g.collapsed = false; });
+    this.computeVisibleRows();
+    this.render();
+  }
+
+  collapseAll() {
+    this.groups.forEach(g => { g.collapsed = true; });
+    this.computeVisibleRows();
+    this.render();
+  }
+
+  showAll() {
+    this.groups.forEach(g => {
+      g.meshes.forEach(m => { m.visible = true; });
+    });
+    this.render();
+  }
+
+  hideAll() {
+    this.groups.forEach(g => {
+      g.meshes.forEach(m => { m.visible = false; });
+    });
+    this.render();
+  }
+
+  resetOpacity() {
+    this.groups.forEach(g => {
+      g.opacity = 1.0;
+      g.meshes.forEach(m => {
+        if (m.material) {
+          if (Array.isArray(m.material)) {
+            m.material.forEach(mat => {
+              mat.transparent = Boolean(mat.userData?.originalTransparent);
+              mat.opacity = mat.userData?.originalOpacity !== undefined ? mat.userData.originalOpacity : 1.0;
+              mat.needsUpdate = true;
+            });
+          } else {
+            m.material.transparent = Boolean(m.material.userData?.originalTransparent);
+            m.material.opacity = m.material.userData?.originalOpacity !== undefined ? m.material.userData.originalOpacity : 1.0;
+            m.material.needsUpdate = true;
+          }
+        }
+      });
+    });
+    this.render();
+  }
+
+  computeVisibleRows() {
+    this.flattenedRows = [];
+    this.rowOffsets = [];
+    let currentOffset = 0;
+    const q = this.filterQuery.toLowerCase().trim();
+
+    for (let gIdx = 0; gIdx < this.groups.length; gIdx++) {
+      const g = this.groups[gIdx];
+      const gNameMatches = q === '' || g.name.toLowerCase().includes(q) || (g.localizedName && g.localizedName.toLowerCase().includes(q));
+
+      let matchingLeaves = g.leaves;
+      if (q !== '') {
+        matchingLeaves = g.leaves.filter(leaf => {
+          return leaf.name.toLowerCase().includes(q) || gNameMatches;
+        });
+      }
+
+      if (q !== '' && !gNameMatches && matchingLeaves.length === 0) {
+        continue;
+      }
+
+      const isCollapsed = g.collapsed && q === '';
+      const groupRow = {
+        type: 'group',
+        group: g,
+        isCollapsed: isCollapsed,
+        isOnlyHeader: isCollapsed || matchingLeaves.length === 0,
+        height: isCollapsed ? (this.HEIGHT_GROUP + this.SPACING_BRANCH) : this.HEIGHT_GROUP
+      };
+      this.rowOffsets.push(currentOffset);
+      this.flattenedRows.push(groupRow);
+      currentOffset += groupRow.height;
+
+      if (!isCollapsed) {
+        if (g.hasOpacitySlider) {
+          const isLast = matchingLeaves.length === 0;
+          const opHeight = isLast ? (this.HEIGHT_OPACITY + this.SPACING_BRANCH) : this.HEIGHT_OPACITY;
+          const opRow = {
+            type: 'opacity',
+            group: g,
+            isLast: isLast,
+            height: opHeight
+          };
+          this.rowOffsets.push(currentOffset);
+          this.flattenedRows.push(opRow);
+          currentOffset += opHeight;
+        }
+
+        for (let lIdx = 0; lIdx < matchingLeaves.length; lIdx++) {
+          const leaf = matchingLeaves[lIdx];
+          const isLast = (lIdx === matchingLeaves.length - 1);
+          const leafHeight = isLast ? (this.HEIGHT_LEAF + this.SPACING_BRANCH) : this.HEIGHT_LEAF;
+          const leafRow = {
+            type: 'leaf',
+            group: g,
+            leaf: leaf,
+            isLast: isLast,
+            height: leafHeight
+          };
+          this.rowOffsets.push(currentOffset);
+          this.flattenedRows.push(leafRow);
+          currentOffset += leafHeight;
+        }
+      }
+    }
+
+    this.totalHeight = currentOffset;
+    if (this.phantomEl) {
+      this.phantomEl.style.height = `${Math.max(1, this.totalHeight)}px`;
+    }
+  }
+
+  findRowIndexAt(offset) {
+    if (this.rowOffsets.length === 0) return 0;
+    let low = 0, high = this.rowOffsets.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const off = this.rowOffsets[mid];
+      if (off < offset) {
+        low = mid + 1;
+      } else if (off > offset) {
+        high = mid - 1;
+      } else {
+        return mid;
+      }
+    }
+    return Math.max(0, low - 1);
+  }
+
+  onScroll() {
+    if (this.rafId) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.render();
+    });
+  }
+
+  onResize() {
+    this.render();
+  }
+
+  createToggleSwitch() {
+    const label = document.createElement('label');
+    label.className = 'toggle-switch';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    const slider = document.createElement('span');
+    slider.className = 'slider-switch';
+    label.appendChild(chk);
+    label.appendChild(slider);
+    return { label, chk };
+  }
+
+  createSlot() {
+    const el = document.createElement('div');
+    el.className = 'virtual-tree-slot';
+
+    // 1. Group Header Element
+    const groupEl = document.createElement('div');
+    groupEl.className = 'tree-branch-header virtual-group-header';
+
+    const groupLeft = document.createElement('div');
+    groupLeft.className = 'structure-left';
+
+    const expander = document.createElement('span');
+    expander.className = 'tree-expander';
+    expander.innerHTML = '&#9660;';
+
+    const groupDot = document.createElement('div');
+    groupDot.className = 'category-dot';
+
+    const groupTitle = document.createElement('span');
+    groupTitle.className = 'structure-name';
+
+    const groupCount = document.createElement('span');
+    groupCount.className = 'structure-count';
+
+    groupLeft.appendChild(expander);
+    groupLeft.appendChild(groupDot);
+    groupLeft.appendChild(groupTitle);
+    groupLeft.appendChild(groupCount);
+
+    const groupToggle = this.createToggleSwitch();
+
+    groupEl.appendChild(groupLeft);
+    groupEl.appendChild(groupToggle.label);
+
+    // 2. Opacity Slider Element
+    const opacityEl = document.createElement('div');
+    opacityEl.className = 'opacity-slider-row virtual-opacity-row';
+
+    const opLabel = document.createElement('span');
+    opLabel.textContent = (typeof I18N !== 'undefined' ? I18N.t('propOpacity') : 'Opacity') || 'Opacity';
+
+    const opSlider = document.createElement('input');
+    opSlider.type = 'range';
+    opSlider.min = '0.1';
+    opSlider.max = '1.0';
+    opSlider.step = '0.05';
+    opSlider.value = '1.0';
+    opSlider.className = 'range-slider';
+
+    opacityEl.appendChild(opLabel);
+    opacityEl.appendChild(opSlider);
+
+    // 3. Leaf Item Element
+    const leafEl = document.createElement('div');
+    leafEl.className = 'tree-leaf-item virtual-leaf-row';
+
+    const leafLeft = document.createElement('div');
+    leafLeft.className = 'tree-leaf-left';
+
+    const leafDot = document.createElement('div');
+    leafDot.className = 'category-dot';
+
+    const leafTitle = document.createElement('span');
+    leafTitle.className = 'tree-leaf-name';
+
+    leafLeft.appendChild(leafDot);
+    leafLeft.appendChild(leafTitle);
+
+    const leafToggle = this.createToggleSwitch();
+
+    leafEl.appendChild(leafLeft);
+    leafEl.appendChild(leafToggle.label);
+
+    el.appendChild(groupEl);
+    el.appendChild(opacityEl);
+    el.appendChild(leafEl);
+
+    this.viewportEl.appendChild(el);
+
+    const slot = {
+      el,
+      groupEl,
+      groupLeft,
+      expander,
+      groupDot,
+      groupTitle,
+      groupCount,
+      groupToggle,
+      opacityEl,
+      opSlider,
+      leafEl,
+      leafLeft,
+      leafDot,
+      leafTitle,
+      leafToggle,
+      row: null
+    };
+
+    groupEl.addEventListener('click', (e) => {
+      if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
+      if (!slot.row || slot.row.type !== 'group') return;
+      slot.row.group.collapsed = !slot.row.group.collapsed;
+      this.computeVisibleRows();
+      this.render();
+    });
+
+    groupEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'group') return;
+      const g = slot.row.group;
+      this.app.showGroupContextMenu(e.clientX, e.clientY, g.localizedName || g.name, g.meshes);
+    });
+
+    groupToggle.chk.addEventListener('change', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'group') return;
+      const g = slot.row.group;
+      const checked = groupToggle.chk.checked;
+      if (this.type === 'elements') {
+        this.app.toggleCategory(g.catName, checked);
+      } else {
+        g.meshes.forEach(m => m.visible = checked);
+      }
+      this.render();
+    });
+
+    opSlider.addEventListener('input', (e) => {
+      if (!slot.row || slot.row.type !== 'opacity') return;
+      const val = parseFloat(e.target.value);
+      const g = slot.row.group;
+      g.opacity = val;
+      g.meshes.forEach(m => {
+        if (m.material) {
+          if (Array.isArray(m.material)) {
+            m.material.forEach(mat => {
+              mat.transparent = val < 0.99 || Boolean(mat.userData?.originalTransparent);
+              mat.opacity = val;
+              mat.needsUpdate = true;
+            });
+          } else {
+            m.material.transparent = val < 0.99 || Boolean(m.material.userData?.originalTransparent);
+            m.material.opacity = val;
+            m.material.needsUpdate = true;
+          }
+        }
+      });
+    });
+
+    leafLeft.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'leaf') return;
+      const mesh = slot.row.leaf.mesh;
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+      const current = (this.app.selectedMeshes && this.app.selectedMeshes.length > 0) ?
+        [...this.app.selectedMeshes] :
+        (this.app.selectedMesh ? [this.app.selectedMesh] : []);
+
+      if (isCtrl) {
+        const idx = current.indexOf(mesh);
+        if (idx >= 0) current.splice(idx, 1);
+        else current.push(mesh);
+        if (current.length === 0) this.app.clearSelection();
+        else if (current.length === 1) this.app.selectElement(current[0]);
+        else this.app.selectElements(current);
+      } else if (isShift) {
+        const idx = current.indexOf(mesh);
+        if (idx >= 0) {
+          current.splice(idx, 1);
+          if (current.length === 0) this.app.clearSelection();
+          else if (current.length === 1) this.app.selectElement(current[0]);
+          else this.app.selectElements(current);
+        }
+      } else {
+        this.app.selectElement(mesh);
+      }
+    });
+
+    leafEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'leaf') return;
+      const mesh = slot.row.leaf.mesh;
+      const current = this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []);
+      if (!current.includes(mesh)) {
+        this.app.selectElement(mesh);
+      }
+      this.app.showContextMenu(e.clientX, e.clientY);
+    });
+
+    leafEl.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'leaf') return;
+      this.app.zoomToElement(slot.row.leaf.mesh);
+    });
+
+    leafEl.addEventListener('pointerenter', () => {
+      if (!slot.row || slot.row.type !== 'leaf') return;
+      const mesh = slot.row.leaf.mesh;
+      const isSelected = (this.app.selectedMesh === mesh) || (this.app.selectedMeshes && this.app.selectedMeshes.includes(mesh));
+      if (mesh && mesh.visible && !isSelected) {
+        this.app.setHoveredElement(mesh);
+      }
+    });
+
+    leafEl.addEventListener('pointerleave', () => {
+      if (!slot.row || slot.row.type !== 'leaf') return;
+      if (this.app.hoveredMesh === slot.row.leaf.mesh) {
+        this.app.clearHoverOverlay();
+      }
+    });
+
+    leafToggle.chk.addEventListener('change', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'leaf') return;
+      const mesh = slot.row.leaf.mesh;
+      mesh.visible = leafToggle.chk.checked;
+      if (this.type === 'elements') {
+        const catState = this.app.categoryStates.get(slot.row.group.catName);
+        if (catState && catState.chipEl) {
+          const anyVis = slot.row.group.meshes.some(m => m.visible);
+          catState.chipEl.classList.toggle('cat-hidden', !anyVis);
+        }
+      }
+      this.render();
+    });
+
+    return slot;
+  }
+
+  bindSlot(slot, row, selectedSet) {
+    slot.row = row;
+
+    if (row.type === 'group') {
+      slot.groupEl.style.display = 'flex';
+      slot.opacityEl.style.display = 'none';
+      slot.leafEl.style.display = 'none';
+
+      const g = row.group;
+      slot.expander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
+      slot.expander.classList.toggle('collapsed', row.isCollapsed);
+
+      if (g.colorHex) {
+        slot.groupDot.style.display = 'block';
+        slot.groupDot.style.backgroundColor = g.colorHex;
+      } else {
+        slot.groupDot.style.display = 'none';
+      }
+
+      slot.groupTitle.textContent = g.localizedName || g.name;
+      slot.groupTitle.title = g.name;
+
+      if (this.type === 'structures') {
+        slot.groupCount.textContent = `${g.meshes.length} items`;
+      } else {
+        slot.groupCount.textContent = `${g.meshes.length}`;
+      }
+
+      const anyVisible = g.meshes.some(m => m.visible);
+      slot.groupToggle.chk.checked = anyVisible;
+
+      slot.groupEl.classList.toggle('is-only-header', row.isOnlyHeader);
+    } else if (row.type === 'opacity') {
+      slot.groupEl.style.display = 'none';
+      slot.opacityEl.style.display = 'flex';
+      slot.leafEl.style.display = 'none';
+
+      slot.opSlider.value = String(row.group.opacity !== undefined ? row.group.opacity : 1.0);
+      slot.opacityEl.classList.toggle('is-last-row', row.isLast);
+    } else if (row.type === 'leaf') {
+      slot.groupEl.style.display = 'none';
+      slot.opacityEl.style.display = 'none';
+      slot.leafEl.style.display = 'flex';
+
+      const leaf = row.leaf;
+      slot.leafEl._mesh = leaf.mesh;
+      slot.leafDot.style.backgroundColor = leaf.colorHex;
+      slot.leafTitle.textContent = leaf.name;
+      slot.leafTitle.title = leaf.name;
+      slot.leafToggle.chk.checked = leaf.mesh.visible;
+
+      const isSel = selectedSet.has(leaf.mesh);
+      slot.leafEl.classList.toggle('selected', isSel);
+      slot.leafEl.classList.toggle('is-last-row', row.isLast);
+    }
+  }
+
+  render() {
+    if (!this.container) return;
+
+    if (this.flattenedRows.length === 0) {
+      this.pool.forEach(slot => { slot.el.style.display = 'none'; });
+      if (this.phantomEl) this.phantomEl.style.height = '0px';
+      return;
+    }
+
+    const scrollTop = this.container.scrollTop;
+    const clientHeight = this.container.clientHeight || 600;
+
+    const startIdx = Math.max(0, this.findRowIndexAt(scrollTop) - this.buffer);
+    const endIdx = Math.min(this.flattenedRows.length - 1, this.findRowIndexAt(scrollTop + clientHeight) + this.buffer);
+
+    const neededSlots = Math.max(0, endIdx - startIdx + 1);
+
+    while (this.pool.length < neededSlots) {
+      this.pool.push(this.createSlot());
+    }
+
+    const selectedSet = new Set(this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []));
+
+    let slotIdx = 0;
+    for (let rIdx = startIdx; rIdx <= endIdx; rIdx++) {
+      const row = this.flattenedRows[rIdx];
+      const slot = this.pool[slotIdx++];
+      const y = this.rowOffsets[rIdx];
+
+      slot.el.style.display = 'block';
+      slot.el.style.transform = `translate3d(0, ${y}px, 0)`;
+      slot.el.style.height = `${row.height}px`;
+
+      this.bindSlot(slot, row, selectedSet);
+    }
+
+    while (slotIdx < this.pool.length) {
+      this.pool[slotIdx++].el.style.display = 'none';
+    }
+  }
+
+  syncSelection() {
+    const selectedSet = new Set(this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []));
+    for (let i = 0; i < this.pool.length; i++) {
+      const slot = this.pool[i];
+      if (slot.el.style.display !== 'none' && slot.row && slot.row.type === 'leaf') {
+        const isSel = selectedSet.has(slot.row.leaf.mesh);
+        slot.leafEl.classList.toggle('selected', isSel);
+      }
+    }
+  }
+}
+
 // Main Application Controller for 3D BIM Viewer
 class BIMViewerApp {
   constructor() {
@@ -551,6 +1119,13 @@ class BIMViewerApp {
     this.animPlaybackSpeed = 1.0;
     this.animClock = new THREE.Clock();
     this.animDuration = 0;
+
+    // Left Sidebar Virtual Trees
+    this.virtualStructTree = null;
+    this.virtualLevelsTree = null;
+    this.virtualElemTree = null;
+    this.virtualLevelsData = null;
+    this.virtualElemData = null;
 
     // Setup 3D orientation compass & category filter states
     this.categoryStates = new Map();
@@ -2050,420 +2625,94 @@ class BIMViewerApp {
     this.updateViewHistoryUI();
   }
   
-  // Build Collapsible Interactive Hierarchy Tree in Left Sidebar
+  // Build High-Performance Virtual Hierarchy Tree in Left Sidebar
   buildHierarchyTree() {
-    const structContainer = document.getElementById('tree-structures');
-    const elemContainer = document.getElementById('tree-elements');
-    const levelsContainer = document.getElementById('tree-levels');
-    
-    structContainer.innerHTML = '';
-    elemContainer.innerHTML = '';
-    levelsContainer.innerHTML = '';
-    
     if (!this.activeModel) return;
-    
+
     // Group by structures, categories, and levels
     const structureMap = new Map();
     const categoryMap = new Map();
     const levelMap = new Map();
-    
+
     this.activeModel.traverse(obj => {
       if (this.isModelElementMesh(obj) && obj.userData) {
         const sName = obj.userData.structure || "Model Structure";
         if (!structureMap.has(sName)) structureMap.set(sName, []);
         structureMap.get(sName).push(obj);
-        
+
         const cat = obj.userData.rawCategory || obj.userData.category || "Component";
         if (!categoryMap.has(cat)) categoryMap.set(cat, []);
         categoryMap.get(cat).push(obj);
-        
+
         const lvl = obj.userData.level || "Ground Level";
         if (!levelMap.has(lvl)) levelMap.set(lvl, []);
         levelMap.get(lvl).push(obj);
       }
     });
 
-    // Helper: Create a toggle switch element
-    const createToggleSwitch = (initialState = true, onChange) => {
-      const toggle = document.createElement('label');
-      toggle.className = 'toggle-switch';
-      const chk = document.createElement('input');
-      chk.type = 'checkbox';
-      chk.checked = initialState;
-      const slider = document.createElement('span');
-      slider.className = 'slider-switch';
-      toggle.appendChild(chk);
-      toggle.appendChild(slider);
-      chk.addEventListener('change', (e) => {
-        e.stopPropagation();
-        if (onChange) onChange(chk.checked);
-      });
-      return { toggle, chk };
-    };
+    const createGroupData = (map, hasOpacitySlider = false, defaultCollapsed = false, isCategory = false) => {
+      const groups = [];
+      let gId = 0;
+      map.forEach((meshes, name) => {
+        const firstMat = meshes[0] && meshes[0].material;
+        const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
+        const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
+        const localizedName = isCategory && typeof I18N !== 'undefined' ? I18N.getCategoryName(name) : name;
 
-    // Helper: Create an element leaf row
-    const createElementLeaf = (mesh, onVisibilityChanged) => {
-      const leaf = document.createElement('div');
-      leaf.className = 'tree-leaf-item';
-      leaf._mesh = mesh;
-      const isSel = (this.selectedMesh === mesh) || (this.selectedMeshes && this.selectedMeshes.includes(mesh));
-      if (isSel) leaf.classList.add('selected');
+        const leaves = meshes.map(mesh => {
+          const mMat = mesh.material;
+          const mCol = Array.isArray(mMat) ? (mMat[0] && mMat[0].color) : (mMat && mMat.color);
+          const mColorHex = mCol ? '#' + mCol.getHexString() : colorHex;
+          const elemName = mesh.userData.element || mesh.name || "Element";
+          return {
+            mesh,
+            name: elemName,
+            colorHex: mColorHex
+          };
+        });
 
-      const leafMat = mesh.material;
-      const leafCol = Array.isArray(leafMat) ? (leafMat[0] && leafMat[0].color) : (leafMat && leafMat.color);
-      const colorHex = leafCol ? '#' + leafCol.getHexString() : '#38bdf8';
-      const elemName = mesh.userData.element || mesh.name || "Element";
-
-      const left = document.createElement('div');
-      left.className = 'tree-leaf-left';
-      
-      const dot = document.createElement('div');
-      dot.className = 'category-dot';
-      dot.style.backgroundColor = colorHex;
-
-      const title = document.createElement('span');
-      title.className = 'tree-leaf-name';
-      title.textContent = elemName;
-      title.title = elemName;
-
-      left.appendChild(dot);
-      left.appendChild(title);
-
-      const { toggle, chk } = createToggleSwitch(mesh.visible, (checked) => {
-        mesh.visible = checked;
-        if (onVisibilityChanged) onVisibilityChanged();
-      });
-
-      leaf.appendChild(left);
-      leaf.appendChild(toggle);
-
-      left.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isCtrl = e.ctrlKey || e.metaKey;
-        const isShift = e.shiftKey;
-        const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
-          [...this.selectedMeshes] : 
-          (this.selectedMesh ? [this.selectedMesh] : []);
-
-        if (isCtrl) {
-          const idx = current.indexOf(mesh);
-          if (idx >= 0) current.splice(idx, 1);
-          else current.push(mesh);
-          if (current.length === 0) this.clearSelection();
-          else if (current.length === 1) this.selectElement(current[0]);
-          else this.selectElements(current);
-        } else if (isShift) {
-          const idx = current.indexOf(mesh);
-          if (idx >= 0) {
-            current.splice(idx, 1);
-            if (current.length === 0) this.clearSelection();
-            else if (current.length === 1) this.selectElement(current[0]);
-            else this.selectElements(current);
-          }
-        } else {
-          this.selectElement(mesh);
-        }
-      });
-
-      leaf.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const current = this.selectedMeshes || (this.selectedMesh ? [this.selectedMesh] : []);
-        if (!current.includes(mesh)) {
-          this.selectElement(mesh);
-        }
-        this.showContextMenu(e.clientX, e.clientY);
-      });
-
-      leaf.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        this.zoomToElement(mesh);
-      });
-
-      leaf.addEventListener('pointerenter', () => {
-        const isSelected = (this.selectedMesh === mesh) || (this.selectedMeshes && this.selectedMeshes.includes(mesh));
-        if (mesh && mesh.visible && !isSelected) {
-          this.setHoveredElement(mesh);
-        }
-      });
-
-      leaf.addEventListener('pointerleave', () => {
-        if (this.hoveredMesh === mesh) {
-          this.clearHoverOverlay();
-        }
-      });
-
-      return { leaf, chk };
-    };
-
-    // 1. Render Structures Tab (Hierarchical Tree)
-    structureMap.forEach((meshes, name) => {
-      const branch = document.createElement('div');
-      branch.className = 'tree-branch';
-
-      const head = document.createElement('div');
-      head.className = 'tree-branch-header';
-
-      const left = document.createElement('div');
-      left.className = 'structure-left';
-
-      const expander = document.createElement('span');
-      expander.className = 'tree-expander';
-      expander.innerHTML = '&#9660;';
-
-      const firstMat = meshes[0] && meshes[0].material;
-      const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
-      const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
-      const dot = document.createElement('div');
-      dot.className = 'category-dot';
-      dot.style.backgroundColor = colorHex;
-
-      const title = document.createElement('span');
-      title.className = 'structure-name';
-      title.textContent = name;
-      title.title = name;
-
-      const count = document.createElement('span');
-      count.className = 'structure-count';
-      count.textContent = `${meshes.length} items`;
-
-      left.appendChild(expander);
-      left.appendChild(dot);
-      left.appendChild(title);
-      left.appendChild(count);
-
-      const childrenContainer = document.createElement('div');
-      childrenContainer.className = 'tree-branch-children';
-
-      const childCheckboxes = [];
-
-      const updateMasterState = () => {
-        const anyVisible = meshes.some(m => m.visible);
-        masterToggle.chk.checked = anyVisible;
-      };
-
-      const masterToggle = createToggleSwitch(true, (checked) => {
-        meshes.forEach(m => m.visible = checked);
-        childCheckboxes.forEach(chk => chk.checked = checked);
-      });
-
-      head.appendChild(left);
-      head.appendChild(masterToggle.toggle);
-
-      // Opacity row
-      const opRow = document.createElement('div');
-      opRow.className = 'opacity-slider-row';
-      const opLabel = document.createElement('span');
-      opLabel.textContent = I18N.t('propOpacity') || 'Opacity';
-      const opSlider = document.createElement('input');
-      opSlider.type = 'range';
-      opSlider.min = '0.1';
-      opSlider.max = '1.0';
-      opSlider.step = '0.05';
-      opSlider.value = '1.0';
-      opSlider.className = 'range-slider';
-
-      opSlider.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        meshes.forEach(m => {
-          if (m.material) {
-            if (Array.isArray(m.material)) {
-              m.material.forEach(mat => {
-                mat.transparent = val < 0.99 || Boolean(mat.userData?.originalTransparent);
-                mat.opacity = val;
-                mat.needsUpdate = true;
-              });
-            } else {
-              m.material.transparent = val < 0.99 || Boolean(m.material.userData?.originalTransparent);
-              m.material.opacity = val;
-              m.material.needsUpdate = true;
-            }
-          }
+        groups.push({
+          id: `group-${gId++}`,
+          name: name,
+          localizedName: localizedName,
+          catName: isCategory ? name : null,
+          meshes: meshes,
+          colorHex: colorHex,
+          collapsed: defaultCollapsed,
+          hasOpacitySlider: hasOpacitySlider,
+          opacity: 1.0,
+          leaves: leaves
         });
       });
+      return groups;
+    };
 
-      opRow.appendChild(opLabel);
-      opRow.appendChild(opSlider);
+    const structGroups = createGroupData(structureMap, true, false, false);
+    const levelsGroups = createGroupData(levelMap, false, true, false);
+    const elemGroups = createGroupData(categoryMap, false, false, true);
 
-      head.addEventListener('click', (e) => {
-        if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
-        const isCollapsed = childrenContainer.classList.toggle('collapsed');
-        expander.classList.toggle('collapsed', isCollapsed);
+    this.virtualLevelsData = levelsGroups;
+    this.virtualElemData = elemGroups;
+
+    // 1. Structures tree is initialized immediately (active tab)
+    if (this.virtualStructTree) {
+      this.virtualStructTree.setGroups(structGroups);
+    } else {
+      this.virtualStructTree = new VirtualBimTree({
+        app: this,
+        container: document.getElementById('tree-structures'),
+        type: 'structures',
+        groups: structGroups
       });
+    }
 
-      head.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.showGroupContextMenu(e.clientX, e.clientY, name, meshes);
-      });
-
-      // Populate child leaf items
-      meshes.forEach(mesh => {
-        const { leaf, chk } = createElementLeaf(mesh, updateMasterState);
-        childCheckboxes.push(chk);
-        childrenContainer.appendChild(leaf);
-      });
-
-      branch.appendChild(head);
-      branch.appendChild(opRow);
-      branch.appendChild(childrenContainer);
-      structContainer.appendChild(branch);
-    });
-
-    // 2. Render Elements Tab (Categories Hierarchy Tree)
-    categoryMap.forEach((meshes, catName) => {
-      const branch = document.createElement('div');
-      branch.className = 'tree-branch';
-
-      const head = document.createElement('div');
-      head.className = 'tree-branch-header';
-
-      const left = document.createElement('div');
-      left.className = 'structure-left';
-
-      const expander = document.createElement('span');
-      expander.className = 'tree-expander';
-      expander.innerHTML = '&#9660;';
-
-      const firstMat = meshes[0] && meshes[0].material;
-      const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
-      const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
-      const dot = document.createElement('div');
-      dot.className = 'category-dot';
-      dot.style.backgroundColor = colorHex;
-
-      const title = document.createElement('span');
-      title.className = 'structure-name';
-      const localizedName = I18N.getCategoryName(catName);
-      title.textContent = localizedName;
-      title.title = catName;
-
-      const count = document.createElement('span');
-      count.className = 'structure-count';
-      count.textContent = `${meshes.length}`;
-
-      left.appendChild(expander);
-      left.appendChild(dot);
-      left.appendChild(title);
-      left.appendChild(count);
-
-      const childrenContainer = document.createElement('div');
-      childrenContainer.className = 'tree-branch-children';
-
-      const childCheckboxes = [];
-
-      const updateCategoryMaster = () => {
-        const anyVisible = meshes.some(m => m.visible);
-        masterToggle.chk.checked = anyVisible;
-        const state = this.categoryStates.get(catName);
-        if (state && state.chipEl) {
-          state.chipEl.classList.toggle('cat-hidden', !anyVisible);
-        }
-      };
-
-      const masterToggle = createToggleSwitch(true, (checked) => {
-        this.toggleCategory(catName, checked);
-        childCheckboxes.forEach(chk => chk.checked = checked);
-      });
-
-      const state = this.categoryStates.get(catName);
-      if (state) {
-        state.checkboxEl = masterToggle.chk;
-      }
-
-      head.appendChild(left);
-      head.appendChild(masterToggle.toggle);
-
-      head.addEventListener('click', (e) => {
-        if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
-        const isCollapsed = childrenContainer.classList.toggle('collapsed');
-        expander.classList.toggle('collapsed', isCollapsed);
-      });
-
-      head.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.showGroupContextMenu(e.clientX, e.clientY, localizedName || catName, meshes);
-      });
-
-      meshes.forEach(mesh => {
-        const { leaf, chk } = createElementLeaf(mesh, updateCategoryMaster);
-        childCheckboxes.push(chk);
-        childrenContainer.appendChild(leaf);
-      });
-
-      branch.appendChild(head);
-      branch.appendChild(childrenContainer);
-      elemContainer.appendChild(branch);
-    });
-
-    // 3. Render Levels Tab (Levels Hierarchy Tree)
-    levelMap.forEach((meshes, lvlName) => {
-      const branch = document.createElement('div');
-      branch.className = 'tree-branch';
-
-      const head = document.createElement('div');
-      head.className = 'tree-branch-header';
-
-      const left = document.createElement('div');
-      left.className = 'structure-left';
-
-      const expander = document.createElement('span');
-      expander.className = 'tree-expander collapsed';
-      expander.innerHTML = '&#9660;';
-
-      const title = document.createElement('span');
-      title.className = 'structure-name';
-      title.textContent = lvlName;
-
-      const count = document.createElement('span');
-      count.className = 'structure-count';
-      count.textContent = `${meshes.length}`;
-
-      left.appendChild(expander);
-      left.appendChild(title);
-      left.appendChild(count);
-
-      const childrenContainer = document.createElement('div');
-      childrenContainer.className = 'tree-branch-children collapsed';
-
-      const childCheckboxes = [];
-
-      const updateLevelMaster = () => {
-        const anyVisible = meshes.some(m => m.visible);
-        masterToggle.chk.checked = anyVisible;
-      };
-
-      const masterToggle = createToggleSwitch(true, (checked) => {
-        meshes.forEach(m => m.visible = checked);
-        childCheckboxes.forEach(chk => chk.checked = checked);
-      });
-
-      head.appendChild(left);
-      head.appendChild(masterToggle.toggle);
-
-      head.addEventListener('click', (e) => {
-        if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
-        const isCollapsed = childrenContainer.classList.toggle('collapsed');
-        expander.classList.toggle('collapsed', isCollapsed);
-      });
-
-      head.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.showGroupContextMenu(e.clientX, e.clientY, lvlName, meshes);
-      });
-
-      meshes.forEach(mesh => {
-        const { leaf, chk } = createElementLeaf(mesh, updateLevelMaster);
-        childCheckboxes.push(chk);
-        childrenContainer.appendChild(leaf);
-      });
-
-      branch.appendChild(head);
-      branch.appendChild(childrenContainer);
-      levelsContainer.appendChild(branch);
-    });
+    // 2. If other tabs were already initialized in DOM, update their data
+    if (this.virtualLevelsTree) {
+      this.virtualLevelsTree.setGroups(levelsGroups);
+    }
+    if (this.virtualElemTree) {
+      this.virtualElemTree.setGroups(elemGroups);
+    }
   }
 
   isModelElementMesh(obj) {
@@ -2741,12 +2990,9 @@ class BIMViewerApp {
   }
 
   syncTreeSelection() {
-    const selectedSet = new Set(this.selectedMeshes || (this.selectedMesh ? [this.selectedMesh] : []));
-    document.querySelectorAll('.tree-leaf-item').forEach(leaf => {
-      if (leaf._mesh) {
-        leaf.classList.toggle('selected', selectedSet.has(leaf._mesh));
-      }
-    });
+    if (this.virtualStructTree) this.virtualStructTree.syncSelection();
+    if (this.virtualLevelsTree) this.virtualLevelsTree.syncSelection();
+    if (this.virtualElemTree) this.virtualElemTree.syncSelection();
   }
 
   selectElements(meshes) {
@@ -9083,115 +9329,75 @@ class BIMViewerApp {
     });
     this.setupSidebarTabsScroll();
     
-    // 7. Search filter in Left Sidebar (supports collapsible tree branches and leaf items)
-    document.getElementById('tree-search-input').addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase().trim();
-      document.querySelectorAll('.tree-branch').forEach(branch => {
-        const branchHeader = branch.querySelector('.tree-branch-header');
-        const branchText = branchHeader ? branchHeader.textContent.toLowerCase() : '';
-        const leaves = branch.querySelectorAll('.tree-leaf-item');
-        let anyLeafMatch = false;
-
-        leaves.forEach(leaf => {
-          const match = q === '' || leaf.textContent.toLowerCase().includes(q);
-          leaf.style.display = match ? 'flex' : 'none';
-          if (match && q !== '') anyLeafMatch = true;
-        });
-
-        const branchMatch = q === '' || branchText.includes(q) || anyLeafMatch;
-        branch.style.display = branchMatch ? 'block' : 'none';
-
-        if (q !== '' && anyLeafMatch) {
-          const childrenContainer = branch.querySelector('.tree-branch-children');
-          const expander = branch.querySelector('.tree-expander');
-          if (childrenContainer) childrenContainer.classList.remove('collapsed');
-          if (expander) expander.classList.remove('collapsed');
-        }
+    // 7. Search filter in Left Sidebar (supports virtual trees)
+    const treeSearchInput = document.getElementById('tree-search-input');
+    if (treeSearchInput) {
+      treeSearchInput.addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        if (this.virtualStructTree) this.virtualStructTree.setFilter(q);
+        if (this.virtualLevelsTree) this.virtualLevelsTree.setFilter(q);
+        if (this.virtualElemTree) this.virtualElemTree.setFilter(q);
       });
-      document.querySelectorAll('.structure-item').forEach(item => {
-        const text = item.textContent.toLowerCase();
-        item.style.display = (q === '' || text.includes(q)) ? 'flex' : 'none';
-      });
-    });
+    }
     
     // 8. Quick Tree buttons
-    const triggerShowAll = () => {
-      if (this.activeModel) this.activeModel.traverse(m => { if (m.isMesh) m.visible = true; });
-      document.querySelectorAll('.toggle-switch input').forEach(c => c.checked = true);
-      this.categoryStates.forEach(st => {
-        st.visible = true;
-        if (st.chipEl) {
-          st.chipEl.classList.remove('cat-hidden');
-          st.chipEl.classList.remove('cat-isolated');
-        }
-        if (st.checkboxEl) st.checkboxEl.checked = true;
-      });
-    };
-    const triggerHideAll = () => {
-      if (this.activeModel) this.activeModel.traverse(m => { if (m.isMesh) m.visible = false; });
-      document.querySelectorAll('.toggle-switch input').forEach(c => c.checked = false);
-      this.categoryStates.forEach(st => {
-        st.visible = false;
-        if (st.chipEl) {
-          st.chipEl.classList.add('cat-hidden');
-          st.chipEl.classList.remove('cat-isolated');
-        }
-        if (st.checkboxEl) st.checkboxEl.checked = false;
-      });
-    };
-
-    const setupTreeButtons = (containerId, expId, colId, showId, hideId) => {
+    const setupVirtualTreeButtons = (getTree, expId, colId, showId, hideId) => {
       const expBtn = document.getElementById(expId);
       if (expBtn) {
         expBtn.onclick = () => {
-          const c = document.getElementById(containerId);
-          if (c) {
-            c.querySelectorAll('.tree-branch-children').forEach(el => el.classList.remove('collapsed'));
-            c.querySelectorAll('.tree-expander').forEach(el => el.classList.remove('collapsed'));
-          }
+          const t = getTree();
+          if (t) t.expandAll();
         };
       }
       const colBtn = document.getElementById(colId);
       if (colBtn) {
         colBtn.onclick = () => {
-          const c = document.getElementById(containerId);
-          if (c) {
-            c.querySelectorAll('.tree-branch-children').forEach(el => el.classList.add('collapsed'));
-            c.querySelectorAll('.tree-expander').forEach(el => el.classList.add('collapsed'));
-          }
+          const t = getTree();
+          if (t) t.collapseAll();
         };
       }
       const showBtn = document.getElementById(showId);
-      if (showBtn) showBtn.onclick = triggerShowAll;
+      if (showBtn) {
+        showBtn.onclick = () => {
+          if (this.activeModel) this.activeModel.traverse(m => { if (m.isMesh) m.visible = true; });
+          this.categoryStates.forEach(st => {
+            st.visible = true;
+            if (st.chipEl) {
+              st.chipEl.classList.remove('cat-hidden');
+              st.chipEl.classList.remove('cat-isolated');
+            }
+            if (st.checkboxEl) st.checkboxEl.checked = true;
+          });
+          const t = getTree();
+          if (t) t.showAll();
+        };
+      }
       const hideBtn = document.getElementById(hideId);
-      if (hideBtn) hideBtn.onclick = triggerHideAll;
+      if (hideBtn) {
+        hideBtn.onclick = () => {
+          if (this.activeModel) this.activeModel.traverse(m => { if (m.isMesh) m.visible = false; });
+          this.categoryStates.forEach(st => {
+            st.visible = false;
+            if (st.chipEl) {
+              st.chipEl.classList.add('cat-hidden');
+              st.chipEl.classList.remove('cat-isolated');
+            }
+            if (st.checkboxEl) st.checkboxEl.checked = false;
+          });
+          const t = getTree();
+          if (t) t.hideAll();
+        };
+      }
     };
 
-    setupTreeButtons('tree-structures', 'btn-struct-expand-all', 'btn-struct-collapse-all', 'btn-show-all', 'btn-hide-all');
-    setupTreeButtons('tree-levels', 'btn-levels-expand-all', 'btn-levels-collapse-all', 'btn-levels-show-all', 'btn-levels-hide-all');
-    setupTreeButtons('tree-elements', 'btn-elem-expand-all', 'btn-elem-collapse-all', 'btn-elem-show-all', 'btn-elem-hide-all');
+    setupVirtualTreeButtons(() => this.virtualStructTree, 'btn-struct-expand-all', 'btn-struct-collapse-all', 'btn-show-all', 'btn-hide-all');
+    setupVirtualTreeButtons(() => this.virtualLevelsTree, 'btn-levels-expand-all', 'btn-levels-collapse-all', 'btn-levels-show-all', 'btn-levels-hide-all');
+    setupVirtualTreeButtons(() => this.virtualElemTree, 'btn-elem-expand-all', 'btn-elem-collapse-all', 'btn-elem-show-all', 'btn-elem-hide-all');
 
     const resetOpBtn = document.getElementById('btn-reset-opacity');
     if (resetOpBtn) {
       resetOpBtn.onclick = () => {
-        if (this.activeModel) {
-          this.activeModel.traverse(m => {
-            if (m.isMesh && m.material) {
-              if (Array.isArray(m.material)) {
-                m.material.forEach(mat => {
-                  mat.transparent = Boolean(mat.userData?.originalTransparent);
-                  mat.opacity = mat.userData?.originalOpacity !== undefined ? mat.userData.originalOpacity : 1.0;
-                  mat.needsUpdate = true;
-                });
-              } else {
-                m.material.transparent = Boolean(m.material.userData?.originalTransparent);
-                m.material.opacity = m.material.userData?.originalOpacity !== undefined ? m.material.userData.originalOpacity : 1.0;
-                m.material.needsUpdate = true;
-              }
-            }
-          });
-        }
-        document.querySelectorAll('.range-slider').forEach(s => s.value = 1.0);
+        if (this.virtualStructTree) this.virtualStructTree.resetOpacity();
       };
     }
     
@@ -9689,6 +9895,35 @@ class BIMViewerApp {
       c.classList.toggle('active', c.id === tabContentId);
     });
     this.scrollActiveSidebarTabIntoView();
+
+    // Lazy initialization & layout resize for Virtual Trees
+    if (tabContentId === 'tab-levels-content') {
+      if (!this.virtualLevelsTree && this.virtualLevelsData) {
+        this.virtualLevelsTree = new VirtualBimTree({
+          app: this,
+          container: document.getElementById('tree-levels'),
+          type: 'levels',
+          groups: this.virtualLevelsData
+        });
+      } else if (this.virtualLevelsTree) {
+        this.virtualLevelsTree.onResize();
+      }
+    } else if (tabContentId === 'tab-elem-content') {
+      if (!this.virtualElemTree && this.virtualElemData) {
+        this.virtualElemTree = new VirtualBimTree({
+          app: this,
+          container: document.getElementById('tree-elements'),
+          type: 'elements',
+          groups: this.virtualElemData
+        });
+      } else if (this.virtualElemTree) {
+        this.virtualElemTree.onResize();
+      }
+    } else if (tabContentId === 'tab-struct-content') {
+      if (this.virtualStructTree) {
+        this.virtualStructTree.onResize();
+      }
+    }
   }
   
   updateSolarUI() {

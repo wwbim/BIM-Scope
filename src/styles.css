@@ -939,16 +939,16 @@ svg.nav-arrow-icon {
 /* TAB CONTENT CONTAINER */
 .tab-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   display: none;
   padding: 12px;
+  min-height: 0;
 }
 
 .tab-content.active {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* SEARCH & ACTION BAR IN SIDEBAR */
@@ -1014,13 +1014,98 @@ svg.nav-arrow-icon {
   border-color: var(--accent);
 }
 
-/* TREE VIEW & STRUCTURE LIST */
+/* TREE VIEW & STRUCTURE LIST (VIRTUAL SCROLLER) */
 .tree-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
   width: 100%;
+  box-sizing: border-box;
+}
+
+.virtual-tree-phantom {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+}
+
+.virtual-tree-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.virtual-tree-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.virtual-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-panel-header);
+  border: 1px solid var(--border-color);
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  height: 32px;
+  box-sizing: border-box;
+  transition: background 0.15s ease;
+}
+
+.virtual-group-header:hover {
+  background: var(--bg-hover);
+}
+
+.virtual-group-header.is-only-header {
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+.virtual-opacity-row {
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-card);
+  height: 24px;
+  padding: 2px 10px 4px 17px;
+  box-sizing: border-box;
+}
+
+.virtual-opacity-row.is-last-row {
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+.virtual-leaf-row {
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: none;
+  background: var(--bg-card-subtle);
+  height: 26px;
+  box-sizing: border-box;
+  min-height: 26px;
+}
+
+.virtual-leaf-row.is-last-row {
+  border-bottom: 1px solid var(--border-color);
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
 }
 
 .structure-item {
