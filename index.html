@@ -886,15 +886,26 @@ svg.nav-arrow-icon {
 }
 
 /* PANEL AMBIENT CURSOR SPOTLIGHT GLOW */
+:root {
+  --panel-glow-color: rgba(56, 189, 248, 0.14);
+}
+
+[data-theme="dark"] {
+  --panel-glow-color: rgba(56, 189, 248, 0.14);
+}
+
+[data-theme="light"] {
+  --panel-glow-color: rgba(2, 132, 199, 0.08);
+}
+
 #left-sidebar,
-#right-sidebar,
-#floating-tools-panel {
+#right-sidebar {
   position: relative;
 }
 
-#left-sidebar::before,
-#right-sidebar::before,
-#floating-tools-panel::before {
+#left-sidebar::after,
+#right-sidebar::after,
+#floating-tools-panel::after {
   content: "";
   position: absolute;
   top: 0;
@@ -902,34 +913,21 @@ svg.nav-arrow-icon {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 25;
   border-radius: inherit;
   opacity: 0;
   background: radial-gradient(
-    180px circle at var(--glow-x, -999px) var(--glow-y, -999px),
-    var(--accent) 0%,
+    90px circle at var(--glow-x, -999px) var(--glow-y, -999px),
+    var(--panel-glow-color) 0%,
     transparent 100%
   );
   transition: opacity 0.3s ease;
 }
 
-[data-theme="dark"] #left-sidebar.has-glow::before,
-[data-theme="dark"] #right-sidebar.has-glow::before,
-[data-theme="dark"] #floating-tools-panel.has-glow::before {
-  opacity: 0.10;
-}
-
-[data-theme="light"] #left-sidebar.has-glow::before,
-[data-theme="light"] #right-sidebar.has-glow::before,
-[data-theme="light"] #floating-tools-panel.has-glow::before {
-  opacity: 0.06;
-}
-
-#left-sidebar > *,
-#right-sidebar > *,
-#floating-tools-panel > * {
-  position: relative;
-  z-index: 1;
+#left-sidebar.has-glow::after,
+#right-sidebar.has-glow::after,
+#floating-tools-panel.has-glow::after {
+  opacity: 1;
 }
 
 /* LEFT SIDEBAR CONTENT PANEL */
@@ -939,7 +937,7 @@ svg.nav-arrow-icon {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: transparent;
+  background: var(--bg-panel);
   border-top: 1px solid var(--border-color);
   position: relative;
   z-index: 1;
