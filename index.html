@@ -3794,6 +3794,109 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   transition: var(--theme-transition);
 }
 
+/* OBJ LIVE TUNING CONTROLS */
+.obj-tuning-card {
+  padding: 8px 10px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.03));
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.obj-tuning-tip {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.obj-tuning-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.obj-tuning-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.obj-tuning-btn-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.obj-tuning-btn {
+  flex: 1;
+  min-width: 75px;
+  padding: 5px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.obj-tuning-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.obj-tuning-btn.active {
+  background: var(--brand-primary, #0284c7);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.obj-tuning-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.obj-tuning-input {
+  width: 80px;
+  padding: 4px 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.obj-tuning-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.obj-tuning-chk-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+  margin-top: 2px;
+}
+
+
 
 
 
@@ -3933,7 +4036,7 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           <span data-i18n="openFile">Open Model</span>
         </button>
-        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
+        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
     </header>
 
@@ -4341,7 +4444,7 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
         <!-- Drag & Drop Overlay -->
         <div id="dropzone-overlay">
           <svg class="drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX or DAE file to view</div>
+          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX, DAE or OBJ file to view</div>
         </div>
 
         <!-- 3D Viewport Custom Context Menu -->
@@ -17720,6 +17823,1314 @@ version 0.6.9
 
   </script>
   <script>
+( function () {
+
+	/**
+ * Loads a Wavefront .mtl file specifying materials
+ */
+
+	class MTLLoader extends THREE.Loader {
+
+		constructor( manager ) {
+
+			super( manager );
+
+		}
+		/**
+   * Loads and parses a MTL asset from a URL.
+   *
+   * @param {String} url - URL to the MTL file.
+   * @param {Function} [onLoad] - Callback invoked with the loaded object.
+   * @param {Function} [onProgress] - Callback for download progress.
+   * @param {Function} [onError] - Callback for download errors.
+   *
+   * @see setPath setResourcePath
+   *
+   * @note In order for relative texture references to resolve correctly
+   * you must call setResourcePath() explicitly prior to load.
+   */
+
+
+		load( url, onLoad, onProgress, onError ) {
+
+			const scope = this;
+			const path = this.path === '' ? THREE.LoaderUtils.extractUrlBase( url ) : this.path;
+			const loader = new THREE.FileLoader( this.manager );
+			loader.setPath( this.path );
+			loader.setRequestHeader( this.requestHeader );
+			loader.setWithCredentials( this.withCredentials );
+			loader.load( url, function ( text ) {
+
+				try {
+
+					onLoad( scope.parse( text, path ) );
+
+				} catch ( e ) {
+
+					if ( onError ) {
+
+						onError( e );
+
+					} else {
+
+						console.error( e );
+
+					}
+
+					scope.manager.itemError( url );
+
+				}
+
+			}, onProgress, onError );
+
+		}
+
+		setMaterialOptions( value ) {
+
+			this.materialOptions = value;
+			return this;
+
+		}
+		/**
+   * Parses a MTL file.
+   *
+   * @param {String} text - Content of MTL file
+   * @return {MaterialCreator}
+   *
+   * @see setPath setResourcePath
+   *
+   * @note In order for relative texture references to resolve correctly
+   * you must call setResourcePath() explicitly prior to parse.
+   */
+
+
+		parse( text, path ) {
+
+			const lines = text.split( '\n' );
+			let info = {};
+			const delimiter_pattern = /\s+/;
+			const materialsInfo = {};
+
+			for ( let i = 0; i < lines.length; i ++ ) {
+
+				let line = lines[ i ];
+				line = line.trim();
+
+				if ( line.length === 0 || line.charAt( 0 ) === '#' ) {
+
+					// Blank line or comment ignore
+					continue;
+
+				}
+
+				const pos = line.indexOf( ' ' );
+				let key = pos >= 0 ? line.substring( 0, pos ) : line;
+				key = key.toLowerCase();
+				let value = pos >= 0 ? line.substring( pos + 1 ) : '';
+				value = value.trim();
+
+				if ( key === 'newmtl' ) {
+
+					// New material
+					info = {
+						name: value
+					};
+					materialsInfo[ value ] = info;
+
+				} else {
+
+					if ( key === 'ka' || key === 'kd' || key === 'ks' || key === 'ke' ) {
+
+						const ss = value.split( delimiter_pattern, 3 );
+						info[ key ] = [ parseFloat( ss[ 0 ] ), parseFloat( ss[ 1 ] ), parseFloat( ss[ 2 ] ) ];
+
+					} else {
+
+						info[ key ] = value;
+
+					}
+
+				}
+
+			}
+
+			const materialCreator = new MaterialCreator( this.resourcePath || path, this.materialOptions );
+			materialCreator.setCrossOrigin( this.crossOrigin );
+			materialCreator.setManager( this.manager );
+			materialCreator.setMaterials( materialsInfo );
+			return materialCreator;
+
+		}
+
+	}
+	/**
+ * Create a new MTLLoader.MaterialCreator
+ * @param baseUrl - Url relative to which textures are loaded
+ * @param options - Set of options on how to construct the materials
+ *                  side: Which side to apply the material
+ *                        THREE.FrontSide (default), THREE.BackSide, THREE.DoubleSide
+ *                  wrap: What type of wrapping to apply for textures
+ *                        THREE.RepeatWrapping (default), THREE.ClampToEdgeWrapping, THREE.MirroredRepeatWrapping
+ *                  normalizeRGB: RGBs need to be normalized to 0-1 from 0-255
+ *                                Default: false, assumed to be already normalized
+ *                  ignoreZeroRGBs: Ignore values of RGBs (Ka,Kd,Ks) that are all 0's
+ *                                  Default: false
+ * @constructor
+ */
+
+
+	class MaterialCreator {
+
+		constructor( baseUrl = '', options = {} ) {
+
+			this.baseUrl = baseUrl;
+			this.options = options;
+			this.materialsInfo = {};
+			this.materials = {};
+			this.materialsArray = [];
+			this.nameLookup = {};
+			this.crossOrigin = 'anonymous';
+			this.side = this.options.side !== undefined ? this.options.side : THREE.FrontSide;
+			this.wrap = this.options.wrap !== undefined ? this.options.wrap : THREE.RepeatWrapping;
+
+		}
+
+		setCrossOrigin( value ) {
+
+			this.crossOrigin = value;
+			return this;
+
+		}
+
+		setManager( value ) {
+
+			this.manager = value;
+
+		}
+
+		setMaterials( materialsInfo ) {
+
+			this.materialsInfo = this.convert( materialsInfo );
+			this.materials = {};
+			this.materialsArray = [];
+			this.nameLookup = {};
+
+		}
+
+		convert( materialsInfo ) {
+
+			if ( ! this.options ) return materialsInfo;
+			const converted = {};
+
+			for ( const mn in materialsInfo ) {
+
+				// Convert materials info into normalized form based on options
+				const mat = materialsInfo[ mn ];
+				const covmat = {};
+				converted[ mn ] = covmat;
+
+				for ( const prop in mat ) {
+
+					let save = true;
+					let value = mat[ prop ];
+					const lprop = prop.toLowerCase();
+
+					switch ( lprop ) {
+
+						case 'kd':
+						case 'ka':
+						case 'ks':
+							// Diffuse color (color under white light) using RGB values
+							if ( this.options && this.options.normalizeRGB ) {
+
+								value = [ value[ 0 ] / 255, value[ 1 ] / 255, value[ 2 ] / 255 ];
+
+							}
+
+							if ( this.options && this.options.ignoreZeroRGBs ) {
+
+								if ( value[ 0 ] === 0 && value[ 1 ] === 0 && value[ 2 ] === 0 ) {
+
+									// ignore
+									save = false;
+
+								}
+
+							}
+
+							break;
+
+						default:
+							break;
+
+					}
+
+					if ( save ) {
+
+						covmat[ lprop ] = value;
+
+					}
+
+				}
+
+			}
+
+			return converted;
+
+		}
+
+		preload() {
+
+			for ( const mn in this.materialsInfo ) {
+
+				this.create( mn );
+
+			}
+
+		}
+
+		getIndex( materialName ) {
+
+			return this.nameLookup[ materialName ];
+
+		}
+
+		getAsArray() {
+
+			let index = 0;
+
+			for ( const mn in this.materialsInfo ) {
+
+				this.materialsArray[ index ] = this.create( mn );
+				this.nameLookup[ mn ] = index;
+				index ++;
+
+			}
+
+			return this.materialsArray;
+
+		}
+
+		create( materialName ) {
+
+			if ( this.materials[ materialName ] === undefined ) {
+
+				this.createMaterial_( materialName );
+
+			}
+
+			return this.materials[ materialName ];
+
+		}
+
+		createMaterial_( materialName ) {
+
+			// Create material
+			const scope = this;
+			const mat = this.materialsInfo[ materialName ];
+			const params = {
+				name: materialName,
+				side: this.side
+			};
+
+			function resolveURL( baseUrl, url ) {
+
+				if ( typeof url !== 'string' || url === '' ) return ''; // Absolute URL
+
+				if ( /^https?:\/\//i.test( url ) ) return url;
+				return baseUrl + url;
+
+			}
+
+			function setMapForType( mapType, value ) {
+
+				if ( params[ mapType ] ) return; // Keep the first encountered texture
+
+				const texParams = scope.getTextureParams( value, params );
+				const map = scope.loadTexture( resolveURL( scope.baseUrl, texParams.url ) );
+				map.repeat.copy( texParams.scale );
+				map.offset.copy( texParams.offset );
+				map.wrapS = scope.wrap;
+				map.wrapT = scope.wrap;
+				params[ mapType ] = map;
+
+			}
+
+			for ( const prop in mat ) {
+
+				const value = mat[ prop ];
+				let n;
+				if ( value === '' ) continue;
+
+				switch ( prop.toLowerCase() ) {
+
+					// Ns is material specular exponent
+					case 'kd':
+						// Diffuse color (color under white light) using RGB values
+						params.color = new THREE.Color().fromArray( value );
+						break;
+
+					case 'ks':
+						// Specular color (color when light is reflected from shiny surface) using RGB values
+						params.specular = new THREE.Color().fromArray( value );
+						break;
+
+					case 'ke':
+						// Emissive using RGB values
+						params.emissive = new THREE.Color().fromArray( value );
+						break;
+
+					case 'map_kd':
+						// Diffuse texture map
+						setMapForType( 'map', value );
+						break;
+
+					case 'map_ks':
+						// Specular map
+						setMapForType( 'specularMap', value );
+						break;
+
+					case 'map_ke':
+						// Emissive map
+						setMapForType( 'emissiveMap', value );
+						break;
+
+					case 'norm':
+						setMapForType( 'normalMap', value );
+						break;
+
+					case 'map_bump':
+					case 'bump':
+						// Bump texture map
+						setMapForType( 'bumpMap', value );
+						break;
+
+					case 'map_d':
+						// Alpha map
+						setMapForType( 'alphaMap', value );
+						params.transparent = true;
+						break;
+
+					case 'ns':
+						// The specular exponent (defines the focus of the specular highlight)
+						// A high exponent results in a tight, concentrated highlight. Ns values normally range from 0 to 1000.
+						params.shininess = parseFloat( value );
+						break;
+
+					case 'd':
+						n = parseFloat( value );
+
+						if ( n < 1 ) {
+
+							params.opacity = n;
+							params.transparent = true;
+
+						}
+
+						break;
+
+					case 'tr':
+						n = parseFloat( value );
+						if ( this.options && this.options.invertTrProperty ) n = 1 - n;
+
+						if ( n > 0 ) {
+
+							params.opacity = 1 - n;
+							params.transparent = true;
+
+						}
+
+						break;
+
+					default:
+						break;
+
+				}
+
+			}
+
+			this.materials[ materialName ] = new THREE.MeshPhongMaterial( params );
+			return this.materials[ materialName ];
+
+		}
+
+		getTextureParams( value, matParams ) {
+
+			const texParams = {
+				scale: new THREE.Vector2( 1, 1 ),
+				offset: new THREE.Vector2( 0, 0 )
+			};
+			const items = value.split( /\s+/ );
+			let pos;
+			pos = items.indexOf( '-bm' );
+
+			if ( pos >= 0 ) {
+
+				matParams.bumpScale = parseFloat( items[ pos + 1 ] );
+				items.splice( pos, 2 );
+
+			}
+
+			pos = items.indexOf( '-s' );
+
+			if ( pos >= 0 ) {
+
+				texParams.scale.set( parseFloat( items[ pos + 1 ] ), parseFloat( items[ pos + 2 ] ) );
+				items.splice( pos, 4 ); // we expect 3 parameters here!
+
+			}
+
+			pos = items.indexOf( '-o' );
+
+			if ( pos >= 0 ) {
+
+				texParams.offset.set( parseFloat( items[ pos + 1 ] ), parseFloat( items[ pos + 2 ] ) );
+				items.splice( pos, 4 ); // we expect 3 parameters here!
+
+			}
+
+			texParams.url = items.join( ' ' ).trim();
+			return texParams;
+
+		}
+
+		loadTexture( url, mapping, onLoad, onProgress, onError ) {
+
+			const manager = this.manager !== undefined ? this.manager : THREE.DefaultLoadingManager;
+			let loader = manager.getHandler( url );
+
+			if ( loader === null ) {
+
+				loader = new THREE.TextureLoader( manager );
+
+			}
+
+			if ( loader.setCrossOrigin ) loader.setCrossOrigin( this.crossOrigin );
+			const texture = loader.load( url, onLoad, onProgress, onError );
+			if ( mapping !== undefined ) texture.mapping = mapping;
+			return texture;
+
+		}
+
+	}
+
+	THREE.MTLLoader = MTLLoader;
+
+} )();
+
+  </script>
+  <script>
+( function () {
+
+	const _object_pattern = /^[og]\s*(.+)?/; // mtllib file_reference
+
+	const _material_library_pattern = /^mtllib /; // usemtl material_name
+
+	const _material_use_pattern = /^usemtl /; // usemap map_name
+
+	const _map_use_pattern = /^usemap /;
+
+	const _vA = new THREE.Vector3();
+
+	const _vB = new THREE.Vector3();
+
+	const _vC = new THREE.Vector3();
+
+	const _ab = new THREE.Vector3();
+
+	const _cb = new THREE.Vector3();
+
+	function ParserState() {
+
+		const state = {
+			objects: [],
+			object: {},
+			vertices: [],
+			normals: [],
+			colors: [],
+			uvs: [],
+			materials: {},
+			materialLibraries: [],
+			startObject: function ( name, fromDeclaration ) {
+
+				// If the current object (initial from reset) is not from a g/o declaration in the parsed
+				// file. We need to use it for the first parsed g/o to keep things in sync.
+				if ( this.object && this.object.fromDeclaration === false ) {
+
+					this.object.name = name;
+					this.object.fromDeclaration = fromDeclaration !== false;
+					return;
+
+				}
+
+				const previousMaterial = this.object && typeof this.object.currentMaterial === 'function' ? this.object.currentMaterial() : undefined;
+
+				if ( this.object && typeof this.object._finalize === 'function' ) {
+
+					this.object._finalize( true );
+
+				}
+
+				this.object = {
+					name: name || '',
+					fromDeclaration: fromDeclaration !== false,
+					geometry: {
+						vertices: [],
+						normals: [],
+						colors: [],
+						uvs: [],
+						hasUVIndices: false
+					},
+					materials: [],
+					smooth: true,
+					startMaterial: function ( name, libraries ) {
+
+						const previous = this._finalize( false ); // New usemtl declaration overwrites an inherited material, except if faces were declared
+						// after the material, then it must be preserved for proper MultiMaterial continuation.
+
+
+						if ( previous && ( previous.inherited || previous.groupCount <= 0 ) ) {
+
+							this.materials.splice( previous.index, 1 );
+
+						}
+
+						const material = {
+							index: this.materials.length,
+							name: name || '',
+							mtllib: Array.isArray( libraries ) && libraries.length > 0 ? libraries[ libraries.length - 1 ] : '',
+							smooth: previous !== undefined ? previous.smooth : this.smooth,
+							groupStart: previous !== undefined ? previous.groupEnd : 0,
+							groupEnd: - 1,
+							groupCount: - 1,
+							inherited: false,
+							clone: function ( index ) {
+
+								const cloned = {
+									index: typeof index === 'number' ? index : this.index,
+									name: this.name,
+									mtllib: this.mtllib,
+									smooth: this.smooth,
+									groupStart: 0,
+									groupEnd: - 1,
+									groupCount: - 1,
+									inherited: false
+								};
+								cloned.clone = this.clone.bind( cloned );
+								return cloned;
+
+							}
+						};
+						this.materials.push( material );
+						return material;
+
+					},
+					currentMaterial: function () {
+
+						if ( this.materials.length > 0 ) {
+
+							return this.materials[ this.materials.length - 1 ];
+
+						}
+
+						return undefined;
+
+					},
+					_finalize: function ( end ) {
+
+						const lastMultiMaterial = this.currentMaterial();
+
+						if ( lastMultiMaterial && lastMultiMaterial.groupEnd === - 1 ) {
+
+							lastMultiMaterial.groupEnd = this.geometry.vertices.length / 3;
+							lastMultiMaterial.groupCount = lastMultiMaterial.groupEnd - lastMultiMaterial.groupStart;
+							lastMultiMaterial.inherited = false;
+
+						} // Ignore objects tail materials if no face declarations followed them before a new o/g started.
+
+
+						if ( end && this.materials.length > 1 ) {
+
+							for ( let mi = this.materials.length - 1; mi >= 0; mi -- ) {
+
+								if ( this.materials[ mi ].groupCount <= 0 ) {
+
+									this.materials.splice( mi, 1 );
+
+								}
+
+							}
+
+						} // Guarantee at least one empty material, this makes the creation later more straight forward.
+
+
+						if ( end && this.materials.length === 0 ) {
+
+							this.materials.push( {
+								name: '',
+								smooth: this.smooth
+							} );
+
+						}
+
+						return lastMultiMaterial;
+
+					}
+				}; // Inherit previous objects material.
+				// Spec tells us that a declared material must be set to all objects until a new material is declared.
+				// If a usemtl declaration is encountered while this new object is being parsed, it will
+				// overwrite the inherited material. Exception being that there was already face declarations
+				// to the inherited material, then it will be preserved for proper MultiMaterial continuation.
+
+				if ( previousMaterial && previousMaterial.name && typeof previousMaterial.clone === 'function' ) {
+
+					const declared = previousMaterial.clone( 0 );
+					declared.inherited = true;
+					this.object.materials.push( declared );
+
+				}
+
+				this.objects.push( this.object );
+
+			},
+			finalize: function () {
+
+				if ( this.object && typeof this.object._finalize === 'function' ) {
+
+					this.object._finalize( true );
+
+				}
+
+			},
+			parseVertexIndex: function ( value, len ) {
+
+				const index = parseInt( value, 10 );
+				return ( index >= 0 ? index - 1 : index + len / 3 ) * 3;
+
+			},
+			parseNormalIndex: function ( value, len ) {
+
+				const index = parseInt( value, 10 );
+				return ( index >= 0 ? index - 1 : index + len / 3 ) * 3;
+
+			},
+			parseUVIndex: function ( value, len ) {
+
+				const index = parseInt( value, 10 );
+				return ( index >= 0 ? index - 1 : index + len / 2 ) * 2;
+
+			},
+			addVertex: function ( a, b, c ) {
+
+				const src = this.vertices;
+				const dst = this.object.geometry.vertices;
+				dst.push( src[ a + 0 ], src[ a + 1 ], src[ a + 2 ] );
+				dst.push( src[ b + 0 ], src[ b + 1 ], src[ b + 2 ] );
+				dst.push( src[ c + 0 ], src[ c + 1 ], src[ c + 2 ] );
+
+			},
+			addVertexPoint: function ( a ) {
+
+				const src = this.vertices;
+				const dst = this.object.geometry.vertices;
+				dst.push( src[ a + 0 ], src[ a + 1 ], src[ a + 2 ] );
+
+			},
+			addVertexLine: function ( a ) {
+
+				const src = this.vertices;
+				const dst = this.object.geometry.vertices;
+				dst.push( src[ a + 0 ], src[ a + 1 ], src[ a + 2 ] );
+
+			},
+			addNormal: function ( a, b, c ) {
+
+				const src = this.normals;
+				const dst = this.object.geometry.normals;
+				dst.push( src[ a + 0 ], src[ a + 1 ], src[ a + 2 ] );
+				dst.push( src[ b + 0 ], src[ b + 1 ], src[ b + 2 ] );
+				dst.push( src[ c + 0 ], src[ c + 1 ], src[ c + 2 ] );
+
+			},
+			addFaceNormal: function ( a, b, c ) {
+
+				const src = this.vertices;
+				const dst = this.object.geometry.normals;
+
+				_vA.fromArray( src, a );
+
+				_vB.fromArray( src, b );
+
+				_vC.fromArray( src, c );
+
+				_cb.subVectors( _vC, _vB );
+
+				_ab.subVectors( _vA, _vB );
+
+				_cb.cross( _ab );
+
+				_cb.normalize();
+
+				dst.push( _cb.x, _cb.y, _cb.z );
+				dst.push( _cb.x, _cb.y, _cb.z );
+				dst.push( _cb.x, _cb.y, _cb.z );
+
+			},
+			addColor: function ( a, b, c ) {
+
+				const src = this.colors;
+				const dst = this.object.geometry.colors;
+				if ( src[ a ] !== undefined ) dst.push( src[ a + 0 ], src[ a + 1 ], src[ a + 2 ] );
+				if ( src[ b ] !== undefined ) dst.push( src[ b + 0 ], src[ b + 1 ], src[ b + 2 ] );
+				if ( src[ c ] !== undefined ) dst.push( src[ c + 0 ], src[ c + 1 ], src[ c + 2 ] );
+
+			},
+			addUV: function ( a, b, c ) {
+
+				const src = this.uvs;
+				const dst = this.object.geometry.uvs;
+				dst.push( src[ a + 0 ], src[ a + 1 ] );
+				dst.push( src[ b + 0 ], src[ b + 1 ] );
+				dst.push( src[ c + 0 ], src[ c + 1 ] );
+
+			},
+			addDefaultUV: function () {
+
+				const dst = this.object.geometry.uvs;
+				dst.push( 0, 0 );
+				dst.push( 0, 0 );
+				dst.push( 0, 0 );
+
+			},
+			addUVLine: function ( a ) {
+
+				const src = this.uvs;
+				const dst = this.object.geometry.uvs;
+				dst.push( src[ a + 0 ], src[ a + 1 ] );
+
+			},
+			addFace: function ( a, b, c, ua, ub, uc, na, nb, nc ) {
+
+				const vLen = this.vertices.length;
+				let ia = this.parseVertexIndex( a, vLen );
+				let ib = this.parseVertexIndex( b, vLen );
+				let ic = this.parseVertexIndex( c, vLen );
+				this.addVertex( ia, ib, ic );
+				this.addColor( ia, ib, ic ); // normals
+
+				if ( na !== undefined && na !== '' ) {
+
+					const nLen = this.normals.length;
+					ia = this.parseNormalIndex( na, nLen );
+					ib = this.parseNormalIndex( nb, nLen );
+					ic = this.parseNormalIndex( nc, nLen );
+					this.addNormal( ia, ib, ic );
+
+				} else {
+
+					this.addFaceNormal( ia, ib, ic );
+
+				} // uvs
+
+
+				if ( ua !== undefined && ua !== '' ) {
+
+					const uvLen = this.uvs.length;
+					ia = this.parseUVIndex( ua, uvLen );
+					ib = this.parseUVIndex( ub, uvLen );
+					ic = this.parseUVIndex( uc, uvLen );
+					this.addUV( ia, ib, ic );
+					this.object.geometry.hasUVIndices = true;
+
+				} else {
+
+					// add placeholder values (for inconsistent face definitions)
+					this.addDefaultUV();
+
+				}
+
+			},
+			addPointGeometry: function ( vertices ) {
+
+				this.object.geometry.type = 'Points';
+				const vLen = this.vertices.length;
+
+				for ( let vi = 0, l = vertices.length; vi < l; vi ++ ) {
+
+					const index = this.parseVertexIndex( vertices[ vi ], vLen );
+					this.addVertexPoint( index );
+					this.addColor( index );
+
+				}
+
+			},
+			addLineGeometry: function ( vertices, uvs ) {
+
+				this.object.geometry.type = 'Line';
+				const vLen = this.vertices.length;
+				const uvLen = this.uvs.length;
+
+				for ( let vi = 0, l = vertices.length; vi < l; vi ++ ) {
+
+					this.addVertexLine( this.parseVertexIndex( vertices[ vi ], vLen ) );
+
+				}
+
+				for ( let uvi = 0, l = uvs.length; uvi < l; uvi ++ ) {
+
+					this.addUVLine( this.parseUVIndex( uvs[ uvi ], uvLen ) );
+
+				}
+
+			}
+		};
+		state.startObject( '', false );
+		return state;
+
+	} //
+
+
+	class OBJLoader extends THREE.Loader {
+
+		constructor( manager ) {
+
+			super( manager );
+			this.materials = null;
+
+		}
+
+		load( url, onLoad, onProgress, onError ) {
+
+			const scope = this;
+			const loader = new THREE.FileLoader( this.manager );
+			loader.setPath( this.path );
+			loader.setRequestHeader( this.requestHeader );
+			loader.setWithCredentials( this.withCredentials );
+			loader.load( url, function ( text ) {
+
+				try {
+
+					onLoad( scope.parse( text ) );
+
+				} catch ( e ) {
+
+					if ( onError ) {
+
+						onError( e );
+
+					} else {
+
+						console.error( e );
+
+					}
+
+					scope.manager.itemError( url );
+
+				}
+
+			}, onProgress, onError );
+
+		}
+
+		setMaterials( materials ) {
+
+			this.materials = materials;
+			return this;
+
+		}
+
+		parse( text ) {
+
+			const state = new ParserState();
+
+			if ( text.indexOf( '\r\n' ) !== - 1 ) {
+
+				// This is faster than String.split with regex that splits on both
+				text = text.replace( /\r\n/g, '\n' );
+
+			}
+
+			if ( text.indexOf( '\\\n' ) !== - 1 ) {
+
+				// join lines separated by a line continuation character (\)
+				text = text.replace( /\\\n/g, '' );
+
+			}
+
+			const lines = text.split( '\n' );
+			let line = '',
+				lineFirstChar = '';
+			let lineLength = 0;
+			let result = []; // Faster to just trim left side of the line. Use if available.
+
+			const trimLeft = typeof ''.trimLeft === 'function';
+
+			for ( let i = 0, l = lines.length; i < l; i ++ ) {
+
+				line = lines[ i ];
+				line = trimLeft ? line.trimLeft() : line.trim();
+				lineLength = line.length;
+				if ( lineLength === 0 ) continue;
+				lineFirstChar = line.charAt( 0 ); // @todo invoke passed in handler if any
+
+				if ( lineFirstChar === '#' ) continue;
+
+				if ( lineFirstChar === 'v' ) {
+
+					const data = line.split( /\s+/ );
+
+					switch ( data[ 0 ] ) {
+
+						case 'v':
+							state.vertices.push( parseFloat( data[ 1 ] ), parseFloat( data[ 2 ] ), parseFloat( data[ 3 ] ) );
+
+							if ( data.length >= 7 ) {
+
+								state.colors.push( parseFloat( data[ 4 ] ), parseFloat( data[ 5 ] ), parseFloat( data[ 6 ] ) );
+
+							} else {
+
+								// if no colors are defined, add placeholders so color and vertex indices match
+								state.colors.push( undefined, undefined, undefined );
+
+							}
+
+							break;
+
+						case 'vn':
+							state.normals.push( parseFloat( data[ 1 ] ), parseFloat( data[ 2 ] ), parseFloat( data[ 3 ] ) );
+							break;
+
+						case 'vt':
+							state.uvs.push( parseFloat( data[ 1 ] ), parseFloat( data[ 2 ] ) );
+							break;
+
+					}
+
+				} else if ( lineFirstChar === 'f' ) {
+
+					const lineData = line.substr( 1 ).trim();
+					const vertexData = lineData.split( /\s+/ );
+					const faceVertices = []; // Parse the face vertex data into an easy to work with format
+
+					for ( let j = 0, jl = vertexData.length; j < jl; j ++ ) {
+
+						const vertex = vertexData[ j ];
+
+						if ( vertex.length > 0 ) {
+
+							const vertexParts = vertex.split( '/' );
+							faceVertices.push( vertexParts );
+
+						}
+
+					} // Draw an edge between the first vertex and all subsequent vertices to form an n-gon
+
+
+					const v1 = faceVertices[ 0 ];
+
+					for ( let j = 1, jl = faceVertices.length - 1; j < jl; j ++ ) {
+
+						const v2 = faceVertices[ j ];
+						const v3 = faceVertices[ j + 1 ];
+						state.addFace( v1[ 0 ], v2[ 0 ], v3[ 0 ], v1[ 1 ], v2[ 1 ], v3[ 1 ], v1[ 2 ], v2[ 2 ], v3[ 2 ] );
+
+					}
+
+				} else if ( lineFirstChar === 'l' ) {
+
+					const lineParts = line.substring( 1 ).trim().split( ' ' );
+					let lineVertices = [];
+					const lineUVs = [];
+
+					if ( line.indexOf( '/' ) === - 1 ) {
+
+						lineVertices = lineParts;
+
+					} else {
+
+						for ( let li = 0, llen = lineParts.length; li < llen; li ++ ) {
+
+							const parts = lineParts[ li ].split( '/' );
+							if ( parts[ 0 ] !== '' ) lineVertices.push( parts[ 0 ] );
+							if ( parts[ 1 ] !== '' ) lineUVs.push( parts[ 1 ] );
+
+						}
+
+					}
+
+					state.addLineGeometry( lineVertices, lineUVs );
+
+				} else if ( lineFirstChar === 'p' ) {
+
+					const lineData = line.substr( 1 ).trim();
+					const pointData = lineData.split( ' ' );
+					state.addPointGeometry( pointData );
+
+				} else if ( ( result = _object_pattern.exec( line ) ) !== null ) {
+
+					// o object_name
+					// or
+					// g group_name
+					// WORKAROUND: https://bugs.chromium.org/p/v8/issues/detail?id=2869
+					// let name = result[ 0 ].substr( 1 ).trim();
+					const name = ( ' ' + result[ 0 ].substr( 1 ).trim() ).substr( 1 );
+					state.startObject( name );
+
+				} else if ( _material_use_pattern.test( line ) ) {
+
+					// material
+					state.object.startMaterial( line.substring( 7 ).trim(), state.materialLibraries );
+
+				} else if ( _material_library_pattern.test( line ) ) {
+
+					// mtl file
+					state.materialLibraries.push( line.substring( 7 ).trim() );
+
+				} else if ( _map_use_pattern.test( line ) ) {
+
+					// the line is parsed but ignored since the loader assumes textures are defined MTL files
+					// (according to https://www.okino.com/conv/imp_wave.htm, 'usemap' is the old-style Wavefront texture reference method)
+					console.warn( 'THREE.OBJLoader: Rendering identifier "usemap" not supported. Textures must be defined in MTL files.' );
+
+				} else if ( lineFirstChar === 's' ) {
+
+					result = line.split( ' ' ); // smooth shading
+					// @todo Handle files that have varying smooth values for a set of faces inside one geometry,
+					// but does not define a usemtl for each face set.
+					// This should be detected and a dummy material created (later MultiMaterial and geometry groups).
+					// This requires some care to not create extra material on each smooth value for "normal" obj files.
+					// where explicit usemtl defines geometry groups.
+					// Example asset: examples/models/obj/cerberus/Cerberus.obj
+
+					/*
+        	 * http://paulbourke.net/dataformats/obj/
+        	 * or
+        	 * http://www.cs.utah.edu/~boulos/cs3505/obj_spec.pdf
+        	 *
+        	 * From chapter "Grouping" Syntax explanation "s group_number":
+        	 * "group_number is the smoothing group number. To turn off smoothing groups, use a value of 0 or off.
+        	 * Polygonal elements use group numbers to put elements in different smoothing groups. For free-form
+        	 * surfaces, smoothing groups are either turned on or off; there is no difference between values greater
+        	 * than 0."
+        	 */
+
+					if ( result.length > 1 ) {
+
+						const value = result[ 1 ].trim().toLowerCase();
+						state.object.smooth = value !== '0' && value !== 'off';
+
+					} else {
+
+						// ZBrush can produce "s" lines #11707
+						state.object.smooth = true;
+
+					}
+
+					const material = state.object.currentMaterial();
+					if ( material ) material.smooth = state.object.smooth;
+
+				} else {
+
+					// Handle null terminated files without exception
+					if ( line === '\0' ) continue;
+					console.warn( 'THREE.OBJLoader: Unexpected line: "' + line + '"' );
+
+				}
+
+			}
+
+			state.finalize();
+			const container = new THREE.Group();
+			container.materialLibraries = [].concat( state.materialLibraries );
+			const hasPrimitives = ! ( state.objects.length === 1 && state.objects[ 0 ].geometry.vertices.length === 0 );
+
+			if ( hasPrimitives === true ) {
+
+				for ( let i = 0, l = state.objects.length; i < l; i ++ ) {
+
+					const object = state.objects[ i ];
+					const geometry = object.geometry;
+					const materials = object.materials;
+					const isLine = geometry.type === 'Line';
+					const isPoints = geometry.type === 'Points';
+					let hasVertexColors = false; // Skip o/g line declarations that did not follow with any faces
+
+					if ( geometry.vertices.length === 0 ) continue;
+					const buffergeometry = new THREE.BufferGeometry();
+					buffergeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( geometry.vertices, 3 ) );
+
+					if ( geometry.normals.length > 0 ) {
+
+						buffergeometry.setAttribute( 'normal', new THREE.Float32BufferAttribute( geometry.normals, 3 ) );
+
+					}
+
+					if ( geometry.colors.length > 0 ) {
+
+						hasVertexColors = true;
+						buffergeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( geometry.colors, 3 ) );
+
+					}
+
+					if ( geometry.hasUVIndices === true ) {
+
+						buffergeometry.setAttribute( 'uv', new THREE.Float32BufferAttribute( geometry.uvs, 2 ) );
+
+					} // Create materials
+
+
+					const createdMaterials = [];
+
+					for ( let mi = 0, miLen = materials.length; mi < miLen; mi ++ ) {
+
+						const sourceMaterial = materials[ mi ];
+						const materialHash = sourceMaterial.name + '_' + sourceMaterial.smooth + '_' + hasVertexColors;
+						let material = state.materials[ materialHash ];
+
+						if ( this.materials !== null ) {
+
+							material = this.materials.create( sourceMaterial.name ); // mtl etc. loaders probably can't create line materials correctly, copy properties to a line material.
+
+							if ( isLine && material && ! ( material instanceof THREE.LineBasicMaterial ) ) {
+
+								const materialLine = new THREE.LineBasicMaterial();
+								THREE.Material.prototype.copy.call( materialLine, material );
+								materialLine.color.copy( material.color );
+								material = materialLine;
+
+							} else if ( isPoints && material && ! ( material instanceof THREE.PointsMaterial ) ) {
+
+								const materialPoints = new THREE.PointsMaterial( {
+									size: 10,
+									sizeAttenuation: false
+								} );
+								THREE.Material.prototype.copy.call( materialPoints, material );
+								materialPoints.color.copy( material.color );
+								materialPoints.map = material.map;
+								material = materialPoints;
+
+							}
+
+						}
+
+						if ( material === undefined ) {
+
+							if ( isLine ) {
+
+								material = new THREE.LineBasicMaterial();
+
+							} else if ( isPoints ) {
+
+								material = new THREE.PointsMaterial( {
+									size: 1,
+									sizeAttenuation: false
+								} );
+
+							} else {
+
+								material = new THREE.MeshPhongMaterial();
+
+							}
+
+							material.name = sourceMaterial.name;
+							material.flatShading = sourceMaterial.smooth ? false : true;
+							material.vertexColors = hasVertexColors;
+							state.materials[ materialHash ] = material;
+
+						}
+
+						createdMaterials.push( material );
+
+					} // Create mesh
+
+
+					let mesh;
+
+					if ( createdMaterials.length > 1 ) {
+
+						for ( let mi = 0, miLen = materials.length; mi < miLen; mi ++ ) {
+
+							const sourceMaterial = materials[ mi ];
+							buffergeometry.addGroup( sourceMaterial.groupStart, sourceMaterial.groupCount, mi );
+
+						}
+
+						if ( isLine ) {
+
+							mesh = new THREE.LineSegments( buffergeometry, createdMaterials );
+
+						} else if ( isPoints ) {
+
+							mesh = new THREE.Points( buffergeometry, createdMaterials );
+
+						} else {
+
+							mesh = new THREE.Mesh( buffergeometry, createdMaterials );
+
+						}
+
+					} else {
+
+						if ( isLine ) {
+
+							mesh = new THREE.LineSegments( buffergeometry, createdMaterials[ 0 ] );
+
+						} else if ( isPoints ) {
+
+							mesh = new THREE.Points( buffergeometry, createdMaterials[ 0 ] );
+
+						} else {
+
+							mesh = new THREE.Mesh( buffergeometry, createdMaterials[ 0 ] );
+
+						}
+
+					}
+
+					mesh.name = object.name;
+					container.add( mesh );
+
+				}
+
+			} else {
+
+				// if there is only the default parser state object with no geometry data, interpret data as point cloud
+				if ( state.vertices.length > 0 ) {
+
+					const material = new THREE.PointsMaterial( {
+						size: 1,
+						sizeAttenuation: false
+					} );
+					const buffergeometry = new THREE.BufferGeometry();
+					buffergeometry.setAttribute( 'position', new THREE.Float32BufferAttribute( state.vertices, 3 ) );
+
+					if ( state.colors.length > 0 && state.colors[ 0 ] !== undefined ) {
+
+						buffergeometry.setAttribute( 'color', new THREE.Float32BufferAttribute( state.colors, 3 ) );
+						material.vertexColors = true;
+
+					}
+
+					const points = new THREE.Points( buffergeometry, material );
+					container.add( points );
+
+				}
+
+			}
+
+			return container;
+
+		}
+
+	}
+
+	THREE.OBJLoader = OBJLoader;
+
+} )();
+
+  </script>
+  <script>
 /**
  * BIM Scope Internationalization (I18N) Engine
  * @author WWBIM
@@ -17966,6 +19377,18 @@ const I18N = {
       propTotalVertices: "Total Vertices",
       copiedModelInfo: "Model profile copied to clipboard!",
       
+      secObjTuning: "OBJ Live Tuning",
+      objTuningTip: "Post-import live adjustments: transform orientation, scale, and normals in real time without reloading.",
+      objUpAxis: "Orientation",
+      btnObjFlipUp: "Flip Y-Up ↔ Z-Up",
+      btnObjRotateYaw: "Rotate 90° (Y)",
+      objUnitsScale: "Units & Scale Multiplier",
+      btnObjApplyScale: "Apply",
+      objNormalsShading: "Normals & Rendering",
+      btnObjSmoothNormals: "Smooth Normals",
+      btnObjFlatShading: "Flat Shading",
+      chkObjDoubleSide: "Double-Sided Rendering",
+      
       propIfcClass: "IFC Class",
       propDiscipline: "Discipline",
       propStepId: "STEP ID",
@@ -18110,7 +19533,7 @@ const I18N = {
       stageMeshing: "Generating 3D BufferGeometries...",
       stageScene: "Finalizing WebGL scene...",
       
-      dropText: "Drop IFC, GLTF/GLB, FBX or DAE file to view",
+      dropText: "Drop IFC, GLTF/GLB, FBX, DAE or OBJ file to view",
       measureStart: "Click first point on model",
       measureEnd: "Click second point to finish measurement",
       measureDist: "Distance",
@@ -18381,6 +19804,18 @@ const I18N = {
       propTotalVertices: "总顶点数 (Vertices)",
       copiedModelInfo: "模型档案已复制到剪贴板！",
       
+      secObjTuning: "OBJ 几何微调",
+      objTuningTip: "后置所见即所得动态调节：实时修正坐标轴朝向、缩放比例、法线与双面渲染，无需重新导入。",
+      objUpAxis: "模型朝向",
+      btnObjFlipUp: "Y-Up ↔ Z-Up 翻转",
+      btnObjRotateYaw: "顺时针旋转 90°",
+      objUnitsScale: "单位与比例缩放",
+      btnObjApplyScale: "应用缩放",
+      objNormalsShading: "法线与双面渲染",
+      btnObjSmoothNormals: "重新计算平滑法线",
+      btnObjFlatShading: "硬边平面着色",
+      chkObjDoubleSide: "双面渲染 (解决破面)",
+      
       propIfcClass: "IFC 实体类型",
       propDiscipline: "专业分类",
       propStepId: "STEP 实体编号",
@@ -18525,7 +19960,7 @@ const I18N = {
       stageMeshing: "正在重构三维 BufferGeometry...",
       stageScene: "正在装载 WebGL 渲染场景...",
       
-      dropText: "拖拽 IFC、GLTF/GLB、FBX 或 DAE 模型文件至此打开",
+      dropText: "拖拽 IFC、GLTF/GLB、FBX、DAE 或 OBJ 模型文件至此打开",
       measureStart: "在模型上点击第一点",
       measureEnd: "点击第二点完成三维测距",
       measureDist: "实测距离",
@@ -31791,6 +33226,65 @@ class BIMViewerApp {
           </div>
         </div>
 
+        ${(info.isOBJ && this.objTuningState) ? `
+        <!-- OBJ Live Tuning Section -->
+        <div class="model-info-section open" data-group-name="${I18N.t('secObjTuning')}">
+          <div class="model-info-sec-header">
+            <div class="sec-header-left">
+              <span class="pset-arrow">&#9654;</span>
+              <span class="sec-icon">🛠️</span>
+              <span class="sec-title">${I18N.t('secObjTuning')}</span>
+            </div>
+          </div>
+          <div class="model-info-sec-body">
+            <div class="obj-tuning-card">
+              <div class="obj-tuning-tip">${I18N.t('objTuningTip')}</div>
+              
+              <!-- Orientation -->
+              <div class="obj-tuning-group">
+                <div class="obj-tuning-group-title">🧭 ${I18N.t('objUpAxis')}</div>
+                <div class="obj-tuning-btn-row">
+                  <button type="button" class="obj-tuning-btn ${this.objTuningState.upAxis === 'Z' ? 'active' : ''}" id="btn-obj-toggle-up">
+                    🔄 ${I18N.t('btnObjFlipUp')} (${this.objTuningState.upAxis}-Up)
+                  </button>
+                  <button type="button" class="obj-tuning-btn" id="btn-obj-rotate-yaw">
+                    ↷ ${I18N.t('btnObjRotateYaw')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Units & Scale Multiplier -->
+              <div class="obj-tuning-group">
+                <div class="obj-tuning-group-title">📐 ${I18N.t('objUnitsScale')}</div>
+                <div class="obj-tuning-btn-row">
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.001) < 1e-6 ? 'active' : ''}" data-scale="0.001">mm (×0.001)</button>
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.01) < 1e-6 ? 'active' : ''}" data-scale="0.01">cm (×0.01)</button>
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.0254) < 1e-6 ? 'active' : ''}" data-scale="0.0254">in (×0.0254)</button>
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 1.0) < 1e-6 ? 'active' : ''}" data-scale="1.0">1.0 (m)</button>
+                </div>
+                <div class="obj-tuning-input-row">
+                  <input type="number" step="any" class="obj-tuning-input" id="input-obj-custom-scale" value="${this.objTuningState.currentScale}">
+                  <button type="button" class="obj-tuning-btn" id="btn-obj-apply-scale">⚙️ ${I18N.t('btnObjApplyScale')}</button>
+                </div>
+              </div>
+
+              <!-- Normals & Rendering -->
+              <div class="obj-tuning-group">
+                <div class="obj-tuning-group-title">✨ ${I18N.t('objNormalsShading')}</div>
+                <div class="obj-tuning-btn-row">
+                  <button type="button" class="obj-tuning-btn ${!this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-smooth">✨ ${I18N.t('btnObjSmoothNormals')}</button>
+                  <button type="button" class="obj-tuning-btn ${this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-flat">🔷 ${I18N.t('btnObjFlatShading')}</button>
+                </div>
+                <label class="obj-tuning-chk-row">
+                  <input type="checkbox" id="chk-obj-double-side" ${this.objTuningState.isDoubleSide ? 'checked' : ''}>
+                  <span>${I18N.t('chkObjDoubleSide')}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
         <!-- File Basics -->
         <div class="model-info-section open" data-group-name="${I18N.t('secFileBasics')}">
           <div class="model-info-sec-header">
@@ -31981,6 +33475,43 @@ class BIMViewerApp {
       });
     }
 
+    // Wire OBJ tuning controls if present
+    if (info.isOBJ && this.objTuningState) {
+      const btnFlipUp = content.querySelector('#btn-obj-toggle-up');
+      if (btnFlipUp) {
+        btnFlipUp.onclick = () => this.toggleOBJUpAxis();
+      }
+      const btnRotYaw = content.querySelector('#btn-obj-rotate-yaw');
+      if (btnRotYaw) {
+        btnRotYaw.onclick = () => this.rotateOBJYaw(90);
+      }
+      content.querySelectorAll('.obj-tuning-btn[data-scale]').forEach(btn => {
+        btn.onclick = () => {
+          const s = parseFloat(btn.dataset.scale);
+          this.applyOBJScale(s);
+        };
+      });
+      const btnApplyScale = content.querySelector('#btn-obj-apply-scale');
+      const inputCustomScale = content.querySelector('#input-obj-custom-scale');
+      if (btnApplyScale && inputCustomScale) {
+        btnApplyScale.onclick = () => {
+          this.applyOBJScale(inputCustomScale.value);
+        };
+      }
+      const btnSmooth = content.querySelector('#btn-obj-smooth');
+      if (btnSmooth) {
+        btnSmooth.onclick = () => this.toggleOBJSmoothNormals(true);
+      }
+      const btnFlat = content.querySelector('#btn-obj-flat');
+      if (btnFlat) {
+        btnFlat.onclick = () => this.toggleOBJSmoothNormals(false);
+      }
+      const chkDoubleSide = content.querySelector('#chk-obj-double-side');
+      if (chkDoubleSide) {
+        chkDoubleSide.onchange = (e) => this.toggleOBJDoubleSide(e.target.checked);
+      }
+    }
+
     // Attach hover copy buttons to all values and wire accordion toggles & group copy
     this.setupInspectorCopyAndAccordion(content);
   }
@@ -32028,10 +33559,10 @@ class BIMViewerApp {
       Array.from(fileOrFiles) : [fileOrFiles];
     if (fileList.length === 0) return;
 
-    // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae)
+    // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae, .obj)
     const primaryFile = fileList.find(f => {
       const ext = f.name.split('.').pop().toLowerCase();
-      return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx' || ext === 'dae';
+      return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx' || ext === 'dae' || ext === 'obj';
     }) || fileList[0];
 
     const sizeMB = (primaryFile.size / (1024 * 1024)).toFixed(1);
@@ -32478,9 +34009,54 @@ class BIMViewerApp {
       };
       reader.readAsText(mainFile);
 
+    } else if (ext === 'obj') {
+      // Check if there is an accompanying .mtl file in allFiles or blobMap
+      const mtlFile = allFiles.find(f => f.name.toLowerCase().endsWith('.mtl'));
+      if (mtlFile) {
+        this.updateProgress(I18N.t('stageParsing'), 25);
+        const mtlReader = new FileReader();
+        mtlReader.onload = (me) => {
+          const mtlText = me.target.result;
+          reader.onload = (oe) => {
+            const objText = oe.target.result;
+            this.updateProgress(I18N.t('stageMeshing'), 60);
+            setTimeout(() => {
+              this.loadOBJModel(objText, mtlText, manager, mainFile.name, blobMap, false, mainFile);
+            }, 40);
+          };
+          reader.onerror = (err) => {
+            this.showProgressModal(false);
+            showToast("Error reading OBJ file: " + err.message, "danger");
+          };
+          reader.readAsText(mainFile);
+        };
+        mtlReader.onerror = (err) => {
+          console.warn("MTL read error, continuing with standalone OBJ:", err);
+          reader.onload = (oe) => {
+            const objText = oe.target.result;
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+          };
+          reader.readAsText(mainFile);
+        };
+        mtlReader.readAsText(mtlFile);
+      } else {
+        reader.onload = (e) => {
+          const objText = e.target.result;
+          this.updateProgress(I18N.t('stageMeshing'), 60);
+          setTimeout(() => {
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+          }, 40);
+        };
+        reader.onerror = (err) => {
+          this.showProgressModal(false);
+          showToast("Error reading OBJ file: " + err.message, "danger");
+        };
+        reader.readAsText(mainFile);
+      }
+
     } else {
       this.showProgressModal(false);
-      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, or .DAE", "danger");
+      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, .DAE, or .OBJ", "danger");
     }
   }
 
@@ -33235,6 +34811,369 @@ class BIMViewerApp {
       this.showProgressModal(false);
       showToast("Error loading DAE model: " + err.message, "danger");
     }
+  }
+
+  loadOBJModel(objText, mtlText, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+    try {
+      this.updateProgress(I18N.t('stageMeshing'), 60);
+      let materialsCreator = null;
+      if (mtlText && !skipTextures && typeof THREE.MTLLoader !== 'undefined') {
+        try {
+          const mtlLoader = new THREE.MTLLoader(manager);
+          materialsCreator = mtlLoader.parse(mtlText, '');
+          materialsCreator.preload();
+        } catch (mErr) {
+          console.warn("MTL parsing notice:", mErr);
+        }
+      }
+
+      if (typeof THREE.OBJLoader === 'undefined') {
+        throw new Error("THREE.OBJLoader is not available");
+      }
+      const objLoader = new THREE.OBJLoader(manager);
+      if (materialsCreator) {
+        objLoader.setMaterials(materialsCreator);
+      }
+
+      const model = objLoader.parse(objText);
+      model.name = modelName;
+
+      // Traversal and upgrade to MeshStandardMaterial
+      const allMeshes = [];
+      const bimPattern = /wall|slab|floor|deck|column|pillar|beam|girder|joist|roof|canopy|ceiling|door|gate|curtain|window|glass|glazing|stair|step|railing|parapet|pipe|duct|conduit|hvac|plumb|truss|steel|foundation|footing|pile|furniture|site|terrain|topo|ground|level|storey|story|lvl|1f|2f|3f|4f|地下|地上|层|楼|墙|板|柱|梁|顶|门|窗|梯|栏|管/i;
+      let hasBIMKeywords = false;
+
+      model.traverse(node => {
+        if (node.isMesh) {
+          allMeshes.push(node);
+          const checkStr = `${node.name || ''} ${(node.parent && node.parent.name) || ''} ${(node.material && node.material.name) || ''}`;
+          if (bimPattern.test(checkStr)) {
+            hasBIMKeywords = true;
+          }
+
+          // Guarantee normal vectors
+          if (!node.geometry.attributes.normal || node.geometry.attributes.normal.count === 0) {
+            node.geometry.computeVertexNormals();
+          }
+
+          const upgradeMaterial = (m) => {
+            if (!m) {
+              return new THREE.MeshStandardMaterial({
+                name: node.name ? `${node.name}_Mat` : "Default_Material",
+                color: new THREE.Color(0x94a3b8),
+                roughness: 0.5,
+                metalness: 0.15,
+                side: THREE.DoubleSide
+              });
+            }
+            if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+              m.side = THREE.DoubleSide;
+              if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+                m.clippingPlanes = this.clippingEngine.clippingPlanes;
+                m.clipShadows = true;
+              }
+              return m;
+            }
+            const std = new THREE.MeshStandardMaterial({
+              name: m.name || (node.name + '_Mat'),
+              color: m.color ? m.color.clone() : new THREE.Color(0x94a3b8),
+              map: m.map || null,
+              bumpMap: m.bumpMap || null,
+              bumpScale: m.bumpScale || 1.0,
+              normalMap: m.normalMap || null,
+              roughness: 0.5,
+              metalness: 0.1,
+              opacity: m.opacity !== undefined ? m.opacity : 1.0,
+              transparent: m.transparent || (m.opacity !== undefined && m.opacity < 1.0),
+              side: THREE.DoubleSide,
+              depthWrite: true
+            });
+            if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+              std.clippingPlanes = this.clippingEngine.clippingPlanes;
+              std.clipShadows = true;
+            }
+            return std;
+          };
+
+          if (Array.isArray(node.material)) {
+            node.material = node.material.map(upgradeMaterial);
+          } else {
+            node.material = upgradeMaterial(node.material);
+          }
+        }
+      });
+
+      if (allMeshes.length === 0) {
+        this.showProgressModal(false);
+        showToast("OBJ parsed but 0 meshes could be found", "warning");
+        return;
+      }
+
+      let meshIndex = 0;
+      const classifyNode = (node, parentStructure = null, parentPath = []) => {
+        const currentPath = [...parentPath];
+        if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
+          currentPath.push(node.name);
+        }
+
+        let structure = parentStructure;
+        if (!structure && node !== model) {
+          if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
+            if (node.name && node.name !== 'Scene') {
+              structure = node.name;
+            }
+          }
+        }
+
+        if (node.isMesh) {
+          meshIndex++;
+          node.castShadow = true;
+          node.receiveShadow = true;
+
+          const box = new THREE.Box3().setFromObject(node);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+
+          const finalStructure = structure || 
+            (currentPath.length > 1 ? currentPath[0] : (modelName.replace(/\.[^/.]+$/, "") || "Model"));
+
+          const allText = [
+            node.name || '',
+            (node.parent && node.parent.name) || '',
+            structure || '',
+            currentPath.join(' '),
+            Array.isArray(node.material) ? node.material.map(m => (m && m.name) || '').join(' ') : ((node.material && node.material.name) || '')
+          ].join(' ');
+
+          let category = 'Architectural / Generic';
+          if (hasBIMKeywords) {
+            if (/wall|墙/i.test(allText)) category = 'Wall';
+            else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
+            else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
+            else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
+            else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
+            else if (/door|gate|门/i.test(allText)) category = 'Door';
+            else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
+            else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
+            else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
+            else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
+            else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
+            else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
+            else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
+            else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
+            else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
+            else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
+              category = node.parent.name;
+            }
+          } else {
+            if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
+              category = node.parent.name;
+            } else if (node.material && node.material.name) {
+              category = node.material.name;
+            } else {
+              category = finalStructure;
+            }
+          }
+
+          let level = 'Ground Level';
+          const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
+          if (levelMatch) {
+            level = levelMatch[0].toUpperCase();
+          } else {
+            const y = (box.min.y + box.max.y) / 2;
+            if (y < -0.5) level = 'Basement Level';
+            else if (y < 4.0) level = 'Level 1 (Ground)';
+            else if (y < 8.0) level = 'Level 2';
+            else if (y < 12.0) level = 'Level 3';
+            else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
+          }
+
+          let elemName = node.name || '';
+          if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh' || elemName === 'default') {
+            elemName = `${category} #${meshIndex}`;
+          }
+
+          node.userData = {
+            structure: finalStructure,
+            category: category,
+            rawCategory: category,
+            element: elemName,
+            level: level,
+            dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
+            height: `${size.y.toFixed(2)} m`,
+            rlMin: box.min.y.toFixed(2),
+            rlMax: box.max.y.toFixed(2),
+            guid: node.uuid,
+            isOBJ: true,
+            nodePath: currentPath
+          };
+        }
+
+        if (node.children && node.children.length > 0) {
+          node.children.forEach(child => classifyNode(child, structure, currentPath));
+        }
+      };
+
+      classifyNode(model);
+
+      this.clearModel();
+      document.getElementById('project-title-text').textContent = modelName;
+      this.setModel(model);
+
+      const stats = this.calculateModelStats(model);
+      const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
+        `${(primaryFile.size / 1048576).toFixed(2)} MB` : 
+        (primaryFile && primaryFile.size ? `${(primaryFile.size / 1024).toFixed(1)} KB` : "N/A");
+
+      this.currentModelInfo = {
+        fileName: modelName,
+        format: 'Wavefront OBJ',
+        formatVersion: 'Wavefront OBJ',
+        unitStr: 'Standard (Y-up)',
+        unitStrZh: '标准坐标 (Y-up)',
+        schema: 'Wavefront Technologies (.obj / .mtl)',
+        fileSize: sizeStr,
+        filePath: (primaryFile && primaryFile.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
+        lastModified: primaryFile && primaryFile.lastModified ? new Date(primaryFile.lastModified).toLocaleString() : null,
+        loadedTime: new Date().toLocaleString(),
+        originalSoftware: 'Wavefront / DCC CAD Tool',
+        stats: stats,
+        isOBJ: true
+      };
+
+      this.initOBJTuningState(model);
+      this.updateModelSubtitle();
+      this.renderModelInfoInspector();
+      this.showProgressModal(false);
+      showToast(I18N.t('loadingTitle') + " - OBJ: " + modelName, 'success');
+    } catch (err) {
+      console.error("OBJ Load Exception:", err);
+      this.showProgressModal(false);
+      showToast("Error loading OBJ model: " + err.message, "danger");
+    }
+  }
+
+  initOBJTuningState(model) {
+    this.objTuningState = {
+      model: model,
+      upAxis: 'Y',
+      yawDeg: 0,
+      currentScale: 1.0,
+      isFlat: false,
+      isDoubleSide: true
+    };
+  }
+
+  toggleOBJUpAxis() {
+    if (!this.objTuningState || !this.activeModel) return;
+    const state = this.objTuningState;
+    if (state.upAxis === 'Y') {
+      state.upAxis = 'Z';
+      state.model.rotation.x = -Math.PI / 2;
+    } else {
+      state.upAxis = 'Y';
+      state.model.rotation.x = 0;
+    }
+    this.recalculateOBJTransform();
+    showToast(state.upAxis === 'Z' ? 'OBJ: Switched to Z-Up (X-axis rotated -90°)' : 'OBJ: Switched to Y-Up (Restored Y-Up)', 'info');
+  }
+
+  rotateOBJYaw(deg = 90) {
+    if (!this.objTuningState || !this.activeModel) return;
+    const rad = (deg * Math.PI) / 180;
+    this.objTuningState.model.rotation.y += rad;
+    this.objTuningState.yawDeg = (this.objTuningState.yawDeg + deg) % 360;
+    this.recalculateOBJTransform();
+    showToast(`OBJ: Rotated +${deg}° around Y`, 'info');
+  }
+
+  applyOBJScale(scaleMultiplier) {
+    if (!this.objTuningState || !this.activeModel) return;
+    const mult = parseFloat(scaleMultiplier);
+    if (!mult || mult <= 0 || isNaN(mult)) {
+      showToast('Invalid scale multiplier', 'warning');
+      return;
+    }
+    this.objTuningState.currentScale = mult;
+    this.objTuningState.model.scale.set(mult, mult, mult);
+    this.recalculateOBJTransform();
+    showToast(`OBJ: Scale multiplier applied (×${mult})`, 'info');
+  }
+
+  toggleOBJSmoothNormals(enableSmooth) {
+    if (!this.objTuningState || !this.activeModel) return;
+    this.objTuningState.isFlat = !enableSmooth;
+    this.activeModel.traverse(node => {
+      if (node.isMesh && node.geometry) {
+        if (enableSmooth) {
+          node.geometry.computeVertexNormals();
+        }
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(m => {
+          if (m) {
+            m.flatShading = !enableSmooth;
+            m.needsUpdate = true;
+          }
+        });
+      }
+    });
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
+    this.renderModelInfoInspector();
+    showToast(enableSmooth ? 'OBJ: Recomputed Smooth Normals' : 'OBJ: Set Flat Shading', 'info');
+  }
+
+  toggleOBJDoubleSide(doubleSide) {
+    if (!this.objTuningState || !this.activeModel) return;
+    this.objTuningState.isDoubleSide = doubleSide;
+    this.activeModel.traverse(node => {
+      if (node.isMesh && node.material) {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(m => {
+          if (m) {
+            m.side = doubleSide ? THREE.DoubleSide : THREE.FrontSide;
+            m.needsUpdate = true;
+          }
+        });
+      }
+    });
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
+    this.renderModelInfoInspector();
+    showToast(doubleSide ? 'OBJ: Double-Sided enabled' : 'OBJ: Single-Sided enabled', 'info');
+  }
+
+  recalculateOBJTransform() {
+    if (!this.activeModel) return;
+    this.activeModel.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.activeModel);
+    if (!box.isEmpty()) {
+      this.clippingEngine.setBounds(box);
+      this.clippingEngine.setModel(this.activeModel);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      const sphere = new THREE.Sphere();
+      box.getBoundingSphere(sphere);
+      if (this.grid) {
+        this.grid.position.set(center.x, box.min.y - 0.05, center.z);
+      }
+      this.pivotPoint.copy(center);
+      this.controls.target.copy(center);
+      if (this.solarEngine) {
+        this.solarEngine.setCenter(center);
+      }
+    }
+    this.generateModelEdges(this.activeModel);
+    this.updateStats();
+    if (this.currentModelInfo && this.activeModel) {
+      const box = new THREE.Box3().setFromObject(this.activeModel);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      this.currentModelInfo.unitStr = `${this.objTuningState.upAxis}-up | Scale: ×${this.objTuningState.currentScale} | (${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} m)`;
+      this.currentModelInfo.unitStrZh = `${this.objTuningState.upAxis}轴朝上 | 缩放: ×${this.objTuningState.currentScale} | (${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} 米)`;
+      this.updateModelSubtitle();
+    }
+    this.fitView();
+    this.renderModelInfoInspector();
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
   }
   
   showProgressModal(show, text = "", percent = 0) {

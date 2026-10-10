@@ -4633,6 +4633,65 @@ class BIMViewerApp {
           </div>
         </div>
 
+        ${(info.isOBJ && this.objTuningState) ? `
+        <!-- OBJ Live Tuning Section -->
+        <div class="model-info-section open" data-group-name="${I18N.t('secObjTuning')}">
+          <div class="model-info-sec-header">
+            <div class="sec-header-left">
+              <span class="pset-arrow">&#9654;</span>
+              <span class="sec-icon">🛠️</span>
+              <span class="sec-title">${I18N.t('secObjTuning')}</span>
+            </div>
+          </div>
+          <div class="model-info-sec-body">
+            <div class="obj-tuning-card">
+              <div class="obj-tuning-tip">${I18N.t('objTuningTip')}</div>
+              
+              <!-- Orientation -->
+              <div class="obj-tuning-group">
+                <div class="obj-tuning-group-title">🧭 ${I18N.t('objUpAxis')}</div>
+                <div class="obj-tuning-btn-row">
+                  <button type="button" class="obj-tuning-btn ${this.objTuningState.upAxis === 'Z' ? 'active' : ''}" id="btn-obj-toggle-up">
+                    🔄 ${I18N.t('btnObjFlipUp')} (${this.objTuningState.upAxis}-Up)
+                  </button>
+                  <button type="button" class="obj-tuning-btn" id="btn-obj-rotate-yaw">
+                    ↷ ${I18N.t('btnObjRotateYaw')}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Units & Scale Multiplier -->
+              <div class="obj-tuning-group">
+                <div class="obj-tuning-group-title">📐 ${I18N.t('objUnitsScale')}</div>
+                <div class="obj-tuning-btn-row">
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.001) < 1e-6 ? 'active' : ''}" data-scale="0.001">mm (×0.001)</button>
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.01) < 1e-6 ? 'active' : ''}" data-scale="0.01">cm (×0.01)</button>
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.0254) < 1e-6 ? 'active' : ''}" data-scale="0.0254">in (×0.0254)</button>
+                  <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 1.0) < 1e-6 ? 'active' : ''}" data-scale="1.0">1.0 (m)</button>
+                </div>
+                <div class="obj-tuning-input-row">
+                  <input type="number" step="any" class="obj-tuning-input" id="input-obj-custom-scale" value="${this.objTuningState.currentScale}">
+                  <button type="button" class="obj-tuning-btn" id="btn-obj-apply-scale">⚙️ ${I18N.t('btnObjApplyScale')}</button>
+                </div>
+              </div>
+
+              <!-- Normals & Rendering -->
+              <div class="obj-tuning-group">
+                <div class="obj-tuning-group-title">✨ ${I18N.t('objNormalsShading')}</div>
+                <div class="obj-tuning-btn-row">
+                  <button type="button" class="obj-tuning-btn ${!this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-smooth">✨ ${I18N.t('btnObjSmoothNormals')}</button>
+                  <button type="button" class="obj-tuning-btn ${this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-flat">🔷 ${I18N.t('btnObjFlatShading')}</button>
+                </div>
+                <label class="obj-tuning-chk-row">
+                  <input type="checkbox" id="chk-obj-double-side" ${this.objTuningState.isDoubleSide ? 'checked' : ''}>
+                  <span>${I18N.t('chkObjDoubleSide')}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
         <!-- File Basics -->
         <div class="model-info-section open" data-group-name="${I18N.t('secFileBasics')}">
           <div class="model-info-sec-header">
@@ -4823,6 +4882,43 @@ class BIMViewerApp {
       });
     }
 
+    // Wire OBJ tuning controls if present
+    if (info.isOBJ && this.objTuningState) {
+      const btnFlipUp = content.querySelector('#btn-obj-toggle-up');
+      if (btnFlipUp) {
+        btnFlipUp.onclick = () => this.toggleOBJUpAxis();
+      }
+      const btnRotYaw = content.querySelector('#btn-obj-rotate-yaw');
+      if (btnRotYaw) {
+        btnRotYaw.onclick = () => this.rotateOBJYaw(90);
+      }
+      content.querySelectorAll('.obj-tuning-btn[data-scale]').forEach(btn => {
+        btn.onclick = () => {
+          const s = parseFloat(btn.dataset.scale);
+          this.applyOBJScale(s);
+        };
+      });
+      const btnApplyScale = content.querySelector('#btn-obj-apply-scale');
+      const inputCustomScale = content.querySelector('#input-obj-custom-scale');
+      if (btnApplyScale && inputCustomScale) {
+        btnApplyScale.onclick = () => {
+          this.applyOBJScale(inputCustomScale.value);
+        };
+      }
+      const btnSmooth = content.querySelector('#btn-obj-smooth');
+      if (btnSmooth) {
+        btnSmooth.onclick = () => this.toggleOBJSmoothNormals(true);
+      }
+      const btnFlat = content.querySelector('#btn-obj-flat');
+      if (btnFlat) {
+        btnFlat.onclick = () => this.toggleOBJSmoothNormals(false);
+      }
+      const chkDoubleSide = content.querySelector('#chk-obj-double-side');
+      if (chkDoubleSide) {
+        chkDoubleSide.onchange = (e) => this.toggleOBJDoubleSide(e.target.checked);
+      }
+    }
+
     // Attach hover copy buttons to all values and wire accordion toggles & group copy
     this.setupInspectorCopyAndAccordion(content);
   }
@@ -4870,10 +4966,10 @@ class BIMViewerApp {
       Array.from(fileOrFiles) : [fileOrFiles];
     if (fileList.length === 0) return;
 
-    // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae)
+    // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae, .obj)
     const primaryFile = fileList.find(f => {
       const ext = f.name.split('.').pop().toLowerCase();
-      return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx' || ext === 'dae';
+      return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx' || ext === 'dae' || ext === 'obj';
     }) || fileList[0];
 
     const sizeMB = (primaryFile.size / (1024 * 1024)).toFixed(1);
@@ -5320,9 +5416,54 @@ class BIMViewerApp {
       };
       reader.readAsText(mainFile);
 
+    } else if (ext === 'obj') {
+      // Check if there is an accompanying .mtl file in allFiles or blobMap
+      const mtlFile = allFiles.find(f => f.name.toLowerCase().endsWith('.mtl'));
+      if (mtlFile) {
+        this.updateProgress(I18N.t('stageParsing'), 25);
+        const mtlReader = new FileReader();
+        mtlReader.onload = (me) => {
+          const mtlText = me.target.result;
+          reader.onload = (oe) => {
+            const objText = oe.target.result;
+            this.updateProgress(I18N.t('stageMeshing'), 60);
+            setTimeout(() => {
+              this.loadOBJModel(objText, mtlText, manager, mainFile.name, blobMap, false, mainFile);
+            }, 40);
+          };
+          reader.onerror = (err) => {
+            this.showProgressModal(false);
+            showToast("Error reading OBJ file: " + err.message, "danger");
+          };
+          reader.readAsText(mainFile);
+        };
+        mtlReader.onerror = (err) => {
+          console.warn("MTL read error, continuing with standalone OBJ:", err);
+          reader.onload = (oe) => {
+            const objText = oe.target.result;
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+          };
+          reader.readAsText(mainFile);
+        };
+        mtlReader.readAsText(mtlFile);
+      } else {
+        reader.onload = (e) => {
+          const objText = e.target.result;
+          this.updateProgress(I18N.t('stageMeshing'), 60);
+          setTimeout(() => {
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+          }, 40);
+        };
+        reader.onerror = (err) => {
+          this.showProgressModal(false);
+          showToast("Error reading OBJ file: " + err.message, "danger");
+        };
+        reader.readAsText(mainFile);
+      }
+
     } else {
       this.showProgressModal(false);
-      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, or .DAE", "danger");
+      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, .DAE, or .OBJ", "danger");
     }
   }
 
@@ -6077,6 +6218,369 @@ class BIMViewerApp {
       this.showProgressModal(false);
       showToast("Error loading DAE model: " + err.message, "danger");
     }
+  }
+
+  loadOBJModel(objText, mtlText, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+    try {
+      this.updateProgress(I18N.t('stageMeshing'), 60);
+      let materialsCreator = null;
+      if (mtlText && !skipTextures && typeof THREE.MTLLoader !== 'undefined') {
+        try {
+          const mtlLoader = new THREE.MTLLoader(manager);
+          materialsCreator = mtlLoader.parse(mtlText, '');
+          materialsCreator.preload();
+        } catch (mErr) {
+          console.warn("MTL parsing notice:", mErr);
+        }
+      }
+
+      if (typeof THREE.OBJLoader === 'undefined') {
+        throw new Error("THREE.OBJLoader is not available");
+      }
+      const objLoader = new THREE.OBJLoader(manager);
+      if (materialsCreator) {
+        objLoader.setMaterials(materialsCreator);
+      }
+
+      const model = objLoader.parse(objText);
+      model.name = modelName;
+
+      // Traversal and upgrade to MeshStandardMaterial
+      const allMeshes = [];
+      const bimPattern = /wall|slab|floor|deck|column|pillar|beam|girder|joist|roof|canopy|ceiling|door|gate|curtain|window|glass|glazing|stair|step|railing|parapet|pipe|duct|conduit|hvac|plumb|truss|steel|foundation|footing|pile|furniture|site|terrain|topo|ground|level|storey|story|lvl|1f|2f|3f|4f|地下|地上|层|楼|墙|板|柱|梁|顶|门|窗|梯|栏|管/i;
+      let hasBIMKeywords = false;
+
+      model.traverse(node => {
+        if (node.isMesh) {
+          allMeshes.push(node);
+          const checkStr = `${node.name || ''} ${(node.parent && node.parent.name) || ''} ${(node.material && node.material.name) || ''}`;
+          if (bimPattern.test(checkStr)) {
+            hasBIMKeywords = true;
+          }
+
+          // Guarantee normal vectors
+          if (!node.geometry.attributes.normal || node.geometry.attributes.normal.count === 0) {
+            node.geometry.computeVertexNormals();
+          }
+
+          const upgradeMaterial = (m) => {
+            if (!m) {
+              return new THREE.MeshStandardMaterial({
+                name: node.name ? `${node.name}_Mat` : "Default_Material",
+                color: new THREE.Color(0x94a3b8),
+                roughness: 0.5,
+                metalness: 0.15,
+                side: THREE.DoubleSide
+              });
+            }
+            if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+              m.side = THREE.DoubleSide;
+              if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+                m.clippingPlanes = this.clippingEngine.clippingPlanes;
+                m.clipShadows = true;
+              }
+              return m;
+            }
+            const std = new THREE.MeshStandardMaterial({
+              name: m.name || (node.name + '_Mat'),
+              color: m.color ? m.color.clone() : new THREE.Color(0x94a3b8),
+              map: m.map || null,
+              bumpMap: m.bumpMap || null,
+              bumpScale: m.bumpScale || 1.0,
+              normalMap: m.normalMap || null,
+              roughness: 0.5,
+              metalness: 0.1,
+              opacity: m.opacity !== undefined ? m.opacity : 1.0,
+              transparent: m.transparent || (m.opacity !== undefined && m.opacity < 1.0),
+              side: THREE.DoubleSide,
+              depthWrite: true
+            });
+            if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+              std.clippingPlanes = this.clippingEngine.clippingPlanes;
+              std.clipShadows = true;
+            }
+            return std;
+          };
+
+          if (Array.isArray(node.material)) {
+            node.material = node.material.map(upgradeMaterial);
+          } else {
+            node.material = upgradeMaterial(node.material);
+          }
+        }
+      });
+
+      if (allMeshes.length === 0) {
+        this.showProgressModal(false);
+        showToast("OBJ parsed but 0 meshes could be found", "warning");
+        return;
+      }
+
+      let meshIndex = 0;
+      const classifyNode = (node, parentStructure = null, parentPath = []) => {
+        const currentPath = [...parentPath];
+        if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
+          currentPath.push(node.name);
+        }
+
+        let structure = parentStructure;
+        if (!structure && node !== model) {
+          if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
+            if (node.name && node.name !== 'Scene') {
+              structure = node.name;
+            }
+          }
+        }
+
+        if (node.isMesh) {
+          meshIndex++;
+          node.castShadow = true;
+          node.receiveShadow = true;
+
+          const box = new THREE.Box3().setFromObject(node);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+
+          const finalStructure = structure || 
+            (currentPath.length > 1 ? currentPath[0] : (modelName.replace(/\.[^/.]+$/, "") || "Model"));
+
+          const allText = [
+            node.name || '',
+            (node.parent && node.parent.name) || '',
+            structure || '',
+            currentPath.join(' '),
+            Array.isArray(node.material) ? node.material.map(m => (m && m.name) || '').join(' ') : ((node.material && node.material.name) || '')
+          ].join(' ');
+
+          let category = 'Architectural / Generic';
+          if (hasBIMKeywords) {
+            if (/wall|墙/i.test(allText)) category = 'Wall';
+            else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
+            else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
+            else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
+            else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
+            else if (/door|gate|门/i.test(allText)) category = 'Door';
+            else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
+            else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
+            else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
+            else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
+            else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
+            else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
+            else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
+            else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
+            else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
+            else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
+              category = node.parent.name;
+            }
+          } else {
+            if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
+              category = node.parent.name;
+            } else if (node.material && node.material.name) {
+              category = node.material.name;
+            } else {
+              category = finalStructure;
+            }
+          }
+
+          let level = 'Ground Level';
+          const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
+          if (levelMatch) {
+            level = levelMatch[0].toUpperCase();
+          } else {
+            const y = (box.min.y + box.max.y) / 2;
+            if (y < -0.5) level = 'Basement Level';
+            else if (y < 4.0) level = 'Level 1 (Ground)';
+            else if (y < 8.0) level = 'Level 2';
+            else if (y < 12.0) level = 'Level 3';
+            else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
+          }
+
+          let elemName = node.name || '';
+          if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh' || elemName === 'default') {
+            elemName = `${category} #${meshIndex}`;
+          }
+
+          node.userData = {
+            structure: finalStructure,
+            category: category,
+            rawCategory: category,
+            element: elemName,
+            level: level,
+            dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
+            height: `${size.y.toFixed(2)} m`,
+            rlMin: box.min.y.toFixed(2),
+            rlMax: box.max.y.toFixed(2),
+            guid: node.uuid,
+            isOBJ: true,
+            nodePath: currentPath
+          };
+        }
+
+        if (node.children && node.children.length > 0) {
+          node.children.forEach(child => classifyNode(child, structure, currentPath));
+        }
+      };
+
+      classifyNode(model);
+
+      this.clearModel();
+      document.getElementById('project-title-text').textContent = modelName;
+      this.setModel(model);
+
+      const stats = this.calculateModelStats(model);
+      const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
+        `${(primaryFile.size / 1048576).toFixed(2)} MB` : 
+        (primaryFile && primaryFile.size ? `${(primaryFile.size / 1024).toFixed(1)} KB` : "N/A");
+
+      this.currentModelInfo = {
+        fileName: modelName,
+        format: 'Wavefront OBJ',
+        formatVersion: 'Wavefront OBJ',
+        unitStr: 'Standard (Y-up)',
+        unitStrZh: '标准坐标 (Y-up)',
+        schema: 'Wavefront Technologies (.obj / .mtl)',
+        fileSize: sizeStr,
+        filePath: (primaryFile && primaryFile.webkitRelativePath) || `${modelName} (Local Storage / Sandboxed)`,
+        lastModified: primaryFile && primaryFile.lastModified ? new Date(primaryFile.lastModified).toLocaleString() : null,
+        loadedTime: new Date().toLocaleString(),
+        originalSoftware: 'Wavefront / DCC CAD Tool',
+        stats: stats,
+        isOBJ: true
+      };
+
+      this.initOBJTuningState(model);
+      this.updateModelSubtitle();
+      this.renderModelInfoInspector();
+      this.showProgressModal(false);
+      showToast(I18N.t('loadingTitle') + " - OBJ: " + modelName, 'success');
+    } catch (err) {
+      console.error("OBJ Load Exception:", err);
+      this.showProgressModal(false);
+      showToast("Error loading OBJ model: " + err.message, "danger");
+    }
+  }
+
+  initOBJTuningState(model) {
+    this.objTuningState = {
+      model: model,
+      upAxis: 'Y',
+      yawDeg: 0,
+      currentScale: 1.0,
+      isFlat: false,
+      isDoubleSide: true
+    };
+  }
+
+  toggleOBJUpAxis() {
+    if (!this.objTuningState || !this.activeModel) return;
+    const state = this.objTuningState;
+    if (state.upAxis === 'Y') {
+      state.upAxis = 'Z';
+      state.model.rotation.x = -Math.PI / 2;
+    } else {
+      state.upAxis = 'Y';
+      state.model.rotation.x = 0;
+    }
+    this.recalculateOBJTransform();
+    showToast(state.upAxis === 'Z' ? 'OBJ: Switched to Z-Up (X-axis rotated -90°)' : 'OBJ: Switched to Y-Up (Restored Y-Up)', 'info');
+  }
+
+  rotateOBJYaw(deg = 90) {
+    if (!this.objTuningState || !this.activeModel) return;
+    const rad = (deg * Math.PI) / 180;
+    this.objTuningState.model.rotation.y += rad;
+    this.objTuningState.yawDeg = (this.objTuningState.yawDeg + deg) % 360;
+    this.recalculateOBJTransform();
+    showToast(`OBJ: Rotated +${deg}° around Y`, 'info');
+  }
+
+  applyOBJScale(scaleMultiplier) {
+    if (!this.objTuningState || !this.activeModel) return;
+    const mult = parseFloat(scaleMultiplier);
+    if (!mult || mult <= 0 || isNaN(mult)) {
+      showToast('Invalid scale multiplier', 'warning');
+      return;
+    }
+    this.objTuningState.currentScale = mult;
+    this.objTuningState.model.scale.set(mult, mult, mult);
+    this.recalculateOBJTransform();
+    showToast(`OBJ: Scale multiplier applied (×${mult})`, 'info');
+  }
+
+  toggleOBJSmoothNormals(enableSmooth) {
+    if (!this.objTuningState || !this.activeModel) return;
+    this.objTuningState.isFlat = !enableSmooth;
+    this.activeModel.traverse(node => {
+      if (node.isMesh && node.geometry) {
+        if (enableSmooth) {
+          node.geometry.computeVertexNormals();
+        }
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(m => {
+          if (m) {
+            m.flatShading = !enableSmooth;
+            m.needsUpdate = true;
+          }
+        });
+      }
+    });
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
+    this.renderModelInfoInspector();
+    showToast(enableSmooth ? 'OBJ: Recomputed Smooth Normals' : 'OBJ: Set Flat Shading', 'info');
+  }
+
+  toggleOBJDoubleSide(doubleSide) {
+    if (!this.objTuningState || !this.activeModel) return;
+    this.objTuningState.isDoubleSide = doubleSide;
+    this.activeModel.traverse(node => {
+      if (node.isMesh && node.material) {
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(m => {
+          if (m) {
+            m.side = doubleSide ? THREE.DoubleSide : THREE.FrontSide;
+            m.needsUpdate = true;
+          }
+        });
+      }
+    });
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
+    this.renderModelInfoInspector();
+    showToast(doubleSide ? 'OBJ: Double-Sided enabled' : 'OBJ: Single-Sided enabled', 'info');
+  }
+
+  recalculateOBJTransform() {
+    if (!this.activeModel) return;
+    this.activeModel.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.activeModel);
+    if (!box.isEmpty()) {
+      this.clippingEngine.setBounds(box);
+      this.clippingEngine.setModel(this.activeModel);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      const sphere = new THREE.Sphere();
+      box.getBoundingSphere(sphere);
+      if (this.grid) {
+        this.grid.position.set(center.x, box.min.y - 0.05, center.z);
+      }
+      this.pivotPoint.copy(center);
+      this.controls.target.copy(center);
+      if (this.solarEngine) {
+        this.solarEngine.setCenter(center);
+      }
+    }
+    this.generateModelEdges(this.activeModel);
+    this.updateStats();
+    if (this.currentModelInfo && this.activeModel) {
+      const box = new THREE.Box3().setFromObject(this.activeModel);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      this.currentModelInfo.unitStr = `${this.objTuningState.upAxis}-up | Scale: ×${this.objTuningState.currentScale} | (${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} m)`;
+      this.currentModelInfo.unitStrZh = `${this.objTuningState.upAxis}轴朝上 | 缩放: ×${this.objTuningState.currentScale} | (${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} 米)`;
+      this.updateModelSubtitle();
+    }
+    this.fitView();
+    this.renderModelInfoInspector();
+    if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
   }
   
   showProgressModal(show, text = "", percent = 0) {

@@ -89,6 +89,10 @@ def load_sources(base_dir=BASE_DIR):
         fbx_loader_js = f.read()
     with open(os.path.join(lib_dir, "ColladaLoader.js"), "r", encoding="utf-8") as f:
         collada_loader_js = f.read()
+    with open(os.path.join(lib_dir, "MTLLoader.js"), "r", encoding="utf-8") as f:
+        mtl_loader_js = f.read()
+    with open(os.path.join(lib_dir, "OBJLoader.js"), "r", encoding="utf-8") as f:
+        obj_loader_js = f.read()
 
     with open(os.path.join(src_dir, "styles.css"), "r", encoding="utf-8") as f:
         styles_css = f.read()
@@ -120,6 +124,8 @@ def load_sources(base_dir=BASE_DIR):
         "tga_loader_js": tga_loader_js,
         "fbx_loader_js": fbx_loader_js,
         "collada_loader_js": collada_loader_js,
+        "mtl_loader_js": mtl_loader_js,
+        "obj_loader_js": obj_loader_js,
         "styles_css": styles_css,
         "i18n_js": i18n_js,
         "solar_js": solar_js,
@@ -175,6 +181,8 @@ def generate_html(variant_cfg, sources):
     tga_loader_js = sources["tga_loader_js"]
     fbx_loader_js = sources["fbx_loader_js"]
     collada_loader_js = sources["collada_loader_js"]
+    mtl_loader_js = sources["mtl_loader_js"]
+    obj_loader_js = sources["obj_loader_js"]
     i18n_js = sources["i18n_js"]
     solar_js = sources["solar_js"]
     clipping_js = sources["clipping_js"]
@@ -334,7 +342,7 @@ def generate_html(variant_cfg, sources):
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           <span data-i18n="openFile">Open Model</span>
         </button>
-        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
+        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
     </header>
 
@@ -742,7 +750,7 @@ def generate_html(variant_cfg, sources):
         <!-- Drag & Drop Overlay -->
         <div id="dropzone-overlay">
           <svg class="drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX or DAE file to view</div>
+          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX, DAE or OBJ file to view</div>
         </div>
 
         <!-- 3D Viewport Custom Context Menu -->
@@ -1124,6 +1132,12 @@ def generate_html(variant_cfg, sources):
   </script>
   <script>
 {collada_loader_js}
+  </script>
+  <script>
+{mtl_loader_js}
+  </script>
+  <script>
+{obj_loader_js}
   </script>
   <script>
 {i18n_js}
