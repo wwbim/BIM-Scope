@@ -25983,6 +25983,9 @@ class IFCParser {
   }
 }
 
+window.IFCParser = IFCParser;
+
+
   </script>
   <script>
 /**
@@ -29803,7 +29806,10 @@ class BIMViewerApp {
     catMap.forEach((meshes, catName) => {
       const firstMat = meshes[0] && meshes[0].material;
       const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
-      const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
+      let colorHex = colObj ? '#' + colObj.getHexString() : null;
+      if (!colorHex || colorHex === '#ffffff' || colorHex === '#94a3b8') {
+        colorHex = (BIMViewerApp.StandardCategoryColors && BIMViewerApp.StandardCategoryColors[catName]) || colorHex || '#38bdf8';
+      }
       
       const count = meshes.length;
       const localizedName = I18N.getCategoryName(catName);
@@ -33632,7 +33638,424 @@ class BIMViewerApp {
       modal.classList.remove('active');
     };
   }
-  
+
+  // =========================================================================
+  // UNIVERSAL BIM & ARCHITECTURAL CATEGORY / MATERIAL COLOR DIFFERENTIATION
+  // Replicating Revit viewport "Consistent Colors / Shaded" standard shading
+  // =========================================================================
+  static BIMCategoryMaterials = {
+    // 1. Windows, Curtain Wall Panels, Glazing (Semi-transparent Sky Blue Glass)
+    GLAZING: {
+      category: 'Window / Glazing',
+      color: 0x7dd3fc,
+      opacity: 0.35,
+      transparent: true,
+      depthWrite: false,
+      roughness: 0.05,
+      metalness: 0.1
+    },
+    // 2. Doors & Wood / Timber (Warm Architectural Wood Tone)
+    DOOR: {
+      category: 'Door',
+      color: 0xb48256,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.7,
+      metalness: 0.05
+    },
+    // 3. Walls (Warm Off-white Architectural Wall)
+    WALL: {
+      category: 'Wall',
+      color: 0xece7de,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.75,
+      metalness: 0.02
+    },
+    // 4. Floors / Slabs (Warm Concourse Stone / Floor Slab)
+    SLAB: {
+      category: 'Slab',
+      color: 0xb8b3ad,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.6,
+      metalness: 0.05
+    },
+    // 5. Structural Steel (Dark Cold Metallic Blue-Grey Framing, Trusses, Rails, Tubes)
+    STEEL_FRAMING: {
+      category: 'Structural Steel',
+      color: 0x3b4754,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.45,
+      metalness: 0.45
+    },
+    // 6. Concrete Beams (Clean Structural RC Light Grey)
+    BEAM: {
+      category: 'Beam',
+      color: 0xcbd5e1,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.7,
+      metalness: 0.05
+    },
+    // 7. Concrete Columns (Architectural Concrete Column Light Grey)
+    COLUMN: {
+      category: 'Column',
+      color: 0xd1d5db,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.65,
+      metalness: 0.05
+    },
+    // 8. Foundations / Pile Caps / Piles (Solid Structural Foundation Concrete)
+    FOUNDATION: {
+      category: 'Foundation',
+      color: 0x94a3b8,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.8,
+      metalness: 0.05
+    },
+    // 9. Roof (Dark Slate / Architectural Roof)
+    ROOF: {
+      category: 'Roof',
+      color: 0x4b5563,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.6,
+      metalness: 0.1
+    },
+    // 10. Stairs (Medium Slate Concrete Stair)
+    STAIR: {
+      category: 'Stair',
+      color: 0x9ca3af,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.7,
+      metalness: 0.05
+    },
+    // 11. Railing (Architectural Metal / Stainless Steel)
+    RAILING: {
+      category: 'Railing',
+      color: 0x64748b,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.28,
+      metalness: 0.82
+    },
+    // 12. Ceilings / Coverings (Clean Interior Ceiling Off-White)
+    CEILING: {
+      category: 'Ceiling',
+      color: 0xf1f5f9,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.8,
+      metalness: 0.02
+    },
+    // 13. MEP HVAC Ducts (Galvanized Metal)
+    MEP_DUCT: {
+      category: 'MEP Services',
+      color: 0x94a3b8,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.35,
+      metalness: 0.5
+    },
+    // 14. MEP Pipes (Industrial Piping Blue)
+    MEP_PIPE: {
+      category: 'MEP Services',
+      color: 0x38bdf8,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.35,
+      metalness: 0.4
+    },
+    // 15. MEP Cable Trays & Electrical (Amber / Industrial)
+    MEP_ELECTRICAL: {
+      category: 'MEP Services',
+      color: 0xf59e0b,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.45,
+      metalness: 0.2
+    },
+    // 16. Site & Civil (Asphalt Road / Pavement)
+    ROAD: {
+      category: 'Site & Terrain',
+      color: 0x1e293b,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.85,
+      metalness: 0.02
+    },
+    // 17. Landscape / Vegetation (Soft Natural Green)
+    LANDSCAPE: {
+      category: 'Site & Terrain',
+      color: 0x22c55e,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.9,
+      metalness: 0.0
+    },
+    // 18. Furniture (Warm Architectural Interior Tone)
+    FURNITURE: {
+      category: 'Furniture',
+      color: 0xb48256,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.7,
+      metalness: 0.05
+    },
+    // 19. Default Architectural Fallback
+    DEFAULT: {
+      category: 'Structure',
+      color: 0xd1d5db,
+      opacity: 1.0,
+      transparent: false,
+      roughness: 0.65,
+      metalness: 0.05
+    }
+  };
+
+  static StandardCategoryColors = {
+    'Wall': '#ece7de',
+    'Slab': '#b8b3ad',
+    'Floor': '#b8b3ad',
+    'Column': '#d1d5db',
+    'Beam': '#cbd5e1',
+    'Roof': '#4b5563',
+    'Door': '#b48256',
+    'Window / Glazing': '#7dd3fc',
+    'Window': '#7dd3fc',
+    'Curtain Wall': '#7dd3fc',
+    'Stair': '#9ca3af',
+    'Railing': '#64748b',
+    'Structural Steel': '#3b4754',
+    'Foundation': '#94a3b8',
+    'MEP Services': '#38bdf8',
+    'Site & Terrain': '#22c55e',
+    'Furniture': '#b48256',
+    'Ceiling': '#f1f5f9',
+    'Structure': '#d1d5db',
+    'Component': '#d1d5db',
+    'Architectural / Generic': '#d1d5db'
+  };
+
+  applyBIMMaterialStyling(mesh, category, allText = '') {
+    if (!mesh || !mesh.isMesh || !mesh.material) return;
+
+    const D = BIMViewerApp.BIMCategoryMaterials;
+
+    const isGreyscaleOrDefault = (col) => {
+      if (!col) return true;
+      const r = Math.round(col.r * 255);
+      const g = Math.round(col.g * 255);
+      const b = Math.round(col.b * 255);
+      const delta = Math.max(r, g, b) - Math.min(r, g, b);
+      return delta <= 18;
+    };
+
+    const processSingleMaterial = (m) => {
+      if (!m) return m;
+
+      // 1. If material already has a genuine texture map, preserve texture and ensure true-color base
+      if (m.map) {
+        m.color.setHex(0xffffff);
+        m.side = THREE.DoubleSide;
+        if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+          m.clippingPlanes = this.clippingEngine.clippingPlanes;
+          m.clipShadows = true;
+        }
+        return m;
+      }
+
+      const matName = ((m.name || '')).toLowerCase();
+      const nodeName = ((mesh.name || '')).toLowerCase();
+      const combined = (matName + ' ' + nodeName + ' ' + allText).toLowerCase();
+
+      // 2. Glass / Glazing detection (Windows, Skylights, Curtain Wall Glass)
+      const isFrame = combined.includes('frame') || combined.includes('sash') || combined.includes('mullion') ||
+                      combined.includes('casing') || combined.includes('border');
+      const isGlass = combined.includes('glass') || combined.includes('glaz') || combined.includes('glazing') ||
+                      combined.includes('pane') || combined.includes('clear') || combined.includes('skylight') ||
+                      combined.includes('transp') || combined.includes('玻璃') || combined.includes('窗') ||
+                      (category === 'Window / Glazing' && !isFrame) ||
+                      (category === 'Curtain Wall' && !isFrame);
+
+      if (isGlass) {
+        return this.createOrUpdateStandardMaterial(m, D.GLAZING);
+      }
+
+      // 3. If original material has an explicit custom non-greyscale color, respect and preserve it!
+      if (m.color && !isGreyscaleOrDefault(m.color)) {
+        m.side = THREE.DoubleSide;
+        if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+          m.clippingPlanes = this.clippingEngine.clippingPlanes;
+          m.clipShadows = true;
+        }
+        return m;
+      }
+
+      // 4. Material-Specific Keyword Matching
+      // a) Wood / Timber / Doors
+      if (combined.includes('wood') || combined.includes('timber') || combined.includes('door') ||
+          combined.includes('oak') || combined.includes('pine') || combined.includes('teak') ||
+          combined.includes('cedar') || combined.includes('plywood') || combined.includes('木') || combined.includes('门')) {
+        return this.createOrUpdateStandardMaterial(m, D.DOOR);
+      }
+
+      // b) Stainless Steel / Chrome / Polished Metal
+      if (combined.includes('stainless') || combined.includes('chrome') || combined.includes('nickel') ||
+          combined.includes('mirror') || combined.includes('polished') || combined.includes('不锈钢')) {
+        return this.createOrUpdateStandardMaterial(m, {
+          color: 0xd4d4d8, roughness: 0.22, metalness: 0.88, transparent: false, opacity: 1.0
+        });
+      }
+
+      // c) Aluminium / Light Alloy
+      if (combined.includes('aluminium') || combined.includes('aluminum') || combined.includes('alloy') || combined.includes('铝')) {
+        return this.createOrUpdateStandardMaterial(m, {
+          color: 0xcbd5e1, roughness: 0.38, metalness: 0.75, transparent: false, opacity: 1.0
+        });
+      }
+
+      // d) Copper / Bronze / Brass / Gold
+      if (combined.includes('copper') || combined.includes('bronze') || combined.includes('红铜') || combined.includes('青铜')) {
+        return this.createOrUpdateStandardMaterial(m, {
+          color: 0xb87333, roughness: 0.25, metalness: 0.85, transparent: false, opacity: 1.0
+        });
+      }
+      if (combined.includes('brass') || combined.includes('gold') || combined.includes('黄铜') || combined.includes('金')) {
+        return this.createOrUpdateStandardMaterial(m, {
+          color: 0xd4af37, roughness: 0.25, metalness: 0.85, transparent: false, opacity: 1.0
+        });
+      }
+
+      // e) Structural Steel / Iron / Truss / Frame / Mesh / Rebar
+      if (combined.includes('steel') || combined.includes('metal') || combined.includes('iron') ||
+          combined.includes('truss') || combined.includes('frame') || combined.includes('brace') ||
+          combined.includes('mesh') || combined.includes('rebar') || combined.includes('shs') ||
+          combined.includes('chs') || combined.includes('rhs') || combined.includes('钢') || combined.includes('铁') || combined.includes('桁架')) {
+        return this.createOrUpdateStandardMaterial(m, D.STEEL_FRAMING);
+      }
+
+      // f) Concrete / Masonry / Stone / Brick
+      if (combined.includes('brick') || combined.includes('砖')) {
+        return this.createOrUpdateStandardMaterial(m, {
+          color: 0x9a3412, roughness: 0.8, metalness: 0.02, transparent: false, opacity: 1.0
+        });
+      }
+      if (combined.includes('concrete') || combined.includes('cement') || combined.includes('stone') ||
+          combined.includes('masonry') || combined.includes('rock') || combined.includes('混凝土') || combined.includes('水泥') || combined.includes('石')) {
+        if (category === 'Column') return this.createOrUpdateStandardMaterial(m, D.COLUMN);
+        if (category === 'Slab') return this.createOrUpdateStandardMaterial(m, D.SLAB);
+        return this.createOrUpdateStandardMaterial(m, D.BEAM);
+      }
+
+      // g) Landscape / Vegetation / Ground / Site
+      if (combined.includes('grass') || combined.includes('turf') || combined.includes('lawn') ||
+          combined.includes('vegetation') || combined.includes('landscape') || combined.includes('plant') ||
+          combined.includes('tree') || combined.includes('leaf') || combined.includes('草') || combined.includes('绿化')) {
+        return this.createOrUpdateStandardMaterial(m, D.LANDSCAPE);
+      }
+      if (combined.includes('water') || combined.includes('pool') || combined.includes('pond') || combined.includes('水')) {
+        return this.createOrUpdateStandardMaterial(m, {
+          color: 0x38bdf8, opacity: 0.6, transparent: true, roughness: 0.1, metalness: 0.2
+        });
+      }
+      if (combined.includes('asphalt') || combined.includes('bitumen') || combined.includes('road') ||
+          combined.includes('pave') || combined.includes('lane') || combined.includes('street') || combined.includes('沥青') || combined.includes('路')) {
+        return this.createOrUpdateStandardMaterial(m, D.ROAD);
+      }
+
+      // h) MEP (Duct / Pipe / Cable / Electrical)
+      if (combined.includes('duct') || combined.includes('hvac') || combined.includes('air') || combined.includes('风管')) {
+        return this.createOrUpdateStandardMaterial(m, D.MEP_DUCT);
+      }
+      if (combined.includes('pipe') || combined.includes('plumb') || combined.includes('drain') ||
+          combined.includes('sewer') || combined.includes('sprinkler') || combined.includes('水管') || combined.includes('管道')) {
+        return this.createOrUpdateStandardMaterial(m, D.MEP_PIPE);
+      }
+      if (combined.includes('cable') || combined.includes('tray') || combined.includes('conduit') ||
+          combined.includes('electr') || combined.includes('power') || combined.includes('桥架') || combined.includes('电')) {
+        return this.createOrUpdateStandardMaterial(m, D.MEP_ELECTRICAL);
+      }
+
+      // i) Ceiling / Roof
+      if (combined.includes('ceiling') || combined.includes('drywall') || combined.includes('plaster') ||
+          combined.includes('gypsum') || combined.includes('吊顶') || combined.includes('天花')) {
+        return this.createOrUpdateStandardMaterial(m, D.CEILING);
+      }
+      if (combined.includes('roof') || combined.includes('canopy') || combined.includes('tile') ||
+          combined.includes('shingle') || combined.includes('屋顶') || combined.includes('屋面') || combined.includes('瓦')) {
+        return this.createOrUpdateStandardMaterial(m, D.ROOF);
+      }
+
+      // 5. Fallback to Classified BIM Category Mapping
+      switch (category) {
+        case 'Wall':
+          return this.createOrUpdateStandardMaterial(m, D.WALL);
+        case 'Slab':
+          return this.createOrUpdateStandardMaterial(m, D.SLAB);
+        case 'Column':
+          return this.createOrUpdateStandardMaterial(m, D.COLUMN);
+        case 'Beam':
+          return this.createOrUpdateStandardMaterial(m, D.BEAM);
+        case 'Roof':
+          return this.createOrUpdateStandardMaterial(m, D.ROOF);
+        case 'Door':
+          return this.createOrUpdateStandardMaterial(m, D.DOOR);
+        case 'Window / Glazing':
+        case 'Curtain Wall':
+          return this.createOrUpdateStandardMaterial(m, D.GLAZING);
+        case 'Stair':
+          return this.createOrUpdateStandardMaterial(m, D.STAIR);
+        case 'Railing':
+          return this.createOrUpdateStandardMaterial(m, D.RAILING);
+        case 'Structural Steel':
+          return this.createOrUpdateStandardMaterial(m, D.STEEL_FRAMING);
+        case 'Foundation':
+          return this.createOrUpdateStandardMaterial(m, D.FOUNDATION);
+        case 'MEP Services':
+          return this.createOrUpdateStandardMaterial(m, D.MEP_PIPE);
+        case 'Site & Terrain':
+          return this.createOrUpdateStandardMaterial(m, D.LANDSCAPE);
+        case 'Furniture':
+          return this.createOrUpdateStandardMaterial(m, D.FURNITURE);
+        default:
+          return this.createOrUpdateStandardMaterial(m, D.DEFAULT);
+      }
+    };
+
+    if (Array.isArray(mesh.material)) {
+      mesh.material = mesh.material.map(processSingleMaterial);
+    } else {
+      mesh.material = processSingleMaterial(mesh.material);
+    }
+  }
+
+  createOrUpdateStandardMaterial(oldMat, def) {
+    const isStd = oldMat && (oldMat.isMeshStandardMaterial || oldMat.isMeshPhysicalMaterial);
+    const target = isStd ? oldMat : new THREE.MeshStandardMaterial({
+      name: (oldMat && oldMat.name) || 'BIM_Standard_Mat'
+    });
+
+    target.color = new THREE.Color(def.color);
+    target.roughness = def.roughness !== undefined ? def.roughness : 0.6;
+    target.metalness = def.metalness !== undefined ? def.metalness : 0.05;
+    target.transparent = Boolean(def.transparent);
+    target.opacity = def.opacity !== undefined ? def.opacity : 1.0;
+    target.depthWrite = def.depthWrite !== undefined ? def.depthWrite : true;
+    target.side = THREE.DoubleSide;
+
+    if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+      target.clippingPlanes = this.clippingEngine.clippingPlanes;
+      target.clipShadows = true;
+    }
+    return target;
+  }
+
   processFiles(mainFile, allFiles = [], optimize = false) {
     const ext = mainFile.name.split('.').pop().toLowerCase();
     this.showProgressModal(true, I18N.t('stageReading'), 10);
@@ -33758,6 +34181,9 @@ class BIMViewerApp {
               else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
                 category = node.parent.name;
               }
+
+              // Apply Architectural Material & Color Differentiation
+              this.applyBIMMaterialStyling(node, category, allText);
 
               // 3. Level Extraction
               let level = 'Ground Level';
@@ -34433,6 +34859,9 @@ class BIMViewerApp {
             }
           }
 
+          // Apply Architectural Material & Color Differentiation
+          this.applyBIMMaterialStyling(node, category, allText);
+
           // Level calculation
           let level = 'Ground Level';
           const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
@@ -34736,6 +35165,9 @@ class BIMViewerApp {
             }
           }
 
+          // Apply Architectural Material & Color Differentiation
+          this.applyBIMMaterialStyling(node, category, allText);
+
           let level = 'Ground Level';
           const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
           if (levelMatch) {
@@ -35001,6 +35433,9 @@ class BIMViewerApp {
               category = finalStructure;
             }
           }
+
+          // Apply Architectural Material & Color Differentiation
+          this.applyBIMMaterialStyling(node, category, allText);
 
           let level = 'Ground Level';
           const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);

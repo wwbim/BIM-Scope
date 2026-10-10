@@ -3477,3 +3477,6 @@ class IFCParser {
     return 'Site & Infrastructure';
   }
 }
+
+window.IFCParser = IFCParser;
+
