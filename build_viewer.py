@@ -304,9 +304,9 @@ def generate_html(variant_cfg, sources):
 
       <div class="nav-right">
         <!-- Tools Group -->
-        <button class="tool-btn" id="btn-tool-measure" data-i18n="toolMeasure" title="Distance Measure Tool">
-          <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h3v8z"/></svg>
-          Measure
+        <button class="tool-btn" id="btn-tool-tools" data-i18n="toolTools" title="Architectural & Simulation Tools" data-i18n-title="toolsTitle">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span data-i18n="toolTools">Tools</span>
         </button>
         
         <div class="divider"></div>
@@ -396,9 +396,6 @@ def generate_html(variant_cfg, sources):
             <button class="tab-btn active" data-tab="tab-struct-content" data-i18n="tabStructures">Structures</button>
             <button class="tab-btn" data-tab="tab-levels-content" data-i18n="tabLevels">Levels</button>
             <button class="tab-btn" data-tab="tab-elem-content" data-i18n="tabElements">Elements</button>
-            <button class="tab-btn" data-tab="tab-section-content" data-i18n="tabSection">Sectioning</button>
-            <button class="tab-btn" data-tab="tab-light-content" data-i18n="tabLighting">Sun &amp; Light</button>
-            <button class="tab-btn" data-tab="tab-camera-content" data-i18n="tabCamera">Camera</button>
           </div>
 
           <div class="tabs-edge-shadow shadow-right" id="sidebar-tabs-shadow-right"></div>
@@ -454,284 +451,6 @@ def generate_html(variant_cfg, sources):
           </div>
           <div class="tree-container" id="tree-elements"></div>
         </div>
-
-        <!-- TAB 4: Sectioning / Clipping -->
-        <div class="tab-content" id="tab-section-content">
-          <div class="control-section">
-            <div class="control-title">
-              <span data-i18n="secTitle">Model Section / Clipping</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="sec-active-chk">
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-            
-            <div class="control-row clipping-mode-row">
-              <span class="control-label" data-i18n="secMode">Clipping Mode</span>
-              <div class="segmented-control" id="sec-mode-segmented">
-                <button type="button" class="segment-btn active" id="sec-mode-btn-plane" data-mode="plane" data-i18n="secPlane">Section Plane</button>
-                <button type="button" class="segment-btn" id="sec-mode-btn-box" data-mode="box" data-i18n="secBox">Section Box</button>
-              </div>
-            </div>
-
-            <div class="control-row">
-              <span class="control-label" data-i18n="secShowHelpers">Show Section Plane / Box</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="sec-show-helpers-chk" checked>
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-
-            <div class="control-row">
-              <span class="control-label" data-i18n="secShowWireframe">Show Cut-away Wireframe</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="sec-wireframe-chk">
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Plane Controls -->
-          <div class="control-section" id="sec-plane-controls">
-            <div class="control-row">
-              <span class="control-label" data-i18n="secAxis">Section Axis</span>
-              <div class="segmented-control axis-segmented" id="sec-axis-segmented">
-                <button type="button" class="segment-btn axis-btn-x" id="sec-axis-btn-x" data-axis="X" data-i18n="secAxisXBtn">X Easting</button>
-                <button type="button" class="segment-btn axis-btn-y" id="sec-axis-btn-y" data-axis="Y" data-i18n="secAxisYBtn">Y Northing</button>
-                <button type="button" class="segment-btn axis-btn-z active" id="sec-axis-btn-z" data-axis="Z" data-i18n="secAxisZBtn">Z Elevation</button>
-              </div>
-            </div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="secOffset">Slice Position</span>
-              <input type="range" min="0" max="1" step="0.005" value="0.5" class="range-slider" id="sec-offset-slider">
-            </div>
-            <div style="display:flex;gap:8px;margin-top:6px;">
-              <button class="small-btn" id="sec-invert-btn" data-i18n="secInvert" style="flex:1">Flip Direction</button>
-              <button class="small-btn" id="sec-reset-btn" data-i18n="secReset" style="flex:1">Reset Section</button>
-            </div>
-
-            <div class="control-row" style="margin-top:8px;">
-              <span class="control-label" data-i18n="secPlaneRotate">Plane Orientation</span>
-              <span class="control-value" id="sec-plane-rot-val">0°</span>
-            </div>
-            <div style="display:flex;gap:4px;margin-top:4px;">
-              <button class="small-btn" id="sec-plane-align-z" style="flex:1" data-i18n="secPlaneAlignZ">Align Z</button>
-              <button class="small-btn" id="sec-plane-align-x" style="flex:1" data-i18n="secPlaneAlignX">Align X</button>
-              <button class="small-btn" id="sec-plane-align-y" style="flex:1" data-i18n="secPlaneAlignY">Align Y</button>
-              <button class="small-btn" id="sec-plane-rot-reset" style="flex:1" data-i18n="secRotReset">Reset 0°</button>
-            </div>
-            <div class="control-row" style="margin-top:8px;">
-              <span class="control-label" data-i18n="secSnap5Deg">5° Rotation Snap</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="sec-plane-snap-chk">
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-            <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px;line-height:1.4" data-i18n="secPlaneGizmoTip">
-              💡 Tip: Drag arrow to move plane; drag colored rings to rotate tilt angles.
-            </div>
-          </div>
-
-          <!-- Box Controls (Section Box) -->
-          <div class="control-section" id="sec-box-controls" style="display:none">
-            <div class="control-title" data-i18n="secBox">Section Box</div>
-            
-            <div class="control-row">
-              <span class="control-label" data-i18n="secBoxRangeX">X Range (East - West / Easting)</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="range" min="0" max="1" step="0.01" value="0.0" class="range-slider" id="sec-box-minx" title="Min X">
-              <input type="range" min="0" max="1" step="0.01" value="1.0" class="range-slider" id="sec-box-maxx" title="Max X">
-            </div>
-
-            <div class="control-row" style="margin-top:6px;">
-              <span class="control-label" data-i18n="secBoxRangeY">Y Range (North - South / Northing)</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="range" min="0" max="1" step="0.01" value="0.0" class="range-slider" id="sec-box-miny" title="Min Y">
-              <input type="range" min="0" max="1" step="0.01" value="1.0" class="range-slider" id="sec-box-maxy" title="Max Y">
-            </div>
-
-            <div class="control-row" style="margin-top:6px;">
-              <span class="control-label" data-i18n="secBoxRangeZ">Z Range (Elevation / RL Height)</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="range" min="0" max="1" step="0.01" value="0.0" class="range-slider" id="sec-box-minz" title="Min Z">
-              <input type="range" min="0" max="1" step="0.01" value="1.0" class="range-slider" id="sec-box-maxz" title="Max Z">
-            </div>
-
-            <div style="display:flex;gap:8px;margin-top:8px;">
-              <button class="small-btn" id="sec-box-reset-btn" data-i18n="secBoxReset" style="flex:1">Reset Section Box</button>
-              <button class="small-btn" id="sec-box-toggle-vis-btn" data-i18n="menuHideSectionBox" style="flex:1">Hide Section Box</button>
-            </div>
-
-            <!-- Section Box Rotation Controls -->
-            <div class="control-row" style="margin-top:10px;">
-              <span class="control-label" data-i18n="secBoxRotate">Rotate Section Box</span>
-              <span class="control-value" id="sec-box-rot-val">0°</span>
-            </div>
-            <input type="range" min="0" max="360" step="1" value="0" class="range-slider" id="sec-box-rot-slider">
-            <div style="display:flex;gap:4px;margin-top:6px;">
-              <button class="small-btn" id="sec-box-rot-ccw" style="flex:1">-45°</button>
-              <button class="small-btn" id="sec-box-rot-cw" style="flex:1">+45°</button>
-              <button class="small-btn" id="sec-box-rot-90" style="flex:1">+90°</button>
-              <button class="small-btn" id="sec-box-rot-reset" style="flex:1" data-i18n="secRotReset">Reset 0°</button>
-            </div>
-            <div class="control-row" style="margin-top:8px;">
-              <span class="control-label" data-i18n="secSnap5Deg">5° Rotation Snap</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="sec-box-snap-chk">
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-            <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px;line-height:1.4" data-i18n="secBoxGizmoTip">
-              💡 Tip: Drag face arrows outward/inward to resize Section Box; drag midpoint gold rings to rotate.
-            </div>
-          </div>
-        </div>
-
-        <!-- TAB 5: Sun & Light -->
-        <div class="tab-content" id="tab-light-content">
-          <div class="control-section">
-            <div class="control-title" data-i18n="lightTitle">Lighting &amp; Solar Simulation</div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightMode">Light Mode</span>
-              <select class="select-input" id="light-mode-sel">
-                <option value="singapore" data-i18n="lightSolar">Singapore Real Solar (SST UTC+8)</option>
-                <option value="custom" data-i18n="lightCustom">Custom Lighting</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Singapore Real Solar Controls -->
-          <div class="control-section" id="solar-sg-controls">
-            <div style="font-size:10.5px;color:var(--accent);line-height:1.4">
-              Geographic: Singapore (Lat: 1.3521° N, Lon: 103.8198° E, SST UTC+8)
-            </div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightDate">Date</span>
-              <input type="date" class="date-input" id="solar-date-input" value="2026-09-29">
-            </div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightTime">Time of Day</span>
-              <span class="control-value" id="solar-time-val">13:08</span>
-            </div>
-            <input type="range" min="0" max="1440" step="5" value="788" class="range-slider" id="solar-time-slider">
-            
-            <!-- Quick Presets -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;">
-              <button class="small-btn" id="btn-preset-dawn" data-i18n="lightDawn">Dawn (06:45)</button>
-              <button class="small-btn" id="btn-preset-noon" data-i18n="lightNoon">Noon (13:08)</button>
-              <button class="small-btn" id="btn-preset-afternoon" data-i18n="lightAfternoon">Afternoon (16:30)</button>
-              <button class="small-btn" id="btn-preset-sunset" data-i18n="lightSunset">Sunset (19:15)</button>
-            </div>
-            <button class="small-btn" id="btn-preset-night" data-i18n="lightNight">Night (22:00)</button>
-            
-            <div style="background:var(--bg-panel);padding:8px;border-radius:4px;border:1px solid var(--border-color);margin-top:4px;font-size:11px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span style="color:var(--text-muted)" data-i18n="lightAzimuth">Azimuth:</span>
-                <span id="solar-az-val" style="color:var(--text-primary)">142.1°</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span style="color:var(--text-muted)" data-i18n="lightElevation">Elevation:</span>
-                <span id="solar-el-val" style="color:var(--text-primary)">62.4°</span>
-              </div>
-              <div id="solar-status-msg" style="color:var(--accent);font-size:10.5px">Daylight active</div>
-            </div>
-
-            <button class="small-btn" id="btn-solar-play" data-i18n="lightPlay" style="margin-top:4px">
-              Play 24h Timelapse
-            </button>
-          </div>
-
-          <!-- Custom Lighting Controls -->
-          <div class="control-section" id="solar-custom-controls" style="display:none">
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightAzimuth">Azimuth (0-360°)</span>
-              <input type="range" min="0" max="360" value="145" class="range-slider" id="light-custom-az">
-            </div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightElevation">Elevation (0-90°)</span>
-              <input type="range" min="0" max="90" value="55" class="range-slider" id="light-custom-el">
-            </div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightIntensity">Sun Intensity</span>
-              <input type="range" min="0" max="3.0" step="0.1" value="1.5" class="range-slider" id="light-custom-int">
-            </div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="lightAmbient">Ambient Light</span>
-              <input type="range" min="0" max="2.0" step="0.1" value="0.6" class="range-slider" id="light-custom-amb">
-            </div>
-          </div>
-        </div>
-
-        <!-- TAB 6: Camera & Far Distance Settings -->
-        <div class="tab-content" id="tab-camera-content">
-          <div class="control-section">
-            <div class="control-title" data-i18n="cameraTitle">Camera &amp; Far Distance</div>
-            <div class="control-row">
-              <span class="control-label" data-i18n="viewDistance">Visible Distance</span>
-              <span class="control-value" id="side-dist-display">5,000 m (5 km)</span>
-            </div>
-            <input type="range" min="200" max="10000" step="100" value="5000" class="range-slider" id="side-dist-slider">
-            
-            <!-- Quick Distance Presets -->
-            <div class="preset-dist-grid">
-              <button class="small-btn" id="btn-dist-1k">1 km</button>
-              <button class="small-btn" id="btn-dist-2k">2 km</button>
-              <button class="small-btn" id="btn-dist-3k">3 km</button>
-              <button class="small-btn" id="btn-dist-5k">5 km</button>
-              <button class="small-btn" id="btn-dist-8k">8 km</button>
-              <button class="small-btn" id="btn-dist-max">10 km (Max)</button>
-            </div>
-          </div>
-
-          <div class="control-section">
-            <div class="control-title">
-              <span data-i18n="fogTitle">Atmospheric Depth Fog</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="fog-toggle-chk" checked>
-                <span class="slider-switch"></span>
-              </label>
-            </div>
-            <div style="font-size:10.5px;color:var(--text-muted);line-height:1.4">
-              Dynamically scales with visible distance so distant landscape fades naturally into horizon without obscuring models.
-            </div>
-          </div>
-
-          <div class="control-section">
-            <div class="control-row">
-              <span class="control-label" data-i18n="camFov">Field of View (FOV)</span>
-              <span class="control-value" id="cam-fov-val">45°</span>
-            </div>
-            <input type="range" min="25" max="85" step="1" value="45" class="range-slider" id="cam-fov-slider">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:2px;">
-              <span>Telephoto (25°)</span>
-              <span>Wide (85°)</span>
-            </div>
-          </div>
-
-          <div class="control-section">
-            <div class="control-title" data-i18n="camPosition">Camera State</div>
-            <table class="cam-prop-table">
-              <tr>
-                <td data-i18n="camPosition">Camera Pos</td>
-                <td id="cam-pos-readout">220, 180, 260</td>
-              </tr>
-              <tr>
-                <td data-i18n="camTarget">Orbit Pivot</td>
-                <td id="cam-pivot-readout">0, 1.9, 0</td>
-              </tr>
-              <tr>
-                <td data-i18n="camDistToTarget">Pivot Dist</td>
-                <td id="cam-dist-readout">384.2 m</td>
-              </tr>
-            </table>
-            <button class="small-btn" id="btn-cam-reset" data-i18n="resetCamera" style="margin-top:8px;width:100%">
-              Fit &amp; Center Model
-            </button>
-          </div>
-        </div>
         </div>
       </aside>
 
@@ -751,6 +470,407 @@ def generate_html(variant_cfg, sources):
         <div id="dropzone-overlay">
           <svg class="drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
           <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX, DAE or OBJ file to view</div>
+        </div>
+
+        <!-- FLOATING TOOLS PANEL (Sectioning, Sun & Light, Camera, Measure) -->
+        <div id="floating-tools-panel" class="floating-tools-panel" style="display:none">
+          <!-- Floating Tools Header with 4 Tabs and Close Button -->
+          <div class="floating-tools-header">
+            <div class="floating-tools-tabs-nav" id="floating-tools-tabs-nav">
+              <button class="tool-tab-btn active" data-tool-tab="tab-section-content" data-i18n="tabSection">Sectioning</button>
+              <button class="tool-tab-btn" data-tool-tab="tab-light-content" data-i18n="tabLighting">Sun &amp; Light</button>
+              <button class="tool-tab-btn" data-tool-tab="tab-camera-content" data-i18n="tabCamera">Camera</button>
+              <button class="tool-tab-btn" data-tool-tab="tab-measure-content" data-i18n="tabMeasure">Measure</button>
+            </div>
+            <button class="floating-tools-close-btn" id="btn-floating-tools-close" title="Close Tools Panel" data-i18n-title="closeTools">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Floating Tools Body -->
+          <div class="floating-tools-body" id="floating-tools-body">
+            <!-- TAB 1: Sectioning / Clipping -->
+            <div class="tool-tab-content active" id="tab-section-content">
+              <div class="control-section">
+                <div class="control-title">
+                  <span data-i18n="secTitle">Model Section / Clipping</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="sec-active-chk">
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+                
+                <div class="control-row clipping-mode-row">
+                  <span class="control-label" data-i18n="secMode">Clipping Mode</span>
+                  <div class="segmented-control" id="sec-mode-segmented">
+                    <button type="button" class="segment-btn active" id="sec-mode-btn-plane" data-mode="plane" data-i18n="secPlane">Section Plane</button>
+                    <button type="button" class="segment-btn" id="sec-mode-btn-box" data-mode="box" data-i18n="secBox">Section Box</button>
+                  </div>
+                </div>
+
+                <div class="control-row">
+                  <span class="control-label" data-i18n="secShowHelpers">Show Section Plane / Box</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="sec-show-helpers-chk" checked>
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+
+                <div class="control-row">
+                  <span class="control-label" data-i18n="secShowWireframe">Show Cut-away Wireframe</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="sec-wireframe-chk">
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Plane Controls -->
+              <div class="control-section" id="sec-plane-controls">
+                <div class="control-row">
+                  <span class="control-label" data-i18n="secAxis">Section Axis</span>
+                  <div class="segmented-control axis-segmented" id="sec-axis-segmented">
+                    <button type="button" class="segment-btn axis-btn-x" id="sec-axis-btn-x" data-axis="X" data-i18n="secAxisXBtn">X Easting</button>
+                    <button type="button" class="segment-btn axis-btn-y" id="sec-axis-btn-y" data-axis="Y" data-i18n="secAxisYBtn">Y Northing</button>
+                    <button type="button" class="segment-btn axis-btn-z active" id="sec-axis-btn-z" data-axis="Z" data-i18n="secAxisZBtn">Z Elevation</button>
+                  </div>
+                </div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="secOffset">Slice Position</span>
+                  <input type="range" min="0" max="1" step="0.005" value="0.5" class="range-slider" id="sec-offset-slider">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:6px;">
+                  <button class="small-btn" id="sec-invert-btn" data-i18n="secInvert" style="flex:1">Flip Direction</button>
+                  <button class="small-btn" id="sec-reset-btn" data-i18n="secReset" style="flex:1">Reset Section</button>
+                </div>
+
+                <div class="control-row" style="margin-top:8px;">
+                  <span class="control-label" data-i18n="secPlaneRotate">Plane Orientation</span>
+                  <span class="control-value" id="sec-plane-rot-val">0°</span>
+                </div>
+                <div style="display:flex;gap:4px;margin-top:4px;">
+                  <button class="small-btn" id="sec-plane-align-z" style="flex:1" data-i18n="secPlaneAlignZ">Align Z</button>
+                  <button class="small-btn" id="sec-plane-align-x" style="flex:1" data-i18n="secPlaneAlignX">Align X</button>
+                  <button class="small-btn" id="sec-plane-align-y" style="flex:1" data-i18n="secPlaneAlignY">Align Y</button>
+                  <button class="small-btn" id="sec-plane-rot-reset" style="flex:1" data-i18n="secRotReset">Reset 0°</button>
+                </div>
+                <div class="control-row" style="margin-top:8px;">
+                  <span class="control-label" data-i18n="secSnap5Deg">5° Rotation Snap</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="sec-plane-snap-chk">
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+                <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px;line-height:1.4" data-i18n="secPlaneGizmoTip">
+                  💡 Tip: Drag arrow to move plane; drag colored rings to rotate tilt angles.
+                </div>
+              </div>
+
+              <!-- Box Controls (Section Box) -->
+              <div class="control-section" id="sec-box-controls" style="display:none">
+                <div class="control-title" data-i18n="secBox">Section Box</div>
+                
+                <div class="control-row">
+                  <span class="control-label" data-i18n="secBoxRangeX">X Range (East - West / Easting)</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <input type="range" min="0" max="1" step="0.01" value="0.0" class="range-slider" id="sec-box-minx" title="Min X">
+                  <input type="range" min="0" max="1" step="0.01" value="1.0" class="range-slider" id="sec-box-maxx" title="Max X">
+                </div>
+
+                <div class="control-row" style="margin-top:6px;">
+                  <span class="control-label" data-i18n="secBoxRangeY">Y Range (North - South / Northing)</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <input type="range" min="0" max="1" step="0.01" value="0.0" class="range-slider" id="sec-box-miny" title="Min Y">
+                  <input type="range" min="0" max="1" step="0.01" value="1.0" class="range-slider" id="sec-box-maxy" title="Max Y">
+                </div>
+
+                <div class="control-row" style="margin-top:6px;">
+                  <span class="control-label" data-i18n="secBoxRangeZ">Z Range (Elevation / RL Height)</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <input type="range" min="0" max="1" step="0.01" value="0.0" class="range-slider" id="sec-box-minz" title="Min Z">
+                  <input type="range" min="0" max="1" step="0.01" value="1.0" class="range-slider" id="sec-box-maxz" title="Max Z">
+                </div>
+
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <button class="small-btn" id="sec-box-reset-btn" data-i18n="secBoxReset" style="flex:1">Reset Section Box</button>
+                  <button class="small-btn" id="sec-box-toggle-vis-btn" data-i18n="menuHideSectionBox" style="flex:1">Hide Section Box</button>
+                </div>
+
+                <!-- Section Box Rotation Controls -->
+                <div class="control-row" style="margin-top:10px;">
+                  <span class="control-label" data-i18n="secBoxRotate">Rotate Section Box</span>
+                  <span class="control-value" id="sec-box-rot-val">0°</span>
+                </div>
+                <input type="range" min="0" max="360" step="1" value="0" class="range-slider" id="sec-box-rot-slider">
+                <div style="display:flex;gap:4px;margin-top:6px;">
+                  <button class="small-btn" id="sec-box-rot-ccw" style="flex:1">-45°</button>
+                  <button class="small-btn" id="sec-box-rot-cw" style="flex:1">+45°</button>
+                  <button class="small-btn" id="sec-box-rot-90" style="flex:1">+90°</button>
+                  <button class="small-btn" id="sec-box-rot-reset" style="flex:1" data-i18n="secRotReset">Reset 0°</button>
+                </div>
+                <div class="control-row" style="margin-top:8px;">
+                  <span class="control-label" data-i18n="secSnap5Deg">5° Rotation Snap</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="sec-box-snap-chk">
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+                <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px;line-height:1.4" data-i18n="secBoxGizmoTip">
+                  💡 Tip: Drag face arrows outward/inward to resize Section Box; drag midpoint gold rings to rotate.
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: Sun & Light -->
+            <div class="tool-tab-content" id="tab-light-content">
+              <div class="control-section">
+                <div class="control-title" data-i18n="lightTitle">Lighting &amp; Solar Simulation</div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightMode">Light Mode</span>
+                  <select class="select-input" id="light-mode-sel">
+                    <option value="singapore" data-i18n="lightSolar">Singapore Real Solar (SST UTC+8)</option>
+                    <option value="custom" data-i18n="lightCustom">Custom Lighting</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Singapore Real Solar Controls -->
+              <div class="control-section" id="solar-sg-controls">
+                <div style="font-size:10.5px;color:var(--accent);line-height:1.4">
+                  Geographic: Singapore (Lat: 1.3521° N, Lon: 103.8198° E, SST UTC+8)
+                </div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightDate">Date</span>
+                  <input type="date" class="date-input" id="solar-date-input" value="2026-09-29">
+                </div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightTime">Time of Day</span>
+                  <span class="control-value" id="solar-time-val">13:08</span>
+                </div>
+                <input type="range" min="0" max="1440" step="5" value="788" class="range-slider" id="solar-time-slider">
+                
+                <!-- Quick Presets -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;">
+                  <button class="small-btn" id="btn-preset-dawn" data-i18n="lightDawn">Dawn (06:45)</button>
+                  <button class="small-btn" id="btn-preset-noon" data-i18n="lightNoon">Noon (13:08)</button>
+                  <button class="small-btn" id="btn-preset-afternoon" data-i18n="lightAfternoon">Afternoon (16:30)</button>
+                  <button class="small-btn" id="btn-preset-sunset" data-i18n="lightSunset">Sunset (19:15)</button>
+                </div>
+                <button class="small-btn" id="btn-preset-night" data-i18n="lightNight">Night (22:00)</button>
+                
+                <div style="background:var(--bg-panel);padding:8px;border-radius:4px;border:1px solid var(--border-color);margin-top:4px;font-size:11px">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                    <span style="color:var(--text-muted)" data-i18n="lightAzimuth">Azimuth:</span>
+                    <span id="solar-az-val" style="color:var(--text-primary)">142.1°</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                    <span style="color:var(--text-muted)" data-i18n="lightElevation">Elevation:</span>
+                    <span id="solar-el-val" style="color:var(--text-primary)">62.4°</span>
+                  </div>
+                  <div id="solar-status-msg" style="color:var(--accent);font-size:10.5px">Daylight active</div>
+                </div>
+
+                <button class="small-btn" id="btn-solar-play" data-i18n="lightPlay" style="margin-top:4px">
+                  Play 24h Timelapse
+                </button>
+              </div>
+
+              <!-- Custom Lighting Controls -->
+              <div class="control-section" id="solar-custom-controls" style="display:none">
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightAzimuth">Azimuth (0-360°)</span>
+                  <input type="range" min="0" max="360" value="145" class="range-slider" id="light-custom-az">
+                </div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightElevation">Elevation (0-90°)</span>
+                  <input type="range" min="0" max="90" value="55" class="range-slider" id="light-custom-el">
+                </div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightIntensity">Sun Intensity</span>
+                  <input type="range" min="0" max="3.0" step="0.1" value="1.5" class="range-slider" id="light-custom-int">
+                </div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="lightAmbient">Ambient Light</span>
+                  <input type="range" min="0" max="2.0" step="0.1" value="0.6" class="range-slider" id="light-custom-amb">
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 3: Camera & Far Distance Settings -->
+            <div class="tool-tab-content" id="tab-camera-content">
+              <div class="control-section">
+                <div class="control-title" data-i18n="cameraTitle">Camera &amp; Far Distance</div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="viewDistance">Visible Distance</span>
+                  <span class="control-value" id="side-dist-display">5,000 m (5 km)</span>
+                </div>
+                <input type="range" min="200" max="10000" step="100" value="5000" class="range-slider" id="side-dist-slider">
+                
+                <!-- Quick Distance Presets -->
+                <div class="preset-dist-grid">
+                  <button class="small-btn" id="btn-dist-1k">1 km</button>
+                  <button class="small-btn" id="btn-dist-2k">2 km</button>
+                  <button class="small-btn" id="btn-dist-3k">3 km</button>
+                  <button class="small-btn" id="btn-dist-5k">5 km</button>
+                  <button class="small-btn" id="btn-dist-8k">8 km</button>
+                  <button class="small-btn" id="btn-dist-max">10 km (Max)</button>
+                </div>
+              </div>
+
+              <div class="control-section">
+                <div class="control-title">
+                  <span data-i18n="fogTitle">Atmospheric Depth Fog</span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="fog-toggle-chk" checked>
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+                <div style="font-size:10.5px;color:var(--text-muted);line-height:1.4">
+                  Dynamically scales with visible distance so distant landscape fades naturally into horizon without obscuring models.
+                </div>
+              </div>
+
+              <div class="control-section">
+                <div class="control-row">
+                  <span class="control-label" data-i18n="camFov">Field of View (FOV)</span>
+                  <span class="control-value" id="cam-fov-val">45°</span>
+                </div>
+                <input type="range" min="25" max="85" step="1" value="45" class="range-slider" id="cam-fov-slider">
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:2px;">
+                  <span>Telephoto (25°)</span>
+                  <span>Wide (85°)</span>
+                </div>
+              </div>
+
+              <div class="control-section">
+                <div class="control-title" data-i18n="camPosition">Camera State</div>
+                <table class="cam-prop-table">
+                  <tr>
+                    <td data-i18n="camPosition">Camera Pos</td>
+                    <td id="cam-pos-readout">220, 180, 260</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="camTarget">Orbit Pivot</td>
+                    <td id="cam-pivot-readout">0, 1.9, 0</td>
+                  </tr>
+                  <tr>
+                    <td data-i18n="camDistToTarget">Pivot Dist</td>
+                    <td id="cam-dist-readout">384.2 m</td>
+                  </tr>
+                </table>
+                <button class="small-btn" id="btn-cam-reset" data-i18n="resetCamera" style="margin-top:8px;width:100%">
+                  Fit &amp; Center Model
+                </button>
+              </div>
+            </div>
+
+            <!-- TAB 4: Measure -->
+            <div class="tool-tab-content" id="tab-measure-content">
+              <!-- Mode Selection Buttons -->
+              <div class="control-section">
+                <div class="control-title" data-i18n="measureModeActive">Measurement Mode</div>
+                <div class="measure-mode-btn-grid" id="measure-mode-btn-grid">
+                  <button type="button" class="measure-mode-btn" id="btn-measure-mode-point" data-mode="point" title="Point Coordinates Measurement" data-i18n-title="measurePointTitle">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <line x1="12" y1="2" x2="12" y2="6"></line>
+                      <line x1="12" y1="18" x2="12" y2="22"></line>
+                      <line x1="2" y1="12" x2="6" y2="12"></line>
+                      <line x1="18" y1="12" x2="22" y2="12"></line>
+                    </svg>
+                    <span data-i18n="measurePoint">Point</span>
+                  </button>
+
+                  <button type="button" class="measure-mode-btn active" id="btn-measure-mode-dist" data-mode="distance" title="Two-Point Distance Measurement" data-i18n-title="measureDistanceTitle">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="4" y1="20" x2="20" y2="4"></line>
+                      <circle cx="4" cy="20" r="2.5" fill="currentColor"></circle>
+                      <circle cx="20" cy="4" r="2.5" fill="currentColor"></circle>
+                    </svg>
+                    <span data-i18n="measureDistance">Distance</span>
+                  </button>
+
+                  <button type="button" class="measure-mode-btn" id="btn-measure-mode-multi" data-mode="multipoint" title="Multi-point Cumulative Distance" data-i18n-title="measureMultiPointTitle">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 17 9 7 15 15 21 5"></polyline>
+                      <circle cx="3" cy="17" r="1.8" fill="currentColor"></circle>
+                      <circle cx="9" cy="7" r="1.8" fill="currentColor"></circle>
+                      <circle cx="15" cy="15" r="1.8" fill="currentColor"></circle>
+                      <circle cx="21" cy="5" r="1.8" fill="currentColor"></circle>
+                    </svg>
+                    <span data-i18n="measureMultiPoint">Multi-point</span>
+                  </button>
+
+                  <button type="button" class="measure-mode-btn" id="btn-measure-mode-angle" data-mode="angle" title="Three-point Angle Measurement" data-i18n-title="measureAngleTitle">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M5 19h14"></path>
+                      <path d="M5 19L15 6"></path>
+                      <path d="M10 19a5 5 0 0 0-2.5-4.3"></path>
+                    </svg>
+                    <span data-i18n="measureAngle">Angle</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Measurement Options Area -->
+              <div class="control-section" id="measure-options-panel">
+                <div class="control-title" data-i18n="measureOptionsTitle">Measurement Options</div>
+                <div class="control-row">
+                  <span class="control-label" data-i18n="measureUnit">Unit</span>
+                  <select class="select-input" id="measure-unit-sel" style="width:110px;">
+                    <option value="m" data-i18n="measureUnitM">Meters (m)</option>
+                    <option value="mm" data-i18n="measureUnitMM">Millimeters (mm)</option>
+                  </select>
+                </div>
+                <div id="measure-mode-hint" class="measure-mode-hint" data-i18n="measurePromptPickFirst">
+                  Click first point on model surface to begin.
+                </div>
+              </div>
+
+              <!-- Measurement Results Area -->
+              <div class="control-section" id="measure-results-panel">
+                <div class="control-title" style="display:flex;justify-content:space-between;align-items:center;">
+                  <span data-i18n="measureResultsTitle">Measurement Results</span>
+                  <button type="button" class="small-btn" id="btn-measure-clear" data-i18n="measureClearBtn" style="padding:2px 8px;font-size:10.5px;">Clear</button>
+                </div>
+                
+                <div class="measure-result-card" id="measure-result-card">
+                  <div class="measure-result-primary">
+                    <span class="measure-result-label" data-i18n="measureResultDist">Direct Distance</span>
+                    <span class="measure-result-val" id="measure-res-distance">--</span>
+                  </div>
+                  <div class="measure-result-details" id="measure-result-details">
+                    <div class="measure-detail-row">
+                      <span class="measure-detail-label">ΔX (Easting):</span>
+                      <span class="measure-detail-val" id="measure-res-dx">--</span>
+                    </div>
+                    <div class="measure-detail-row">
+                      <span class="measure-detail-label">ΔY (Northing):</span>
+                      <span class="measure-detail-val" id="measure-res-dy">--</span>
+                    </div>
+                    <div class="measure-detail-row">
+                      <span class="measure-detail-label">ΔZ (Elevation):</span>
+                      <span class="measure-detail-val" id="measure-res-dz">--</span>
+                    </div>
+                    <div class="measure-coord-row">
+                      <span class="measure-coord-label" data-i18n="measurePoint1">P1:</span>
+                      <span class="measure-coord-val" id="measure-res-p1">--</span>
+                    </div>
+                    <div class="measure-coord-row">
+                      <span class="measure-coord-label" data-i18n="measurePoint2">P2:</span>
+                      <span class="measure-coord-val" id="measure-res-p2">--</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 3D Viewport Custom Context Menu -->

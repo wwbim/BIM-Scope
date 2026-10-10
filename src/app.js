@@ -505,10 +505,15 @@ class BIMViewerApp {
     this.hoverOverlayGroup = null;
     this.hoverOpacity = 0.10;
     
-    // Measure Tool
+    // Floating Tools Panel & Measure Tool
+    this.isFloatingToolsOpen = false;
+    this.activeToolTab = 'tab-section-content';
     this.isMeasureMode = false;
+    this.measureMode = 'distance';
+    this.measureUnit = 'm';
     this.measurePoints = [];
     this.measureLine = null;
+    this.lastMeasurementData = null;
     
     this.activeModel = null;
     this.modelOpacity = 1.0;
@@ -8092,11 +8097,7 @@ class BIMViewerApp {
     const secActive = document.getElementById('sec-active-chk');
     if (secActive) secActive.checked = true;
 
-    const btnSection = document.getElementById('btn-tool-section');
-    if (btnSection) btnSection.classList.add('active');
-    const sb = document.getElementById('left-sidebar');
-    if (sb) sb.classList.remove('hidden');
-    this.switchLeftTab('tab-section-content');
+    this.openFloatingTools('tab-section-content');
   }
 
   applySectionBox(mesh) {
@@ -8396,23 +8397,94 @@ class BIMViewerApp {
   }
   
   handleMeasureClick(point) {
-    this.measurePoints.push(point);
+    if (this.measureMode !== 'distance') {
+      showToast(I18N.t('measurePendingNotice'), 'info');
+      return;
+    }
+
+    this.measurePoints.push(point.clone());
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const unitStr = unit;
+
     if (this.measurePoints.length === 1) {
+      const p1 = this.measurePoints[0];
+      const p1El = document.getElementById('measure-res-p1');
+      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)}, ${(p1.z * scale).toFixed(2)})`;
+      const p2El = document.getElementById('measure-res-p2');
+      if (p2El) p2El.textContent = '--';
+      const hintEl = document.getElementById('measure-mode-hint');
+      if (hintEl) hintEl.textContent = I18N.t('measurePromptPickSecond');
       showToast(I18N.t('measureEnd'), 'warning');
     } else if (this.measurePoints.length === 2) {
       const p1 = this.measurePoints[0];
       const p2 = this.measurePoints[1];
       const dist = p1.distanceTo(p2);
+      const dx = Math.abs(p2.x - p1.x);
+      const dy = Math.abs(p2.y - p1.y);
+      const dz = Math.abs(p2.z - p1.z);
       
+      this.lastMeasurementData = { p1, p2, dist, dx, dy, dz };
+      this.renderMeasurementResults();
+
       // Draw 3D Line
       if (this.measureLine) this.scene.remove(this.measureLine);
       const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
       this.measureLine = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3 }));
       this.scene.add(this.measureLine);
       
-      showToast(`${I18N.t('measureDist')}: ${dist.toFixed(3)} m`, 'success');
+      const formattedDist = (dist * scale).toFixed(unit === 'mm' ? 0 : 3);
+      showToast(`${I18N.t('measureDist')}: ${formattedDist} ${unitStr}`, 'success');
+      
+      const hintEl = document.getElementById('measure-mode-hint');
+      if (hintEl) hintEl.textContent = `${I18N.t('measureDist')}: ${formattedDist} ${unitStr}. ${I18N.t('measurePromptPickFirst')}`;
+      
       this.measurePoints = [];
     }
+  }
+
+  renderMeasurementResults() {
+    if (!this.lastMeasurementData) return;
+    const { p1, p2, dist, dx, dy, dz } = this.lastMeasurementData;
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const unitStr = unit;
+
+    const resDistEl = document.getElementById('measure-res-distance');
+    if (resDistEl) resDistEl.textContent = `${(dist * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+    const dxEl = document.getElementById('measure-res-dx');
+    if (dxEl) dxEl.textContent = `${(dx * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+    const dyEl = document.getElementById('measure-res-dy');
+    if (dyEl) dyEl.textContent = `${(dy * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+    const dzEl = document.getElementById('measure-res-dz');
+    if (dzEl) dzEl.textContent = `${(dz * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+    const p1El = document.getElementById('measure-res-p1');
+    if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)}, ${(p1.z * scale).toFixed(2)})`;
+    const p2El = document.getElementById('measure-res-p2');
+    if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)}, ${(p2.z * scale).toFixed(2)})`;
+  }
+
+  clearMeasurement() {
+    this.measurePoints = [];
+    this.lastMeasurementData = null;
+    if (this.measureLine) {
+      this.scene.remove(this.measureLine);
+      this.measureLine = null;
+    }
+    const resDistEl = document.getElementById('measure-res-distance');
+    if (resDistEl) resDistEl.textContent = '--';
+    const dxEl = document.getElementById('measure-res-dx');
+    if (dxEl) dxEl.textContent = '--';
+    const dyEl = document.getElementById('measure-res-dy');
+    if (dyEl) dyEl.textContent = '--';
+    const dzEl = document.getElementById('measure-res-dz');
+    if (dzEl) dzEl.textContent = '--';
+    const p1El = document.getElementById('measure-res-p1');
+    if (p1El) p1El.textContent = '--';
+    const p2El = document.getElementById('measure-res-p2');
+    if (p2El) p2El.textContent = '--';
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = I18N.t('measurePromptPickFirst');
   }
 
   initThemeSystem() {
@@ -8955,20 +9027,52 @@ class BIMViewerApp {
       window.addEventListener('pointerup', onPointerUp);
     }
     
-    const btnMeasure = document.getElementById('btn-tool-measure');
-    btnMeasure.onclick = () => {
-      this.isMeasureMode = !this.isMeasureMode;
-      btnMeasure.classList.toggle('active', this.isMeasureMode);
-      if (this.isMeasureMode) {
-        showToast(I18N.t('measureStart'), 'warning');
-        this.measurePoints = [];
-      } else {
-        if (this.measureLine) {
-          this.scene.remove(this.measureLine);
-          this.measureLine = null;
-        }
-      }
-    };
+    // 5c. Tools Button & Floating Tools Panel
+    const btnTools = document.getElementById('btn-tool-tools');
+    if (btnTools) {
+      btnTools.onclick = () => {
+        this.toggleFloatingTools();
+      };
+    }
+    const btnFloatingClose = document.getElementById('btn-floating-tools-close');
+    if (btnFloatingClose) {
+      btnFloatingClose.onclick = () => {
+        this.closeFloatingTools();
+      };
+    }
+
+    // Floating Tools Tabs Nav
+    document.querySelectorAll('.tool-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-tool-tab');
+        this.switchToolTab(targetId);
+      });
+    });
+
+    // Measure Mode Buttons
+    document.querySelectorAll('.measure-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-mode');
+        this.setMeasureMode(mode);
+      });
+    });
+
+    // Measure Unit Selector
+    const unitSel = document.getElementById('measure-unit-sel');
+    if (unitSel) {
+      unitSel.addEventListener('change', (e) => {
+        this.measureUnit = e.target.value;
+        this.renderMeasurementResults();
+      });
+    }
+
+    // Measure Clear Button
+    const btnClearMeasure = document.getElementById('btn-measure-clear');
+    if (btnClearMeasure) {
+      btnClearMeasure.addEventListener('click', () => {
+        this.clearMeasurement();
+      });
+    }
     
     // 6. Left Sidebar Tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -9420,17 +9524,95 @@ class BIMViewerApp {
     this.setupBottomBarScroll();
   }
   
-  switchLeftTab(tabContentId) {
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-tab') === tabContentId);
+  toggleFloatingTools(preferredTabId = null) {
+    if (this.isFloatingToolsOpen) {
+      this.closeFloatingTools();
+    } else {
+      this.openFloatingTools(preferredTabId || this.activeToolTab);
+    }
+  }
+
+  openFloatingTools(tabId = 'tab-section-content') {
+    this.isFloatingToolsOpen = true;
+    const panel = document.getElementById('floating-tools-panel');
+    if (panel) panel.style.display = 'flex';
+    const btnTools = document.getElementById('btn-tool-tools');
+    if (btnTools) btnTools.classList.add('active');
+    this.switchToolTab(tabId);
+  }
+
+  closeFloatingTools() {
+    this.isFloatingToolsOpen = false;
+    const panel = document.getElementById('floating-tools-panel');
+    if (panel) panel.style.display = 'none';
+    const btnTools = document.getElementById('btn-tool-tools');
+    if (btnTools) btnTools.classList.remove('active');
+    if (this.isMeasureMode) {
+      this.isMeasureMode = false;
+      if (this.canvas) this.canvas.style.cursor = 'default';
+    }
+  }
+
+  switchToolTab(tabContentId) {
+    this.activeToolTab = tabContentId;
+    document.querySelectorAll('.floating-tools-tabs-nav .tool-tab-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-tool-tab') === tabContentId);
     });
-    document.querySelectorAll('.tab-content').forEach(c => {
+    document.querySelectorAll('.floating-tools-body .tool-tab-content').forEach(c => {
       c.classList.toggle('active', c.id === tabContentId);
     });
-    this.scrollActiveSidebarTabIntoView();
+
     if (tabContentId === 'tab-section-content') {
       this.updateClippingModeBtnWidths();
     }
+
+    if (tabContentId === 'tab-measure-content') {
+      if (this.measureMode === 'distance') {
+        this.isMeasureMode = true;
+        if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      }
+      const hintEl = document.getElementById('measure-mode-hint');
+      if (hintEl && this.measurePoints.length === 0 && !this.lastMeasurementData) {
+        hintEl.textContent = this.measureMode === 'distance' ? I18N.t('measurePromptPickFirst') : I18N.t('measurePendingNotice');
+      }
+    } else {
+      // If switched away from measure tab, pause measure mode cursor
+      if (this.isMeasureMode) {
+        this.isMeasureMode = false;
+        if (this.canvas) this.canvas.style.cursor = 'default';
+      }
+    }
+  }
+
+  setMeasureMode(mode) {
+    this.measureMode = mode;
+    document.querySelectorAll('.measure-mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+    });
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (mode === 'distance') {
+      if (hintEl) hintEl.textContent = this.measurePoints.length === 1 ? I18N.t('measurePromptPickSecond') : I18N.t('measurePromptPickFirst');
+      this.isMeasureMode = true;
+      if (this.canvas) this.canvas.style.cursor = 'crosshair';
+    } else {
+      if (hintEl) hintEl.textContent = I18N.t('measurePendingNotice');
+      this.isMeasureMode = false;
+      if (this.canvas) this.canvas.style.cursor = 'default';
+    }
+  }
+
+  switchLeftTab(tabContentId) {
+    if (['tab-section-content', 'tab-light-content', 'tab-camera-content', 'tab-measure-content'].includes(tabContentId)) {
+      this.openFloatingTools(tabContentId);
+      return;
+    }
+    document.querySelectorAll('.sidebar-tabs-nav .tab-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-tab') === tabContentId);
+    });
+    document.querySelectorAll('.sidebar-tab-content-panel .tab-content').forEach(c => {
+      c.classList.toggle('active', c.id === tabContentId);
+    });
+    this.scrollActiveSidebarTabIntoView();
   }
   
   updateSolarUI() {
