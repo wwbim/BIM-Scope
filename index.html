@@ -887,15 +887,27 @@ svg.nav-arrow-icon {
 
 /* PANEL AMBIENT CURSOR SPOTLIGHT GLOW */
 :root {
-  --panel-glow-color: rgba(56, 189, 248, 0.14);
+  --panel-glow-c0: rgba(56, 189, 248, 0.16);
+  --panel-glow-c1: rgba(56, 189, 248, 0.11);
+  --panel-glow-c2: rgba(56, 189, 248, 0.055);
+  --panel-glow-c3: rgba(56, 189, 248, 0.018);
+  --panel-glow-c4: rgba(56, 189, 248, 0);
 }
 
 [data-theme="dark"] {
-  --panel-glow-color: rgba(56, 189, 248, 0.14);
+  --panel-glow-c0: rgba(56, 189, 248, 0.16);
+  --panel-glow-c1: rgba(56, 189, 248, 0.11);
+  --panel-glow-c2: rgba(56, 189, 248, 0.055);
+  --panel-glow-c3: rgba(56, 189, 248, 0.018);
+  --panel-glow-c4: rgba(56, 189, 248, 0);
 }
 
 [data-theme="light"] {
-  --panel-glow-color: rgba(2, 132, 199, 0.08);
+  --panel-glow-c0: rgba(2, 132, 199, 0.10);
+  --panel-glow-c1: rgba(2, 132, 199, 0.065);
+  --panel-glow-c2: rgba(2, 132, 199, 0.03);
+  --panel-glow-c3: rgba(2, 132, 199, 0.009);
+  --panel-glow-c4: rgba(2, 132, 199, 0);
 }
 
 .panel-glow-boundary {
@@ -915,21 +927,25 @@ svg.nav-arrow-icon {
   position: absolute;
   top: 0;
   left: 0;
-  width: 180px;
-  height: 180px;
-  margin-top: -90px;
-  margin-left: -90px;
+  width: 220px;
+  height: 220px;
+  margin-top: -110px;
+  margin-left: -110px;
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
   background: radial-gradient(
     circle at center,
-    var(--panel-glow-color) 0%,
-    transparent 100%
+    var(--panel-glow-c0) 0%,
+    var(--panel-glow-c1) 25%,
+    var(--panel-glow-c2) 50%,
+    var(--panel-glow-c3) 75%,
+    var(--panel-glow-c4) 100%
   );
+  filter: blur(8px);
   will-change: transform, opacity;
   transform: translate3d(-9999px, -9999px, 0);
-  transition: opacity 0.25s ease;
+  transition: opacity 0.3s ease;
   contain: strict;
 }
 
