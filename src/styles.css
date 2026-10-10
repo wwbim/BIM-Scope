@@ -596,80 +596,52 @@ svg.nav-arrow-icon {
 
 .floating-tools-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   background: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-color);
-  padding: 0 4px 0 6px;
-  min-height: 38px;
+  padding: 6px 6px 0 6px;
+  min-height: 36px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .floating-tools-tabs-nav {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  box-sizing: border-box;
 }
 
 .floating-tools-tabs-nav::-webkit-scrollbar {
   display: none;
 }
 
-.tool-tab-btn {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 8px 6px 7px 6px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-  transition: all 0.15s ease;
-}
-
-.tool-tab-btn:hover {
-  color: var(--text-bright);
-  background: var(--bg-hover);
-}
-
-.tool-tab-btn.active {
-  color: var(--accent);
-  background: var(--bg-panel);
-  border-color: var(--border-color);
-  border-bottom: 2px solid var(--accent);
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
-}
-
 .floating-tools-close-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-xs);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
-  margin-left: 4px;
+  margin-left: 6px;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
 .floating-tools-close-btn:hover {
   background: var(--bg-hover);
   color: var(--danger);
+  border-color: var(--border-color);
   transform: scale(1.05);
 }
 
@@ -1328,17 +1300,20 @@ input:checked + .slider:before {
   width: 100%;
 }
 
-.clipping-mode-row {
+.clipping-mode-row,
+.light-mode-row {
   justify-content: flex-start !important;
   gap: 16px !important;
 }
 
-#sec-mode-segmented {
+#sec-mode-segmented,
+#light-mode-segmented {
   width: fit-content;
   flex: 0 0 auto;
 }
 
-#sec-mode-segmented .segment-btn {
+#sec-mode-segmented .segment-btn,
+#light-mode-segmented .segment-btn {
   flex: 0 0 auto;
   box-sizing: border-box;
   padding: 4px 12px;
@@ -2170,7 +2145,8 @@ input:checked + .slider:before {
 
 /* TAB BUTTONS (Unified Button & Docked Folder Look) */
 .tab-btn,
-.inspector-tab-btn {
+.inspector-tab-btn,
+.tool-tab-btn {
   flex: 0 0 auto;
   width: auto;
   max-width: none;
@@ -2194,8 +2170,17 @@ input:checked + .slider:before {
   margin-bottom: 0;
 }
 
+.floating-tools-tabs-nav .tool-tab-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  justify-content: center;
+  padding: 7px 3px;
+}
+
 .tab-btn:hover,
-.inspector-tab-btn:hover {
+.inspector-tab-btn:hover,
+.tool-tab-btn:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
   border-color: var(--border-light);
@@ -2203,7 +2188,8 @@ input:checked + .slider:before {
 
 /* ACTIVE TAB: Sits proud (elevated), brighter background, top accent bright bar, bottom melts into content panel */
 .tab-btn.active,
-.inspector-tab-btn.active {
+.inspector-tab-btn.active,
+.tool-tab-btn.active {
   color: var(--accent);
   font-weight: 700;
   background: var(--bg-panel);
@@ -2216,7 +2202,8 @@ input:checked + .slider:before {
 }
 
 .tab-btn.active:hover,
-.inspector-tab-btn.active:hover {
+.inspector-tab-btn.active:hover,
+.tool-tab-btn.active:hover {
   background: var(--bg-panel);
   color: var(--accent);
 }
@@ -4207,7 +4194,7 @@ input:checked + .slider:before {
 /* Global Smooth Theme Transition */
 body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-sidebar,
 .sidebar-tab-content-panel, .sidebar-tabs-container, .inspector-tabs-container,
-.modal-card, .compare-modal-card, .btn-group, .tool-btn, .tab-btn, .inspector-tab-btn,
+.modal-card, .compare-modal-card, .btn-group, .tool-btn, .tab-btn, .inspector-tab-btn, .tool-tab-btn,
 .control-section, .prop-table, .custom-select, .select-input, .date-input, .input-box {
   transition: var(--theme-transition);
 }

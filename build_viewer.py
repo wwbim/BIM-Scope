@@ -631,12 +631,12 @@ def generate_html(variant_cfg, sources):
             <div class="tool-tab-content" id="tab-light-content">
               <div class="control-section">
                 <div class="control-title" data-i18n="lightTitle">Lighting &amp; Solar Simulation</div>
-                <div class="control-row">
+                <div class="control-row light-mode-row">
                   <span class="control-label" data-i18n="lightMode">Light Mode</span>
-                  <select class="select-input" id="light-mode-sel">
-                    <option value="singapore" data-i18n="lightSolar">Singapore Real Solar (SST UTC+8)</option>
-                    <option value="custom" data-i18n="lightCustom">Custom Lighting</option>
-                  </select>
+                  <div class="segmented-control" id="light-mode-segmented">
+                    <button type="button" class="segment-btn active" id="light-mode-btn-solar" data-mode="singapore" data-i18n="lightSolar">Singapore Solar</button>
+                    <button type="button" class="segment-btn" id="light-mode-btn-custom" data-mode="custom" data-i18n="lightCustom">Custom Light</button>
+                  </div>
                 </div>
               </div>
 
@@ -827,9 +827,6 @@ def generate_html(variant_cfg, sources):
                     <option value="m" data-i18n="measureUnitM">Meters (m)</option>
                     <option value="mm" data-i18n="measureUnitMM">Millimeters (mm)</option>
                   </select>
-                </div>
-                <div id="measure-mode-hint" class="measure-mode-hint" data-i18n="measurePromptPickFirst">
-                  Click first point on model surface to begin.
                 </div>
               </div>
 

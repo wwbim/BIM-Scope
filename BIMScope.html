@@ -610,80 +610,52 @@ svg.nav-arrow-icon {
 
 .floating-tools-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   background: var(--bg-panel-header);
   border-bottom: 1px solid var(--border-color);
-  padding: 0 4px 0 6px;
-  min-height: 38px;
+  padding: 6px 6px 0 6px;
+  min-height: 36px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .floating-tools-tabs-nav {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  box-sizing: border-box;
 }
 
 .floating-tools-tabs-nav::-webkit-scrollbar {
   display: none;
 }
 
-.tool-tab-btn {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 8px 6px 7px 6px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-  transition: all 0.15s ease;
-}
-
-.tool-tab-btn:hover {
-  color: var(--text-bright);
-  background: var(--bg-hover);
-}
-
-.tool-tab-btn.active {
-  color: var(--accent);
-  background: var(--bg-panel);
-  border-color: var(--border-color);
-  border-bottom: 2px solid var(--accent);
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
-}
-
 .floating-tools-close-btn {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-xs);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
-  margin-left: 4px;
+  margin-left: 6px;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
 .floating-tools-close-btn:hover {
   background: var(--bg-hover);
   color: var(--danger);
+  border-color: var(--border-color);
   transform: scale(1.05);
 }
 
@@ -1342,17 +1314,20 @@ input:checked + .slider:before {
   width: 100%;
 }
 
-.clipping-mode-row {
+.clipping-mode-row,
+.light-mode-row {
   justify-content: flex-start !important;
   gap: 16px !important;
 }
 
-#sec-mode-segmented {
+#sec-mode-segmented,
+#light-mode-segmented {
   width: fit-content;
   flex: 0 0 auto;
 }
 
-#sec-mode-segmented .segment-btn {
+#sec-mode-segmented .segment-btn,
+#light-mode-segmented .segment-btn {
   flex: 0 0 auto;
   box-sizing: border-box;
   padding: 4px 12px;
@@ -2184,7 +2159,8 @@ input:checked + .slider:before {
 
 /* TAB BUTTONS (Unified Button & Docked Folder Look) */
 .tab-btn,
-.inspector-tab-btn {
+.inspector-tab-btn,
+.tool-tab-btn {
   flex: 0 0 auto;
   width: auto;
   max-width: none;
@@ -2208,8 +2184,17 @@ input:checked + .slider:before {
   margin-bottom: 0;
 }
 
+.floating-tools-tabs-nav .tool-tab-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  justify-content: center;
+  padding: 7px 3px;
+}
+
 .tab-btn:hover,
-.inspector-tab-btn:hover {
+.inspector-tab-btn:hover,
+.tool-tab-btn:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
   border-color: var(--border-light);
@@ -2217,7 +2202,8 @@ input:checked + .slider:before {
 
 /* ACTIVE TAB: Sits proud (elevated), brighter background, top accent bright bar, bottom melts into content panel */
 .tab-btn.active,
-.inspector-tab-btn.active {
+.inspector-tab-btn.active,
+.tool-tab-btn.active {
   color: var(--accent);
   font-weight: 700;
   background: var(--bg-panel);
@@ -2230,7 +2216,8 @@ input:checked + .slider:before {
 }
 
 .tab-btn.active:hover,
-.inspector-tab-btn.active:hover {
+.inspector-tab-btn.active:hover,
+.tool-tab-btn.active:hover {
   background: var(--bg-panel);
   color: var(--accent);
 }
@@ -4221,7 +4208,7 @@ input:checked + .slider:before {
 /* Global Smooth Theme Transition */
 body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-sidebar,
 .sidebar-tab-content-panel, .sidebar-tabs-container, .inspector-tabs-container,
-.modal-card, .compare-modal-card, .btn-group, .tool-btn, .tab-btn, .inspector-tab-btn,
+.modal-card, .compare-modal-card, .btn-group, .tool-btn, .tab-btn, .inspector-tab-btn, .tool-tab-btn,
 .control-section, .prop-table, .custom-select, .select-input, .date-input, .input-box {
   transition: var(--theme-transition);
 }
@@ -4786,12 +4773,12 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
             <div class="tool-tab-content" id="tab-light-content">
               <div class="control-section">
                 <div class="control-title" data-i18n="lightTitle">Lighting &amp; Solar Simulation</div>
-                <div class="control-row">
+                <div class="control-row light-mode-row">
                   <span class="control-label" data-i18n="lightMode">Light Mode</span>
-                  <select class="select-input" id="light-mode-sel">
-                    <option value="singapore" data-i18n="lightSolar">Singapore Real Solar (SST UTC+8)</option>
-                    <option value="custom" data-i18n="lightCustom">Custom Lighting</option>
-                  </select>
+                  <div class="segmented-control" id="light-mode-segmented">
+                    <button type="button" class="segment-btn active" id="light-mode-btn-solar" data-mode="singapore" data-i18n="lightSolar">Singapore Solar</button>
+                    <button type="button" class="segment-btn" id="light-mode-btn-custom" data-mode="custom" data-i18n="lightCustom">Custom Light</button>
+                  </div>
                 </div>
               </div>
 
@@ -4982,9 +4969,6 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
                     <option value="m" data-i18n="measureUnitM">Meters (m)</option>
                     <option value="mm" data-i18n="measureUnitMM">Millimeters (mm)</option>
                   </select>
-                </div>
-                <div id="measure-mode-hint" class="measure-mode-hint" data-i18n="measurePromptPickFirst">
-                  Click first point on model surface to begin.
                 </div>
               </div>
 
@@ -19897,8 +19881,8 @@ const I18N = {
       
       lightTitle: "Lighting & Solar Simulation",
       lightMode: "Light Mode",
-      lightCustom: "Custom Lighting",
-      lightSolar: "Singapore Real Solar (SST UTC+8)",
+      lightCustom: "Custom Light",
+      lightSolar: "Singapore Solar",
       lightDate: "Date",
       lightTime: "Time of Day",
       lightAzimuth: "Azimuth",
@@ -20351,7 +20335,7 @@ const I18N = {
       lightTitle: "光照与太阳轨迹模拟",
       lightMode: "光照模式",
       lightCustom: "自定义光照",
-      lightSolar: "新加坡真实太阳光照 (SST UTC+8)",
+      lightSolar: "新加坡太阳",
       lightDate: "选择日期",
       lightTime: "一天中的时间",
       lightAzimuth: "太阳方位角",
@@ -37705,6 +37689,38 @@ class BIMViewerApp {
     }
   }
 
+  syncLightModeUI() {
+    const curMode = this.solarEngine ? this.solarEngine.mode : 'singapore';
+    const btnSolar = document.getElementById('light-mode-btn-solar');
+    const btnCustom = document.getElementById('light-mode-btn-custom');
+    if (btnSolar) btnSolar.classList.toggle('active', curMode === 'singapore');
+    if (btnCustom) btnCustom.classList.toggle('active', curMode === 'custom');
+
+    const sgControls = document.getElementById('solar-sg-controls');
+    if (sgControls) sgControls.style.display = curMode === 'singapore' ? 'flex' : 'none';
+    const customControls = document.getElementById('solar-custom-controls');
+    if (customControls) customControls.style.display = curMode === 'custom' ? 'flex' : 'none';
+    this.updateLightModeBtnWidths();
+  }
+
+  updateLightModeBtnWidths() {
+    const btnSolar = document.getElementById('light-mode-btn-solar');
+    const btnCustom = document.getElementById('light-mode-btn-custom');
+    if (!btnSolar || !btnCustom) return;
+
+    btnSolar.style.width = 'auto';
+    btnCustom.style.width = 'auto';
+
+    const wSolar = Math.ceil(btnSolar.getBoundingClientRect().width);
+    const wCustom = Math.ceil(btnCustom.getBoundingClientRect().width);
+    const maxW = Math.max(wSolar, wCustom);
+
+    if (maxW > 0) {
+      btnSolar.style.width = `${maxW}px`;
+      btnCustom.style.width = `${maxW}px`;
+    }
+  }
+
   handleCanvasClick(e) {
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -38057,6 +38073,7 @@ class BIMViewerApp {
       this.buildHierarchyTree();
       this.updateBottomLegend();
       this.updateClippingModeBtnWidths();
+      this.updateLightModeBtnWidths();
       this.updateCameraProjUI();
       this.updateViewHistoryUI();
       if (this.selectedMeshes && this.selectedMeshes.length > 1) {
@@ -38881,13 +38898,17 @@ class BIMViewerApp {
     this.updateClippingModeBtnWidths();
     
     // 10. Solar Controls
-    const lightMode = document.getElementById('light-mode-sel');
-    lightMode.onchange = () => {
-      this.solarEngine.mode = lightMode.value;
-      document.getElementById('solar-sg-controls').style.display = lightMode.value === 'singapore' ? 'flex' : 'none';
-      document.getElementById('solar-custom-controls').style.display = lightMode.value === 'custom' ? 'flex' : 'none';
+    const setLightMode = (mode) => {
+      if (this.solarEngine) this.solarEngine.mode = mode;
+      this.syncLightModeUI();
       this.updateSolarUI();
     };
+
+    const btnModeSolar = document.getElementById('light-mode-btn-solar');
+    if (btnModeSolar) btnModeSolar.onclick = () => setLightMode('singapore');
+    const btnModeCustom = document.getElementById('light-mode-btn-custom');
+    if (btnModeCustom) btnModeCustom.onclick = () => setLightMode('custom');
+    this.syncLightModeUI();
 
     // Solar Date Input
     const dateInput = document.getElementById('solar-date-input');
@@ -39075,6 +39096,9 @@ class BIMViewerApp {
 
     if (tabContentId === 'tab-section-content') {
       this.updateClippingModeBtnWidths();
+    }
+    if (tabContentId === 'tab-light-content') {
+      this.updateLightModeBtnWidths();
     }
 
     if (tabContentId === 'tab-measure-content') {

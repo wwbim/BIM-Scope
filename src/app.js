@@ -8476,6 +8476,38 @@ class BIMViewerApp {
     }
   }
 
+  syncLightModeUI() {
+    const curMode = this.solarEngine ? this.solarEngine.mode : 'singapore';
+    const btnSolar = document.getElementById('light-mode-btn-solar');
+    const btnCustom = document.getElementById('light-mode-btn-custom');
+    if (btnSolar) btnSolar.classList.toggle('active', curMode === 'singapore');
+    if (btnCustom) btnCustom.classList.toggle('active', curMode === 'custom');
+
+    const sgControls = document.getElementById('solar-sg-controls');
+    if (sgControls) sgControls.style.display = curMode === 'singapore' ? 'flex' : 'none';
+    const customControls = document.getElementById('solar-custom-controls');
+    if (customControls) customControls.style.display = curMode === 'custom' ? 'flex' : 'none';
+    this.updateLightModeBtnWidths();
+  }
+
+  updateLightModeBtnWidths() {
+    const btnSolar = document.getElementById('light-mode-btn-solar');
+    const btnCustom = document.getElementById('light-mode-btn-custom');
+    if (!btnSolar || !btnCustom) return;
+
+    btnSolar.style.width = 'auto';
+    btnCustom.style.width = 'auto';
+
+    const wSolar = Math.ceil(btnSolar.getBoundingClientRect().width);
+    const wCustom = Math.ceil(btnCustom.getBoundingClientRect().width);
+    const maxW = Math.max(wSolar, wCustom);
+
+    if (maxW > 0) {
+      btnSolar.style.width = `${maxW}px`;
+      btnCustom.style.width = `${maxW}px`;
+    }
+  }
+
   handleCanvasClick(e) {
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -8828,6 +8860,7 @@ class BIMViewerApp {
       this.buildHierarchyTree();
       this.updateBottomLegend();
       this.updateClippingModeBtnWidths();
+      this.updateLightModeBtnWidths();
       this.updateCameraProjUI();
       this.updateViewHistoryUI();
       if (this.selectedMeshes && this.selectedMeshes.length > 1) {
@@ -9652,13 +9685,17 @@ class BIMViewerApp {
     this.updateClippingModeBtnWidths();
     
     // 10. Solar Controls
-    const lightMode = document.getElementById('light-mode-sel');
-    lightMode.onchange = () => {
-      this.solarEngine.mode = lightMode.value;
-      document.getElementById('solar-sg-controls').style.display = lightMode.value === 'singapore' ? 'flex' : 'none';
-      document.getElementById('solar-custom-controls').style.display = lightMode.value === 'custom' ? 'flex' : 'none';
+    const setLightMode = (mode) => {
+      if (this.solarEngine) this.solarEngine.mode = mode;
+      this.syncLightModeUI();
       this.updateSolarUI();
     };
+
+    const btnModeSolar = document.getElementById('light-mode-btn-solar');
+    if (btnModeSolar) btnModeSolar.onclick = () => setLightMode('singapore');
+    const btnModeCustom = document.getElementById('light-mode-btn-custom');
+    if (btnModeCustom) btnModeCustom.onclick = () => setLightMode('custom');
+    this.syncLightModeUI();
 
     // Solar Date Input
     const dateInput = document.getElementById('solar-date-input');
@@ -9846,6 +9883,9 @@ class BIMViewerApp {
 
     if (tabContentId === 'tab-section-content') {
       this.updateClippingModeBtnWidths();
+    }
+    if (tabContentId === 'tab-light-content') {
+      this.updateLightModeBtnWidths();
     }
 
     if (tabContentId === 'tab-measure-content') {
