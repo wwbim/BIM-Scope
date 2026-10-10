@@ -48,6 +48,8 @@
   **FBX** (`.fbx`): Binary and ASCII FBX models with embedded/external textures (TGA/PNG/JPEG) and skeletal animations.
 - **COLLADA** (`.dae`)：原生支持 COLLADA 1.4/1.5、单位缩放归一化、双面材质防破面及多动作动画。  
   **COLLADA** (`.dae`): Native client-side parser for COLLADA 1.4/1.5, unit scale normalization, DoubleSide materials to prevent SketchUp back-face holes, and animation support.
+- **Wavefront OBJ** (`.obj`, `.mtl`)：纯前端原生解析几何顶点与材质库，自动升级 PBR 真实感物理材质、智能修补法线、双面材质防破面漏洞，支持无材质快速预览与伴随 `.mtl` 多文件装配。  
+  **Wavefront OBJ** (`.obj`, `.mtl`): Pure client-side parsing for OBJ geometries and accompanying MTL material libraries, automatic PBR material upgrade, normal generation, DoubleSide rendering to prevent face-culling glitches, and multi-file drag-and-drop assembly.
 - **内置演示模型**：现代坡屋顶双层木结构独栋别墅程序化 BIM 模板，含热带光照日照模拟。  
   **Procedural BIM Demo Model**: Built-in Modern Hillside Villa procedural template with active tropical solar illumination.
 
@@ -74,6 +76,22 @@
   **Unified Multi-Format Subtitle & Metadata Sync**: Title bar subtitle dynamically synchronizes format version, authoring tool, units, and GIS coordinate reference with inspector profile.
 - **中英双语即时切换**：顶部栏一键无刷新切换英文与简体中文。  
   **Bilingual Zero-Reload Localization**: Instant seamless language switching between English and Simplified Chinese.
+
+### 6. 🎛️ 零阻碍极速呈现与后置实时调优 / Zero-Interruption Instant Load & Post-Import Live Tuning
+- **告别导入前的“盲猜参数”困境**：传统 3D 软件（如 3ds Max、Blender 等）在导入 OBJ 时强制弹出充斥数十项晦涩选项的模态对话框，逼迫用户在未看到模型前盲猜单位与轴向。BIMScope 创新采用**“零阻碍极速瞬时载入，边看模型边调参数”**的现代化交互模式，文件拖入视口毫秒级瞬间呈现，在右侧检查器模型档案面板中提供专属实时调优卡片。  
+  **Zero-Friction Instant Loading UX**: Replaces cumbersome pre-import dialogs found in traditional CAD/DCC tools (such as 3ds Max/Blender) with an instant load workflow. Models render in milliseconds upon drag-and-drop, followed by intuitive post-import live adjustments directly in the inspector panel.
+- **轴向与位姿一键矫正**：提供 `🔄 Y-Up ↔ Z-Up 翻转` 与 `↷ 顺时针旋转 90°` 原位姿态纠偏按钮，无需重新导出即可瞬间扶正倒置或侧躺的模型，全流程相机自适应居中平滑追踪。  
+  **Instant Coordinate & Orientation Tuning**: One-click `🔄 Flip Y-Up ↔ Z-Up` and `↷ Rotate 90°` in-place orientation correction, instantly realigning tilted or inverted models without re-exporting.
+- **多量纲比例缩放与自适应适配**：内置 `1:1`、`0.001 (mm→m)`、`0.01 (cm→m)`、`0.0254 (in→m)` 公制与英制快捷缩放药丸按钮，支持任意自定义缩放乘数实时无损放大或缩小。  
+  **Metric & Imperial Unit Scaling**: Instant one-click scale presets (`1:1`, `0.001` mm to m, `0.01` cm to m, `0.0254` inch to m) and custom scale multiplier input with auto-framing.
+- **法向与平滑着色即时切换**：针对未导出法线或法线异常破裂的网格，提供 `✨ 重新计算平滑法线`（自研平滑顶点法线重构）与 `🔷 硬边平面着色`（Flat Shading）实时一键切换。  
+  **Normal Smoothing & Shading Modes**: Seamless toggle between `✨ Smooth Normals` (custom smooth vertex normal recalculation) and `🔷 Flat Shading` for faceted mesh inspection.
+
+### 7. 🌲 全格式通用双模态混合构件树引擎 / Universal Dual-Mode Hybrid BIM Hierarchy Engine
+- **跨格式智能 BIM 语义结构分类**：传统通用三维格式（OBJ、DAE、FBX、GLTF）通常缺乏原生 IFC 空间层级（`IfcProject -> IfcSite -> IfcBuildingStorey`）。BIMScope 内置跨格式智能语义识别引擎，深度扫描构件命名（如 `Wall`, `Column`, `Slab`, `Beam`, `Roof`, `Door`, `Window`, `Stair`, `Railing`, `MEP`, `Pipe`, `Furniture` 等中英文关键词与拓扑特征），自动将离散几何网格智能聚类为标准的 BIM 结构大类（墙体、结构柱、梁系、楼板、门窗、机电设备、屋面等），赋予非 BIM 模型等同于原生 IFC 的专业分类隔离与分部工程管理能力。  
+  **Cross-Format Smart BIM Classification**: Bridges the gap for general 3D formats (OBJ, DAE, FBX, GLTF) lacking IFC spatial hierarchies. Analyzes element naming tags and topological features to automatically classify discrete meshes into standard BIM structural disciplines (Walls, Columns, Slabs, Beams, Roofs, Doors, Windows, MEP, Furniture, etc.), enabling professional category-level isolation and batch visibility control.
+- **双模态结构树无缝切换**：在左侧构件树中提供「智能 BIM 结构分类（Structures）」与「原生对象节点树（Elements）」双模式无缝并存与联动。用户既可按专业大类高效排查建筑结构，亦可顺着模型原始的 Group/Mesh 节点树层层钻取深入构件细节，实现 CAD/BIM 与通用三维模型检查的终极融合。  
+  **Dual-Mode Hierarchy Tree Parity**: Seamlessly toggles between "Smart BIM Structures" and "Native Node Elements Tree", combining discipline-level architectural decomposition with granular original mesh hierarchy exploration.
 
 ---
 
@@ -120,6 +138,8 @@ python sync_variant_b.py
 │   ├── GLTFLoader.js        # glTF / GLB 2.0 模型加载器 / glTF loader
 │   ├── FBXLoader.js         # 二进制与 ASCII FBX 加载器 / FBX loader
 │   ├── ColladaLoader.js     # COLLADA (.dae) 建筑与动画加载器 / Collada loader
+│   ├── OBJLoader.js         # Wavefront OBJ 几何模型加载器 / OBJ loader
+│   ├── MTLLoader.js         # Wavefront MTL 材质库加载器 / MTL material loader
 │   ├── fflate.min.js        # 高性能前端解压库 (IFC/FBX) / Fast decompression
 │   └── TGALoader.js         # TGA 纹理贴图加载器 / TGA texture loader
 ├── build_viewer.py          # 单文件打包编译器与多版本参数化构建脚本 / Single-file compiler & builder

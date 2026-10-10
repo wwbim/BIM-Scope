@@ -3814,18 +3814,27 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
 .obj-tuning-btn-row {
   display: flex;
   gap: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.obj-tuning-btn-row.scale-presets {
   flex-wrap: wrap;
 }
 
+.obj-tuning-btn-row.scale-presets .obj-tuning-btn {
+  flex: 1 1 calc(25% - 5px);
+  min-width: 48px;
+  padding: 4px 2px;
+}
+
 .obj-tuning-btn {
-  flex: 1;
-  min-width: 75px;
-  padding: 5px 8px;
+  padding: 5px 4px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: 10.5px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3833,6 +3842,21 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   gap: 4px;
   transition: all 0.15s ease;
   white-space: nowrap;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.obj-tuning-btn-lg {
+  flex: 0 0 142px;
+  width: 142px;
+  max-width: 142px;
+}
+
+.obj-tuning-btn-sm {
+  flex: 0 0 98px;
+  width: 98px;
+  max-width: 98px;
 }
 
 .obj-tuning-btn:hover {

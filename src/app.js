@@ -4645,16 +4645,14 @@ class BIMViewerApp {
           </div>
           <div class="model-info-sec-body">
             <div class="obj-tuning-card">
-              <div class="obj-tuning-tip">${I18N.t('objTuningTip')}</div>
-              
               <!-- Orientation -->
               <div class="obj-tuning-group">
                 <div class="obj-tuning-group-title">🧭 ${I18N.t('objUpAxis')}</div>
                 <div class="obj-tuning-btn-row">
-                  <button type="button" class="obj-tuning-btn ${this.objTuningState.upAxis === 'Z' ? 'active' : ''}" id="btn-obj-toggle-up">
-                    🔄 ${I18N.t('btnObjFlipUp')} (${this.objTuningState.upAxis}-Up)
+                  <button type="button" class="obj-tuning-btn obj-tuning-btn-lg ${this.objTuningState.upAxis === 'Z' ? 'active' : ''}" id="btn-obj-toggle-up" title="${I18N.t('btnObjFlipUp')}">
+                    🔄 ${I18N.t('btnObjFlipUp')}
                   </button>
-                  <button type="button" class="obj-tuning-btn" id="btn-obj-rotate-yaw">
+                  <button type="button" class="obj-tuning-btn obj-tuning-btn-sm" id="btn-obj-rotate-yaw" title="${I18N.t('btnObjRotateYaw')}">
                     ↷ ${I18N.t('btnObjRotateYaw')}
                   </button>
                 </div>
@@ -4663,7 +4661,7 @@ class BIMViewerApp {
               <!-- Units & Scale Multiplier -->
               <div class="obj-tuning-group">
                 <div class="obj-tuning-group-title">📐 ${I18N.t('objUnitsScale')}</div>
-                <div class="obj-tuning-btn-row">
+                <div class="obj-tuning-btn-row scale-presets">
                   <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.001) < 1e-6 ? 'active' : ''}" data-scale="0.001">mm (×0.001)</button>
                   <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.01) < 1e-6 ? 'active' : ''}" data-scale="0.01">cm (×0.01)</button>
                   <button type="button" class="obj-tuning-btn ${Math.abs(this.objTuningState.currentScale - 0.0254) < 1e-6 ? 'active' : ''}" data-scale="0.0254">in (×0.0254)</button>
@@ -4679,8 +4677,8 @@ class BIMViewerApp {
               <div class="obj-tuning-group">
                 <div class="obj-tuning-group-title">✨ ${I18N.t('objNormalsShading')}</div>
                 <div class="obj-tuning-btn-row">
-                  <button type="button" class="obj-tuning-btn ${!this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-smooth">✨ ${I18N.t('btnObjSmoothNormals')}</button>
-                  <button type="button" class="obj-tuning-btn ${this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-flat">🔷 ${I18N.t('btnObjFlatShading')}</button>
+                  <button type="button" class="obj-tuning-btn obj-tuning-btn-lg ${!this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-smooth" title="${I18N.t('btnObjSmoothNormals')}">✨ ${I18N.t('btnObjSmoothNormals')}</button>
+                  <button type="button" class="obj-tuning-btn obj-tuning-btn-sm ${this.objTuningState.isFlat ? 'active' : ''}" id="btn-obj-flat" title="${I18N.t('btnObjFlatShading')}">🔷 ${I18N.t('btnObjFlatShading')}</button>
                 </div>
                 <label class="obj-tuning-chk-row">
                   <input type="checkbox" id="chk-obj-double-side" ${this.objTuningState.isDoubleSide ? 'checked' : ''}>
