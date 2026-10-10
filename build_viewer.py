@@ -693,11 +693,11 @@ def generate_html(variant_cfg, sources):
                 </div>
                 <div class="control-row">
                   <span class="control-label" data-i18n="lightIntensity">Sun Intensity</span>
-                  <input type="range" min="0" max="3.0" step="0.1" value="1.5" class="range-slider" id="light-custom-int">
+                  <input type="range" min="0" max="3.0" step="0.1" value="2.0" class="range-slider" id="light-custom-int">
                 </div>
                 <div class="control-row">
                   <span class="control-label" data-i18n="lightAmbient">Ambient Light</span>
-                  <input type="range" min="0" max="2.0" step="0.1" value="0.6" class="range-slider" id="light-custom-amb">
+                  <input type="range" min="0" max="2.0" step="0.1" value="0.3" class="range-slider" id="light-custom-amb">
                 </div>
               </div>
             </div>

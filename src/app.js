@@ -2172,7 +2172,7 @@ class BIMViewerApp {
 
       // Update solar lighting center
       if (this.solarEngine) {
-        this.solarEngine.setCenter(center);
+        this.solarEngine.setCenter(center, box);
       }
     }
     
@@ -7246,7 +7246,7 @@ class BIMViewerApp {
       this.pivotPoint.copy(center);
       this.controls.target.copy(center);
       if (this.solarEngine) {
-        this.solarEngine.setCenter(center);
+        this.solarEngine.setCenter(center, box);
       }
     }
     this.generateModelEdges(this.activeModel);

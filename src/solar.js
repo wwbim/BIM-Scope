@@ -19,32 +19,30 @@ class SolarEngine {
     // Custom light settings
     this.customAzimuth = 145;
     this.customElevation = 55;
-    this.customIntensity = 1.5;
+    this.customIntensity = 2.0;
     this.customColor = '#ffffff';
-    this.customAmbient = 0.6;
+    this.customAmbient = 0.30;
     
     this.isTimelapseRunning = false;
     this.timelapseSpeed = 2.0; // minutes per frame
     
     this.center = new THREE.Vector3(0, 0, 0);
+    this.modelRadius = 35;
+    this.sunDistance = 150;
     this.initLights();
+    this.updateShadowFrustum();
     this.update();
   }
   
   initLights() {
-    // Directional Sun Light
-    this.sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    // Directional Sun Light (crisp direct sunlight with normal-bias)
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.width = 2048;
     this.sunLight.shadow.mapSize.height = 2048;
-    this.sunLight.shadow.camera.near = 10;
-    this.sunLight.shadow.camera.far = 1200;
-    const d = 400;
-    this.sunLight.shadow.camera.left = -d;
-    this.sunLight.shadow.camera.right = d;
-    this.sunLight.shadow.camera.top = d;
-    this.sunLight.shadow.camera.bottom = -d;
-    this.sunLight.shadow.bias = -0.0005;
+    this.sunLight.shadow.bias = -0.0001;
+    this.sunLight.shadow.normalBias = 0.03;
+    this.sunLight.shadow.radius = 1.2;
     this.scene.add(this.sunLight);
     
     // Target
@@ -52,21 +50,39 @@ class SolarEngine {
     this.scene.add(this.sunTarget);
     this.sunLight.target = this.sunTarget;
     
-    // Ambient Light
-    this.ambientLight = new THREE.AmbientLight(0x94a3b8, 0.7);
+    // Ambient Light (subtle ambient fill to maintain rich contrast)
+    this.ambientLight = new THREE.AmbientLight(0x94a3b8, 0.30);
     this.scene.add(this.ambientLight);
     
-    // Hemisphere light for soft sky/ground bounce
-    this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x64748b, 0.55);
+    // Hemisphere light for soft sky/ground bounce (sky: soft sky tint, ground: warm dark slate)
+    this.hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x334155, 0.22);
     this.scene.add(this.hemiLight);
 
-    // Camera Headlight (soft fill light that follows the camera)
-    this.headLight = new THREE.DirectionalLight(0xffffff, 0.35);
+    // Camera Headlight (minimal non-washing fill to keep deep crevices subtly readable)
+    this.headLight = new THREE.DirectionalLight(0xffffff, 0.08);
     this.headLight.castShadow = false;
     this.headLightTarget = new THREE.Object3D();
     this.scene.add(this.headLightTarget);
     this.headLight.target = this.headLightTarget;
     this.scene.add(this.headLight);
+  }
+
+  updateShadowFrustum() {
+    if (!this.sunLight || !this.sunLight.shadow) return;
+    const r = this.modelRadius || 35;
+    // Cover the model plus ground shadow projection margin (factor ~1.3)
+    const d = Math.max(18, Math.ceil(r * 1.3));
+    const cam = this.sunLight.shadow.camera;
+    cam.left = -d;
+    cam.right = d;
+    cam.top = d;
+    cam.bottom = -d;
+
+    this.sunDistance = Math.max(120, Math.ceil(r * 3.5));
+    cam.near = Math.max(5, this.sunDistance - r * 1.8);
+    cam.far = this.sunDistance + r * 1.8;
+    cam.updateProjectionMatrix();
+    this.sunLight.shadow.needsUpdate = true;
   }
 
   setCamera(camera, target) {
@@ -138,7 +154,7 @@ class SolarEngine {
     let el = 0;
     let intensity = 1.0;
     let color = new THREE.Color(0xffffff);
-    let ambientIntensity = 0.6;
+    let ambientIntensity = 0.30;
     let isDay = true;
     
     if (this.mode === 'singapore') {
@@ -151,24 +167,24 @@ class SolarEngine {
         // Daylight phase
         if (el < 10) {
           // Dawn / Dusk golden hour
-          color.setRGB(1.0, 0.58, 0.28);
-          intensity = 0.8 * (el / 10);
-          ambientIntensity = 0.4;
+          color.setRGB(1.0, 0.62, 0.32);
+          intensity = 1.2 * (el / 10);
+          ambientIntensity = 0.20;
         } else if (el < 30) {
           // Warm mid-morning/afternoon
-          color.setRGB(1.0, 0.88, 0.72);
-          intensity = 0.8 + 0.6 * ((el - 10) / 20);
-          ambientIntensity = 0.55;
+          color.setRGB(1.0, 0.90, 0.76);
+          intensity = 1.2 + 0.8 * ((el - 10) / 20);
+          ambientIntensity = 0.26;
         } else {
           // High tropical noon
-          color.setRGB(1.0, 0.98, 0.92);
-          intensity = 1.4 + 0.4 * Math.sin((el - 30) / 60 * Math.PI * 0.5);
-          ambientIntensity = 0.7;
+          color.setRGB(1.0, 0.98, 0.94);
+          intensity = 1.8 + 0.4 * Math.sin((el - 30) / 60 * Math.PI * 0.5);
+          ambientIntensity = 0.30;
         }
       } else {
         // Night
         intensity = 0;
-        ambientIntensity = 0.25;
+        ambientIntensity = 0.15;
         this.sunLight.castShadow = false;
       }
     } else {
@@ -181,8 +197,8 @@ class SolarEngine {
       isDay = el > 0;
     }
     
-    // Position Sun relative to scene center
-    const r = 500;
+    // Position Sun relative to scene center using adapted sun distance
+    const r = this.sunDistance || 150;
     const azRad = az * Math.PI / 180;
     const elRad = Math.max(0.01, el) * Math.PI / 180;
     
@@ -203,7 +219,7 @@ class SolarEngine {
     this.sunLight.castShadow = isDay;
     
     this.ambientLight.intensity = ambientIntensity;
-    this.hemiLight.intensity = ambientIntensity * 0.7;
+    this.hemiLight.intensity = ambientIntensity * 0.75;
     
     return {
       azimuth: az,
@@ -213,14 +229,20 @@ class SolarEngine {
     };
   }
   
-  setCenter(center) {
+  setCenter(center, box) {
     if (center && center.isVector3) {
       this.center.copy(center);
       if (this.sunTarget) {
         this.sunTarget.position.copy(center);
       }
-      this.update();
     }
+    if (box && !box.isEmpty()) {
+      const sphere = new THREE.Sphere();
+      box.getBoundingSphere(sphere);
+      this.modelRadius = Math.max(15, sphere.radius);
+      this.updateShadowFrustum();
+    }
+    this.update();
   }
 
   stepTimelapse() {
