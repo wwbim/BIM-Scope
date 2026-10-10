@@ -248,7 +248,7 @@ const I18N = {
       objTuningTip: "Post-import live adjustments: transform orientation, scale, and normals in real time without reloading.",
       objUpAxis: "Orientation",
       btnObjFlipUp: "Flip Y-Up ↔ Z-Up",
-      btnObjRotateYaw: "Rotate 90° (Y)",
+      btnObjRotateYaw: "Rotate 90°",
       objUnitsScale: "Units & Scale Multiplier",
       btnObjApplyScale: "Apply",
       objNormalsShading: "Normals & Rendering",

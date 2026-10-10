@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **42 小时 35 分钟 (42.59 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **10 天 22 小时 19 分钟** (2026-09-29 22:17 至 2026-10-10 20:37)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **19,263 Steps** (跨 22 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **42 小时 45 分钟 (42.76 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **10 天 22 小时 30 分钟** (2026-09-29 22:17 至 2026-10-10 20:47)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **19,375 Steps** (跨 22 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -32,7 +32,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | 功能迭代与持续优化 / Feature development |
 | **2026-10-08** | 13:25~13:42, 21:37~21:46 (共 3 个时段) | 0h 46m (0.77h) | 功能迭代与持续优化 / Feature development |
 | **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | 功能迭代与持续优化 / Feature development |
-| **2026-10-10** | 19:58~20:37 | 0h 39m (0.66h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-10** | 19:58~20:47 | 0h 49m (0.83h) | 功能迭代与持续优化 / Feature development |
 ---
 
 ## [v1.2610072000] - 2026-10-07 20:00

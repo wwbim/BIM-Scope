@@ -3796,12 +3796,14 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
 
 /* OBJ LIVE TUNING CONTROLS */
 .obj-tuning-card {
-  padding: 8px 10px;
+  padding: 8px 8px;
   background: var(--bg-card, rgba(255, 255, 255, 0.03));
   border-radius: 6px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .obj-tuning-tip {
@@ -3814,6 +3816,8 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   display: flex;
   flex-direction: column;
   gap: 5px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .obj-tuning-group-title {
@@ -3827,33 +3831,36 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
 
 .obj-tuning-btn-row {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: nowrap;
   align-items: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .obj-tuning-btn-row.scale-presets {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
 }
 
 .obj-tuning-btn-row.scale-presets .obj-tuning-btn {
-  flex: 1 1 calc(25% - 5px);
-  min-width: 48px;
-  padding: 4px 2px;
+  width: 100%;
+  padding: 5px 2px;
 }
 
 .obj-tuning-btn {
-  padding: 5px 4px;
+  padding: 5px 3px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
-  font-size: 10.5px;
+  font-size: 10px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   transition: all 0.15s ease;
   white-space: nowrap;
   box-sizing: border-box;
@@ -3862,15 +3869,13 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
 }
 
 .obj-tuning-btn-lg {
-  flex: 0 0 142px;
-  width: 142px;
-  max-width: 142px;
+  flex: 1.12 1 0;
+  min-width: 0;
 }
 
 .obj-tuning-btn-sm {
-  flex: 0 0 98px;
-  width: 98px;
-  max-width: 98px;
+  flex: 0.88 1 0;
+  min-width: 0;
 }
 
 .obj-tuning-btn:hover {
@@ -19405,7 +19410,7 @@ const I18N = {
       objTuningTip: "Post-import live adjustments: transform orientation, scale, and normals in real time without reloading.",
       objUpAxis: "Orientation",
       btnObjFlipUp: "Flip Y-Up ↔ Z-Up",
-      btnObjRotateYaw: "Rotate 90° (Y)",
+      btnObjRotateYaw: "Rotate 90°",
       objUnitsScale: "Units & Scale Multiplier",
       btnObjApplyScale: "Apply",
       objNormalsShading: "Normals & Rendering",
