@@ -9522,6 +9522,50 @@ class BIMViewerApp {
 
     // Bottom Bar Legend Horizontal Scroll & Edge Shadow Setup
     this.setupBottomBarScroll();
+
+    // Panel Ambient Cursor Spotlight Glow Setup
+    this.initPanelAmbientGlow();
+  }
+
+  initPanelAmbientGlow() {
+    const panelIds = ['left-sidebar', 'right-sidebar', 'floating-tools-panel'];
+    panelIds.forEach(id => {
+      const panel = document.getElementById(id);
+      if (!panel) return;
+
+      let isHovered = false;
+      let rafId = null;
+
+      panel.addEventListener('pointerenter', () => {
+        isHovered = true;
+        panel.classList.add('has-glow');
+      });
+
+      panel.addEventListener('pointerleave', () => {
+        isHovered = false;
+        panel.classList.remove('has-glow');
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      });
+
+      panel.addEventListener('pointermove', (e) => {
+        if (!isHovered) {
+          isHovered = true;
+          panel.classList.add('has-glow');
+        }
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          const rect = panel.getBoundingClientRect();
+          const x = Math.round(e.clientX - rect.left);
+          const y = Math.round(e.clientY - rect.top);
+          panel.style.setProperty('--glow-x', `${x}px`);
+          panel.style.setProperty('--glow-y', `${y}px`);
+        });
+      }, { passive: true });
+    });
   }
   
   toggleFloatingTools(preferredTabId = null) {

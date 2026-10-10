@@ -885,6 +885,53 @@ svg.nav-arrow-icon {
   display: none;
 }
 
+/* PANEL AMBIENT CURSOR SPOTLIGHT GLOW */
+#left-sidebar,
+#right-sidebar,
+#floating-tools-panel {
+  position: relative;
+}
+
+#left-sidebar::before,
+#right-sidebar::before,
+#floating-tools-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+  opacity: 0;
+  background: radial-gradient(
+    180px circle at var(--glow-x, -999px) var(--glow-y, -999px),
+    var(--accent) 0%,
+    transparent 100%
+  );
+  transition: opacity 0.3s ease;
+}
+
+[data-theme="dark"] #left-sidebar.has-glow::before,
+[data-theme="dark"] #right-sidebar.has-glow::before,
+[data-theme="dark"] #floating-tools-panel.has-glow::before {
+  opacity: 0.10;
+}
+
+[data-theme="light"] #left-sidebar.has-glow::before,
+[data-theme="light"] #right-sidebar.has-glow::before,
+[data-theme="light"] #floating-tools-panel.has-glow::before {
+  opacity: 0.06;
+}
+
+#left-sidebar > *,
+#right-sidebar > *,
+#floating-tools-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* LEFT SIDEBAR CONTENT PANEL */
 .sidebar-tab-content-panel {
   flex: 1;
@@ -892,7 +939,7 @@ svg.nav-arrow-icon {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--bg-panel);
+  background: transparent;
   border-top: 1px solid var(--border-color);
   position: relative;
   z-index: 1;
@@ -38598,6 +38645,50 @@ class BIMViewerApp {
 
     // Bottom Bar Legend Horizontal Scroll & Edge Shadow Setup
     this.setupBottomBarScroll();
+
+    // Panel Ambient Cursor Spotlight Glow Setup
+    this.initPanelAmbientGlow();
+  }
+
+  initPanelAmbientGlow() {
+    const panelIds = ['left-sidebar', 'right-sidebar', 'floating-tools-panel'];
+    panelIds.forEach(id => {
+      const panel = document.getElementById(id);
+      if (!panel) return;
+
+      let isHovered = false;
+      let rafId = null;
+
+      panel.addEventListener('pointerenter', () => {
+        isHovered = true;
+        panel.classList.add('has-glow');
+      });
+
+      panel.addEventListener('pointerleave', () => {
+        isHovered = false;
+        panel.classList.remove('has-glow');
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      });
+
+      panel.addEventListener('pointermove', (e) => {
+        if (!isHovered) {
+          isHovered = true;
+          panel.classList.add('has-glow');
+        }
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          const rect = panel.getBoundingClientRect();
+          const x = Math.round(e.clientX - rect.left);
+          const y = Math.round(e.clientY - rect.top);
+          panel.style.setProperty('--glow-x', `${x}px`);
+          panel.style.setProperty('--glow-y', `${y}px`);
+        });
+      }, { passive: true });
+    });
   }
   
   toggleFloatingTools(preferredTabId = null) {
