@@ -884,35 +884,42 @@ svg.nav-arrow-icon {
   --panel-glow-color: rgba(2, 132, 199, 0.08);
 }
 
-#left-sidebar,
-#right-sidebar {
-  position: relative;
-}
-
-#left-sidebar::after,
-#right-sidebar::after,
-#floating-tools-panel::after {
-  content: "";
+.panel-glow-boundary {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  overflow: hidden;
   pointer-events: none;
   z-index: 25;
   border-radius: inherit;
+  contain: strict;
+}
+
+.panel-glow-spotlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  margin-top: -90px;
+  margin-left: -90px;
+  border-radius: 50%;
+  pointer-events: none;
   opacity: 0;
   background: radial-gradient(
-    90px circle at var(--glow-x, -999px) var(--glow-y, -999px),
+    circle at center,
     var(--panel-glow-color) 0%,
     transparent 100%
   );
-  transition: opacity 0.3s ease;
+  will-change: transform, opacity;
+  transform: translate3d(-9999px, -9999px, 0);
+  transition: opacity 0.25s ease;
+  contain: strict;
 }
 
-#left-sidebar.has-glow::after,
-#right-sidebar.has-glow::after,
-#floating-tools-panel.has-glow::after {
+.panel-glow-boundary.active .panel-glow-spotlight {
   opacity: 1;
 }
 

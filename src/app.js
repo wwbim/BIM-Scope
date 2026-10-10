@@ -9533,17 +9533,48 @@ class BIMViewerApp {
       const panel = document.getElementById(id);
       if (!panel) return;
 
+      // Create isolated GPU-composited glow boundary and spotlight follower
+      const boundary = document.createElement('div');
+      boundary.className = 'panel-glow-boundary';
+      const spotlight = document.createElement('div');
+      spotlight.className = 'panel-glow-spotlight';
+      boundary.appendChild(spotlight);
+      panel.appendChild(boundary);
+
       let isHovered = false;
       let rafId = null;
+      let cachedRect = null;
+      let latestClientX = 0;
+      let latestClientY = 0;
 
-      panel.addEventListener('pointerenter', () => {
+      const updateRect = () => {
+        cachedRect = panel.getBoundingClientRect();
+      };
+
+      const renderGlow = () => {
+        rafId = null;
+        if (!isHovered) return;
+        if (!cachedRect) updateRect();
+        const x = Math.round(latestClientX - cachedRect.left);
+        const y = Math.round(latestClientY - cachedRect.top);
+        spotlight.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      };
+
+      panel.addEventListener('pointerenter', (e) => {
         isHovered = true;
-        panel.classList.add('has-glow');
+        updateRect();
+        boundary.classList.add('active');
+        latestClientX = e.clientX;
+        latestClientY = e.clientY;
+        if (!rafId) {
+          rafId = requestAnimationFrame(renderGlow);
+        }
       });
 
       panel.addEventListener('pointerleave', () => {
         isHovered = false;
-        panel.classList.remove('has-glow');
+        cachedRect = null;
+        boundary.classList.remove('active');
         if (rafId) {
           cancelAnimationFrame(rafId);
           rafId = null;
@@ -9553,17 +9584,18 @@ class BIMViewerApp {
       panel.addEventListener('pointermove', (e) => {
         if (!isHovered) {
           isHovered = true;
-          panel.classList.add('has-glow');
+          updateRect();
+          boundary.classList.add('active');
         }
-        if (rafId) return;
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          const rect = panel.getBoundingClientRect();
-          const x = Math.round(e.clientX - rect.left);
-          const y = Math.round(e.clientY - rect.top);
-          panel.style.setProperty('--glow-x', `${x}px`);
-          panel.style.setProperty('--glow-y', `${y}px`);
-        });
+        latestClientX = e.clientX;
+        latestClientY = e.clientY;
+        if (!rafId) {
+          rafId = requestAnimationFrame(renderGlow);
+        }
+      }, { passive: true });
+
+      window.addEventListener('resize', () => {
+        cachedRect = null;
       }, { passive: true });
     });
   }
