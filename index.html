@@ -4403,7 +4403,9 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   position: absolute;
   pointer-events: none;
   border-radius: 8px;
-  box-shadow: 0 0 0 2px var(--accent), 0 0 20px var(--accent-glow);
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow), inset 0 0 10px var(--accent-glow);
   animation: tourHaloPulse 2s infinite ease-in-out;
   transition: opacity 0.2s ease;
   z-index: 10052;
@@ -5014,7 +5016,9 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   position: absolute;
   pointer-events: none;
   border-radius: 8px;
-  box-shadow: 0 0 0 2px var(--accent), 0 0 24px var(--accent-glow);
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow), inset 0 0 10px var(--accent-glow);
   animation: tourHaloPulse 1.8s infinite ease-in-out;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 10001;
@@ -30908,11 +30912,36 @@ class BIMHelpSystem {
       left: 100, top: 100, width: 400, height: 300, right: 500, bottom: 400
     };
 
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
     const pad = 6;
-    const cutoutX = Math.max(0, rect.left - pad);
-    const cutoutY = Math.max(0, rect.top - pad);
-    const cutoutW = rect.width + pad * 2;
-    const cutoutH = rect.height + pad * 2;
+
+    let cutoutX = Math.round(rect.left - pad);
+    let cutoutY = Math.round(rect.top - pad);
+    let cutoutW = Math.round(rect.width + pad * 2);
+    let cutoutH = Math.round(rect.height + pad * 2);
+
+    // If target touches or is near left screen edge (e.g. Step 4 Left Sidebar),
+    // clamp cutoutX to 0 so the highlight box stays cleanly inside visible viewport
+    if (rect.left <= 4) {
+      cutoutX = 0;
+      cutoutW = Math.round(rect.width + pad);
+    }
+    // If target touches or is near right screen edge (e.g. Step 5 Right Sidebar),
+    // clamp right edge to winW so the highlight box does not fall outside visible viewport
+    if (rect.right >= winW - 4) {
+      cutoutX = Math.round(rect.left - pad);
+      cutoutW = Math.round(winW - cutoutX);
+    }
+    // If target touches top edge (e.g. Top navbars)
+    if (rect.top <= 4) {
+      cutoutY = 0;
+      cutoutH = Math.round(rect.height + pad);
+    }
+    // If target touches bottom edge (e.g. Bottom bar)
+    if (rect.bottom >= winH - 4) {
+      cutoutH = Math.round(winH - cutoutY);
+    }
 
     const cutout = document.getElementById('tour-mask-cutout');
     const halo = document.getElementById('tour-spotlight-halo');
@@ -30961,37 +30990,33 @@ class BIMHelpSystem {
     let left = 0;
     let top = 0;
 
-    // Center viewport fallback
+    // Dedicated deterministic placement for each step
     if (this.currentTourStep === 0) {
-      // 3D Viewport: Place callout gracefully in bottom-center
+      // Step 1 of 6 (3D Viewport): Place callout gracefully in bottom-center
       left = Math.round((winW - cW) / 2);
       top = Math.round(winH - cH - 60);
+    } else if (this.currentTourStep === 1) {
+      // Step 2 of 6 (Top Views Presets): Place callout directly below
+      left = Math.round(targetRect.left + (targetRect.width - cW) / 2);
+      top = Math.round(targetRect.bottom + pad);
     } else if (this.currentTourStep === 2) {
       // Step 3 of 6 (Top Right): Move callout to the left to leave room for the downward-shifted exit button
       left = Math.round(winW - cW - 150);
       top = Math.round(targetRect.bottom + pad);
-    } else if (targetRect.top < 80 && targetRect.left > 200 && targetRect.right < winW - 200) {
-      // Top Center Bar: Place callout directly below
-      left = Math.round(targetRect.left + (targetRect.width - cW) / 2);
-      top = Math.round(targetRect.bottom + pad);
-    } else if (targetRect.right > winW - 350 && targetRect.top < 80) {
-      // Top Right: Place callout below and aligned right
-      left = Math.round(winW - cW - pad);
-      top = Math.round(targetRect.bottom + pad);
-    } else if (targetRect.left < 320 && targetRect.top > 40) {
-      // Left Sidebar: Place callout to the right of the sidebar
+    } else if (this.currentTourStep === 3) {
+      // Step 4 of 6 (Left Sidebar): Place callout at top-right exterior adjacent position
       left = Math.round(targetRect.right + pad);
-      top = Math.round(Math.min(winH - cH - pad, Math.max(70, targetRect.top + 40)));
-    } else if (targetRect.right > winW - 320 && targetRect.top > 40) {
-      // Right Sidebar: Place callout to the left of the sidebar
+      top = Math.round(Math.max(56, targetRect.top + 8));
+    } else if (this.currentTourStep === 4) {
+      // Step 5 of 6 (Right Sidebar): Place callout at top-left exterior adjacent position (symmetrical to Step 4)
       left = Math.round(targetRect.left - cW - pad);
-      top = Math.round(Math.min(winH - cH - pad, Math.max(70, targetRect.top + 40)));
-    } else if (targetRect.bottom > winH - 60) {
-      // Bottom Bar: Place callout directly above
-      left = Math.round(targetRect.left + pad);
+      top = Math.round(Math.max(56, targetRect.top + 8));
+    } else if (this.currentTourStep === 5) {
+      // Step 6 of 6 (Bottom Bar): Place callout directly above
+      left = Math.round(pad + 20);
       top = Math.round(targetRect.top - cH - pad);
     } else {
-      // General placement
+      // General fallback
       left = Math.round((winW - cW) / 2);
       top = Math.round((winH - cH) / 2);
     }
@@ -31245,11 +31270,29 @@ class BIMHelpSystem {
   updateFeatureSpotlightBox(targetEl) {
     if (!targetEl) return;
     const rect = targetEl.getBoundingClientRect();
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
     const pad = 6;
-    const cutoutX = Math.max(0, rect.left - pad);
-    const cutoutY = Math.max(0, rect.top - pad);
-    const cutoutW = rect.width + pad * 2;
-    const cutoutH = rect.height + pad * 2;
+    let cutoutX = Math.round(rect.left - pad);
+    let cutoutY = Math.round(rect.top - pad);
+    let cutoutW = Math.round(rect.width + pad * 2);
+    let cutoutH = Math.round(rect.height + pad * 2);
+
+    if (rect.left <= 4) {
+      cutoutX = 0;
+      cutoutW = Math.round(rect.width + pad);
+    }
+    if (rect.right >= winW - 4) {
+      cutoutX = Math.round(rect.left - pad);
+      cutoutW = Math.round(winW - cutoutX);
+    }
+    if (rect.top <= 4) {
+      cutoutY = 0;
+      cutoutH = Math.round(rect.height + pad);
+    }
+    if (rect.bottom >= winH - 4) {
+      cutoutH = Math.round(winH - cutoutY);
+    }
 
     const cutout = document.getElementById('help-mask-cutout');
     const halo = document.getElementById('help-spotlight-halo');

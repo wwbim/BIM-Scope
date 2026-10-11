@@ -4389,7 +4389,9 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   position: absolute;
   pointer-events: none;
   border-radius: 8px;
-  box-shadow: 0 0 0 2px var(--accent), 0 0 20px var(--accent-glow);
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow), inset 0 0 10px var(--accent-glow);
   animation: tourHaloPulse 2s infinite ease-in-out;
   transition: opacity 0.2s ease;
   z-index: 10052;
@@ -5000,7 +5002,9 @@ body, #app-container, #top-navbar, #bottom-bar, #sidebar, #left-sidebar, #right-
   position: absolute;
   pointer-events: none;
   border-radius: 8px;
-  box-shadow: 0 0 0 2px var(--accent), 0 0 24px var(--accent-glow);
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow), inset 0 0 10px var(--accent-glow);
   animation: tourHaloPulse 1.8s infinite ease-in-out;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 10001;
