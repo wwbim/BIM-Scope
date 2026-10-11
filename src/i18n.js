@@ -53,6 +53,7 @@ const I18N = {
       measureUnitMM: "Millimeters (mm)",
       measurePendingNotice: "Tool mode is ready. Two-Point Distance is currently fully operational.",
       themeToggleTitle: "Switch Theme (Dark / Light)",
+      helpGuideTitle: "Help & Guide",
       themeDark: "Dark",
       themeLight: "Light",
       uiAppearance: "Theme Appearance",
@@ -506,6 +507,7 @@ const I18N = {
       measureUnitMM: "毫米 (mm)",
       measurePendingNotice: "该测量模式已就绪，当前两点测距功能已全面启用并可用。",
       themeToggleTitle: "切换界面主题 (暗色 / 浅色)",
+      helpGuideTitle: "帮助与指南",
       themeDark: "深色",
       themeLight: "浅色",
       uiAppearance: "界面外观与主题",
@@ -1058,6 +1060,9 @@ const I18N = {
         if (typeof window.app.renderModelInfoInspector === 'function') {
           window.app.renderModelInfoInspector();
         }
+      }
+      if (window.app.helpSystem && typeof window.app.helpSystem.onLanguageChanged === 'function') {
+        window.app.helpSystem.onLanguageChanged();
       }
     }
   }

@@ -108,6 +108,8 @@ def load_sources(base_dir=BASE_DIR):
         compare_engine_js = f.read()
     with open(os.path.join(src_dir, "demo_model.js"), "r", encoding="utf-8") as f:
         demo_model_js = f.read()
+    with open(os.path.join(src_dir, "help_system.js"), "r", encoding="utf-8") as f:
+        help_system_js = f.read()
     with open(os.path.join(src_dir, "app.js"), "r", encoding="utf-8") as f:
         app_js = f.read()
 
@@ -133,6 +135,7 @@ def load_sources(base_dir=BASE_DIR):
         "ifc_parser_js": ifc_parser_js,
         "compare_engine_js": compare_engine_js,
         "demo_model_js": demo_model_js,
+        "help_system_js": help_system_js,
         "app_js": app_js,
         "icon_red_b64": icon_red_b64,
         "logo_ww_b64": logo_ww_b64,
@@ -189,6 +192,7 @@ def generate_html(variant_cfg, sources):
     ifc_parser_js = sources["ifc_parser_js"]
     compare_engine_js = sources["compare_engine_js"]
     demo_model_js = sources["demo_model_js"]
+    help_system_js = sources["help_system_js"]
     app_js = sources["app_js"]
 
     return f"""<!DOCTYPE html>
@@ -341,6 +345,13 @@ def generate_html(variant_cfg, sources):
         <button class="btn-primary" id="btn-open-file" title="Open Model" data-i18n-title="openFile">
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           <span data-i18n="openFile">Open Model</span>
+        </button>
+        <button class="tool-btn icon-circle-btn" id="btn-help-guide" title="Help & Guide" data-i18n-title="helpGuideTitle" aria-label="Help">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9.5"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <circle cx="12" cy="17" r="0.5" fill="currentColor"></circle>
+          </svg>
         </button>
         <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
       </div>
@@ -1273,6 +1284,9 @@ def generate_html(variant_cfg, sources):
   </script>
   <script>
 {demo_model_js}
+  </script>
+  <script>
+{help_system_js}
   </script>
   <script>
 {app_js}

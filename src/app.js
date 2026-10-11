@@ -1143,6 +1143,12 @@ class BIMViewerApp {
     // Load default CR301 West Depot model
     this.loadDemoModel();
     
+    // Initialize Help & Guided Tour System
+    if (typeof BIMHelpSystem !== 'undefined') {
+      this.helpSystem = new BIMHelpSystem(this);
+      this.helpSystem.checkAutoStart();
+    }
+    
     // Animation loop
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
