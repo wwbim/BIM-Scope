@@ -347,10 +347,10 @@ def generate_html(variant_cfg, sources):
           <span data-i18n="openFile">Open Model</span>
         </button>
         <button class="tool-btn icon-circle-btn" id="btn-help-guide" title="Help & Guide" data-i18n-title="helpGuideTitle" aria-label="Help">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9.5"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <circle cx="12" cy="17" r="0.5" fill="currentColor"></circle>
+          <svg class="help-btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle class="help-circle-outline" cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+            <path class="help-question-mark" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+            <circle class="help-question-dot" cx="12" cy="17" r="0.8" fill="currentColor" stroke="none"></circle>
           </svg>
         </button>
         <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">

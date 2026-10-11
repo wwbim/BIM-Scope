@@ -41,9 +41,10 @@ class BIMHelpSystem {
         tourFinish: "Finish Tour",
         tourStepLabel: "Step {current} of {total}",
         helpTitle: "BIM Scope User Guide",
-        helpRerunTour: "⟲ Re-run Tour",
+        helpRerunTour: "Re-run Tour",
         helpClose: "Close",
-        helpSearchTip: "💡 Tip: Press <b>Ctrl + F</b> to quickly search keywords within this guide.",
+        helpSearchPlaceholder: "Search features, controls, shortcuts...",
+        helpSearchEmpty: "No matching guide content found",
         locateTooltip: "Click to locate and highlight this feature in viewport",
         tourSteps: [
           {
@@ -259,9 +260,10 @@ class BIMHelpSystem {
       tourFinish: "完成引导",
       tourStepLabel: "步骤 {current} / {total}",
       helpTitle: "BIM Scope 使用指南",
-      helpRerunTour: "⟲ 再次引导",
+      helpRerunTour: "再次引导",
       helpClose: "关闭",
-      helpSearchTip: "💡 提示：按 <b>Ctrl + F</b> 可在帮助手册内快速搜索关键词。",
+      helpSearchPlaceholder: "搜索功能、操作或关键词... (按 Esc 清空)",
+      helpSearchEmpty: "未找到匹配的帮助内容",
       locateTooltip: "点击在界面中高亮定位该功能",
       tourSteps: [
         {
@@ -557,8 +559,19 @@ class BIMHelpSystem {
           <button type="button" class="help-dialog-close-btn" id="help-dialog-close-btn" title="Close">✕</button>
         </div>
         <div class="help-dialog-body" id="help-dialog-body">
-          <div class="help-search-tip" id="help-search-tip-box">
-            💡 提示：按 <b>Ctrl + F</b> 可在帮助手册内快速搜索关键词。
+          <div class="help-search-bar-row" id="help-search-bar-row">
+            <div class="help-search-input-wrapper">
+              <svg class="help-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" class="help-search-input" id="help-search-input" placeholder="搜索功能、操作或关键词... (按 Esc 清空)" autocomplete="off" spellcheck="false" />
+              <button type="button" class="help-search-clear-btn" id="help-search-clear-btn" title="Clear search" style="display:none;">✕</button>
+            </div>
+            <div class="help-search-shortcut-badge" title="Press Ctrl+F to focus search">Ctrl + F</div>
+          </div>
+          <div class="help-search-empty-state" id="help-search-empty-state" style="display:none;">
+            未找到匹配的帮助内容
           </div>
           <div class="help-accordion-container" id="help-accordion-list">
             <!-- Populated dynamically -->
@@ -682,9 +695,43 @@ class BIMHelpSystem {
       });
     }
 
-    // Keyboard ESC to dismiss spotlight or exit tour
+    // Search Filter Events
+    const searchInput = document.getElementById('help-search-input');
+    const searchClear = document.getElementById('help-search-clear-btn');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.filterHelpContent(e.target.value);
+      });
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          searchInput.value = '';
+          this.filterHelpContent('');
+          searchInput.blur();
+        }
+      });
+    }
+    if (searchClear) {
+      searchClear.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          this.filterHelpContent('');
+          searchInput.focus();
+        }
+      });
+    }
+
+    // Keyboard shortcuts: Ctrl+F to focus search, ESC to dismiss spotlight/tour
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        if (this.isHelpDialogOpen) {
+          e.preventDefault();
+          const input = document.getElementById('help-search-input');
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        }
+      } else if (e.key === 'Escape') {
         if (this.activeSpotlightTarget) {
           this.dismissSpotlight();
         } else if (this.isTourActive) {
@@ -710,12 +757,26 @@ class BIMHelpSystem {
     const accordionList = document.getElementById('help-accordion-list');
     if (accordionList) {
       accordionList.addEventListener('click', (e) => {
-        // Toggle Accordion section header
+        // Toggle Accordion section header (mutually exclusive + auto scroll to top)
         const header = e.target.closest('.help-accordion-header');
         if (header) {
           const item = header.closest('.help-accordion-item');
           if (item) {
-            item.classList.toggle('active');
+            const isAlreadyActive = item.classList.contains('active');
+            // Close all items
+            accordionList.querySelectorAll('.help-accordion-item').forEach(it => {
+              it.classList.remove('active');
+            });
+
+            if (!isAlreadyActive) {
+              item.classList.add('active');
+              // Auto-scroll so expanded section aligns at the top of the body
+              const body = document.getElementById('help-dialog-body');
+              if (body) {
+                const targetTop = Math.max(0, item.offsetTop - 10);
+                body.scrollTo({ top: targetTop, behavior: 'smooth' });
+              }
+            }
           }
           return;
         }
@@ -804,7 +865,7 @@ class BIMHelpSystem {
         if (!isResizing) return;
         const dw = e.clientX - rStart.x;
         const dh = e.clientY - rStart.y;
-        const newW = Math.max(340, Math.min(window.innerWidth - 40, rStart.w + dw));
+        const newW = Math.max(350, Math.min(600, Math.min(window.innerWidth - 32, rStart.w + dw)));
         const newH = Math.max(380, Math.min(window.innerHeight - 60, rStart.h + dh));
         dialog.style.width = `${newW}px`;
         dialog.style.height = `${newH}px`;
@@ -982,27 +1043,28 @@ class BIMHelpSystem {
     let cutoutW = Math.round(rect.width + pad * 2);
     let cutoutH = Math.round(rect.height + pad * 2);
 
-    // If target touches or is near left screen edge (e.g. Step 4 Left Sidebar),
-    // clamp cutoutX to 0 so the highlight box stays cleanly inside visible viewport
+    // If target touches or is near left screen edge (e.g. Step 4 Left Sidebar, Step 6 Bottom Bar)
     if (rect.left <= 4) {
       cutoutX = 0;
-      cutoutW = Math.round(rect.width + pad);
     }
-    // If target touches or is near right screen edge (e.g. Step 5 Right Sidebar),
-    // clamp right edge to winW so the highlight box does not fall outside visible viewport
+    // If target touches or is near right screen edge (e.g. Step 5 Right Sidebar, Step 6 Bottom Bar)
     if (rect.right >= winW - 4) {
-      cutoutX = Math.round(rect.left - pad);
       cutoutW = Math.round(winW - cutoutX);
     }
     // If target touches top edge (e.g. Top navbars)
     if (rect.top <= 4) {
       cutoutY = 0;
-      cutoutH = Math.round(rect.height + pad);
     }
     // If target touches bottom edge (e.g. Bottom bar)
     if (rect.bottom >= winH - 4) {
       cutoutH = Math.round(winH - cutoutY);
     }
+
+    // Clamp strictly within visible screen boundaries
+    cutoutX = Math.max(0, cutoutX);
+    cutoutY = Math.max(0, cutoutY);
+    cutoutW = Math.min(winW - cutoutX, cutoutW);
+    cutoutH = Math.min(winH - cutoutY, cutoutH);
 
     const cutout = document.getElementById('tour-mask-cutout');
     const halo = document.getElementById('tour-spotlight-halo');
@@ -1073,9 +1135,9 @@ class BIMHelpSystem {
       left = Math.round(targetRect.left - cW - pad);
       top = Math.round(Math.max(56, targetRect.top + 8));
     } else if (this.currentTourStep === 5) {
-      // Step 6 of 6 (Bottom Bar): Place callout directly above
-      left = Math.round(pad + 20);
-      top = Math.round(targetRect.top - cH - pad);
+      // Step 6 of 6 (Bottom Bar): Center horizontally above bottom bar
+      left = Math.round((winW - cW) / 2);
+      top = Math.round(targetRect.top - cH - 16);
     } else {
       // General fallback
       left = Math.round((winW - cW) / 2);
@@ -1124,16 +1186,21 @@ class BIMHelpSystem {
     const dialog = document.getElementById('floating-help-dialog');
     if (!dialog) return;
 
-    this.renderHelpDialogContent();
+    this.renderHelpDialogContent(true);
     dialog.style.display = 'flex';
     dialog.classList.remove('repositioned-avoid');
 
-    // Default position if not set: Top Right floating
+    // Default position if not set: Refer to right sidebar so we don't obscure it
     if (this.dialogPos.x === null) {
-      const pad = 24;
+      const winW = window.innerWidth;
       const dW = dialog.offsetWidth || 480;
-      const initialLeft = Math.max(pad, window.innerWidth - dW - 320);
-      const initialTop = 64;
+      const rightPanel = document.getElementById('right-sidebar');
+      const rightRect = rightPanel ? rightPanel.getBoundingClientRect() : null;
+      const rightLeft = (rightRect && rightRect.width > 0) ? rightRect.left : (winW - 320);
+
+      // Position dialog to the left exterior of right panel with a 14px gap
+      const initialLeft = Math.max(16, Math.round(rightLeft - dW - 14));
+      const initialTop = 56;
       dialog.style.left = `${initialLeft}px`;
       dialog.style.top = `${initialTop}px`;
       this.dialogPos = { x: initialLeft, y: initialTop };
@@ -1158,16 +1225,28 @@ class BIMHelpSystem {
     }
   }
 
-  renderHelpDialogContent() {
+  renderHelpDialogContent(resetSearch = true) {
     const data = this.getData();
     const title = document.getElementById('help-dialog-title');
     const rerunText = document.getElementById('help-btn-rerun-text');
-    const searchTip = document.getElementById('help-search-tip-box');
+    const searchInput = document.getElementById('help-search-input');
+    const clearBtn = document.getElementById('help-search-clear-btn');
+    const emptyState = document.getElementById('help-search-empty-state');
     const accordionList = document.getElementById('help-accordion-list');
 
     if (title) title.textContent = data.helpTitle;
     if (rerunText) rerunText.textContent = data.helpRerunTour;
-    if (searchTip) searchTip.innerHTML = data.helpSearchTip;
+    if (searchInput) {
+      searchInput.placeholder = data.helpSearchPlaceholder;
+      if (resetSearch) {
+        searchInput.value = '';
+        if (clearBtn) clearBtn.style.display = 'none';
+      }
+    }
+    if (emptyState) {
+      emptyState.textContent = data.helpSearchEmpty;
+      emptyState.style.display = 'none';
+    }
 
     if (accordionList) {
       let html = '';
@@ -1188,6 +1267,82 @@ class BIMHelpSystem {
         `;
       });
       accordionList.innerHTML = html;
+    }
+  }
+
+  filterHelpContent(query) {
+    const data = this.getData();
+    const q = (query || '').trim().toLowerCase();
+    const clearBtn = document.getElementById('help-search-clear-btn');
+    const emptyState = document.getElementById('help-search-empty-state');
+    const accordionList = document.getElementById('help-accordion-list');
+    if (!accordionList) return;
+
+    if (clearBtn) {
+      clearBtn.style.display = q ? 'flex' : 'none';
+    }
+
+    if (!q) {
+      if (emptyState) emptyState.style.display = 'none';
+      this.renderHelpDialogContent(false);
+      return;
+    }
+
+    let matchCount = 0;
+    const items = accordionList.querySelectorAll('.help-accordion-item');
+
+    items.forEach(item => {
+      const secId = item.getAttribute('data-sec-id');
+      const sec = data.helpSections.find(s => s.id === secId);
+      if (!sec) return;
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = sec.content;
+      const plainContent = tempDiv.textContent || '';
+      const fullText = (sec.title + ' ' + plainContent).toLowerCase();
+
+      if (fullText.includes(q)) {
+        matchCount++;
+        item.style.display = 'block';
+        item.classList.add('active');
+        this.highlightMatchingInItem(item, sec, q);
+      } else {
+        item.style.display = 'none';
+      }
+    });
+
+    if (emptyState) {
+      emptyState.style.display = matchCount === 0 ? 'block' : 'none';
+      emptyState.textContent = data.helpSearchEmpty;
+    }
+  }
+
+  highlightMatchingInItem(item, sec, query) {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+
+    const titleEl = item.querySelector('.help-acc-title');
+    if (titleEl) {
+      titleEl.innerHTML = sec.title.replace(regex, '<mark class="help-match-highlight">$1</mark>');
+    }
+
+    const contentEl = item.querySelector('.help-accordion-content');
+    if (contentEl) {
+      contentEl.innerHTML = sec.content;
+      this.highlightTextNodes(contentEl, regex);
+    }
+  }
+
+  highlightTextNodes(node, regex) {
+    if (node.nodeType === 3) {
+      const val = node.nodeValue;
+      if (regex.test(val)) {
+        const span = document.createElement('span');
+        span.innerHTML = val.replace(regex, '<mark class="help-match-highlight">$1</mark>');
+        node.parentNode.replaceChild(span, node);
+      }
+    } else if (node.nodeType === 1 && node.nodeName !== 'MARK' && !node.classList.contains('help-match-highlight')) {
+      Array.from(node.childNodes).forEach(child => this.highlightTextNodes(child, regex));
     }
   }
 
@@ -1292,25 +1447,18 @@ class BIMHelpSystem {
       case 'solar-tool':
         return document.getElementById('tab-light-content') || document.getElementById('floating-tools-panel');
       case 'left-sidebar':
-        return document.getElementById('left-sidebar');
       case 'tab-structures':
-        return document.getElementById('tab-struct-content') || document.querySelector('[data-tab="tab-struct-content"]');
       case 'tab-levels':
-        return document.getElementById('tab-levels-content') || document.querySelector('[data-tab="tab-levels-content"]');
       case 'tab-elements':
-        return document.getElementById('tab-elem-content') || document.querySelector('[data-tab="tab-elem-content"]');
       case 'tree-search':
-        return document.getElementById('tree-search-input');
+        return document.getElementById('left-sidebar');
       case 'right-sidebar':
-        return document.getElementById('right-sidebar');
       case 'inspector-profile':
-        return document.getElementById('panel-model-profile') || document.getElementById('right-sidebar');
       case 'inspector-tuning':
-        return document.getElementById('panel-obj-tuning') || document.getElementById('right-sidebar');
+        return document.getElementById('right-sidebar');
       case 'bottom-legend':
-        return document.getElementById('category-legend-container') || document.getElementById('bottom-bar');
       case 'bottom-stats':
-        return document.getElementById('bottom-stats') || document.getElementById('bottom-bar');
+        return document.getElementById('bottom-bar');
       default:
         return document.getElementById(targetKey) || document.querySelector(targetKey);
     }
@@ -1341,19 +1489,22 @@ class BIMHelpSystem {
 
     if (rect.left <= 4) {
       cutoutX = 0;
-      cutoutW = Math.round(rect.width + pad);
     }
     if (rect.right >= winW - 4) {
-      cutoutX = Math.round(rect.left - pad);
       cutoutW = Math.round(winW - cutoutX);
     }
     if (rect.top <= 4) {
       cutoutY = 0;
-      cutoutH = Math.round(rect.height + pad);
     }
     if (rect.bottom >= winH - 4) {
       cutoutH = Math.round(winH - cutoutY);
     }
+
+    // Clamp strictly within viewport
+    cutoutX = Math.max(0, cutoutX);
+    cutoutY = Math.max(0, cutoutY);
+    cutoutW = Math.min(winW - cutoutX, cutoutW);
+    cutoutH = Math.min(winH - cutoutY, cutoutH);
 
     const cutout = document.getElementById('help-mask-cutout');
     const halo = document.getElementById('help-spotlight-halo');
