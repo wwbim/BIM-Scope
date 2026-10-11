@@ -22027,15 +22027,19 @@ class ClippingEngine {
     // Wireframe edges for cutting plane
     const planeEdgesGeo = new THREE.EdgesGeometry(planeGeo);
     this.planeEdgesMat = new THREE.LineBasicMaterial({
-      color: 0x0099ff,
+      color: 0x00ffff,
       linewidth: 2.5,
-      transparent: false,
-      opacity: 1.0
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 1.0,
+      toneMapped: false
     });
     this.planeEdges = new THREE.LineSegments(
       planeEdgesGeo,
       this.planeEdgesMat
     );
+    this.planeEdges.renderOrder = 9998;
     this.planeEdges.userData = { isPlaneHelperMesh: true, isGizmo: true };
     this.planeEdges.raycast = () => {}; // Never pickable/selectable
     this.planeGroup.add(this.planeEdges);
@@ -22045,6 +22049,7 @@ class ClippingEngine {
     
     // Plane Gizmo Group (Scaled to 1/3 size with slender lines)
     this.planeGizmoGroup = new THREE.Group();
+    this.planeGizmoGroup.renderOrder = 9999;
     this.planeGizmoGroup.visible = false;
     this.planeGroup.add(this.planeGizmoGroup);
     this.initPlaneGizmo();
@@ -22060,15 +22065,19 @@ class ClippingEngine {
     const unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
     const boxEdgesGeo = new THREE.EdgesGeometry(unitBoxGeo);
     this.boxWireframeMat = new THREE.LineBasicMaterial({
-      color: 0x0099ff,
+      color: 0x00ffff,
       linewidth: 2.5,
-      transparent: false,
-      opacity: 1.0
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 1.0,
+      toneMapped: false
     });
     this.boxWireframe = new THREE.LineSegments(
       boxEdgesGeo,
       this.boxWireframeMat
     );
+    this.boxWireframe.renderOrder = 9998;
     this.boxWireframe.userData = { isBoxHelper: true, isGizmo: true };
     this.boxWireframe.raycast = () => {}; // Never pickable/selectable
     this.boxGroup.add(this.boxWireframe);
@@ -22100,8 +22109,9 @@ class ClippingEngine {
       color: 0x0099ff,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.16,
-      depthWrite: false
+      opacity: 0.22,
+      depthWrite: false,
+      toneMapped: false
     });
     this.boxHoverFaceMesh = new THREE.Mesh(hoverPlaneGeo, this.boxHoverFaceMat);
     this.boxHoverFaceMesh.visible = false;
@@ -22111,6 +22121,7 @@ class ClippingEngine {
     
     // Box Gizmo Group (6 Face Outward Arrows with Midpoint Rotation Rings)
     this.boxGizmoGroup = new THREE.Group();
+    this.boxGizmoGroup.renderOrder = 9999;
     this.boxGroup.add(this.boxGizmoGroup);
     this.initBoxGizmo();
 
@@ -22144,15 +22155,18 @@ class ClippingEngine {
     this.planeArrowMat = new THREE.MeshBasicMaterial({
       color: 0x0088ff,
       depthTest: false,
-      transparent: false,
+      depthWrite: false,
+      transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    this.planeArrowMat.renderOrder = 10000;
     
     const stemMesh = new THREE.Mesh(stemGeo, this.planeArrowMat);
+    stemMesh.renderOrder = 9999;
     stemMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0088ff };
     const coneMesh = new THREE.Mesh(coneGeo, this.planeArrowMat);
+    coneMesh.renderOrder = 9999;
     coneMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0088ff };
     this.planeArrowGroup.add(stemMesh);
     this.planeArrowGroup.add(coneMesh);
@@ -22167,6 +22181,7 @@ class ClippingEngine {
     
     // Default orient arrow towards cut-away side (local -Z for un-inverted Align Z)
     this.planeArrowGroup.rotation.x = -Math.PI / 2;
+    this.planeArrowGroup.renderOrder = 9999;
     this.planeGizmoGroup.add(this.planeArrowGroup);
     
     // B. Center Knob (slender: radius 0.18)
@@ -22174,24 +22189,28 @@ class ClippingEngine {
     const knobMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       depthTest: false,
-      transparent: false,
+      depthWrite: false,
+      transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    knobMat.renderOrder = 10000;
     this.planeCenterKnob = new THREE.Mesh(knobGeo, knobMat);
+    this.planeCenterKnob.renderOrder = 9999;
     this.planeCenterKnob.userData = { isGizmo: true, type: 'plane', part: 'translateCenter' };
     this.planeGizmoGroup.add(this.planeCenterKnob);
     
     // C. Thin Rotation Rings (radius ~0.95, tube ~0.025)
-    // 1. Pitch Ring (around local X axis) - Vivid Red
-    this.planeRotX = this.createRingHelper(0.95, 0.025, 0xff0044, 'plane', 'rotateX');
+    // 1. Pitch Ring (around local X axis) - Pure Saturated Red
+    this.planeRotX = this.createRingHelper(0.95, 0.025, 0xff0000, 'plane', 'rotateX');
     this.planeRotX.rotation.y = Math.PI / 2;
+    this.planeRotX.renderOrder = 9999;
     this.planeGizmoGroup.add(this.planeRotX);
     
-    // 2. Yaw Ring (around local Y axis) - Vivid Green
-    this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00ff66, 'plane', 'rotateY');
+    // 2. Yaw Ring (around local Y axis) - Pure Saturated Green
+    this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00ff00, 'plane', 'rotateY');
     this.planeRotY.rotation.x = Math.PI / 2;
+    this.planeRotY.renderOrder = 9999;
     this.planeGizmoGroup.add(this.planeRotY);
   }
   
@@ -22203,12 +22222,12 @@ class ClippingEngine {
     
     // 6 Face Handles: +X/-X (Red East/West), +Y/-Y (Blue Height RL), +Z/-Z (Green Northing)
     const faceConfigs = [
-      { id: 'xPos', normal: new THREE.Vector3(1, 0, 0), color: 0xff0044, label: '+X East' },
-      { id: 'xNeg', normal: new THREE.Vector3(-1, 0, 0), color: 0xff0044, label: '-X West' },
+      { id: 'xPos', normal: new THREE.Vector3(1, 0, 0), color: 0xff0000, label: '+X East' },
+      { id: 'xNeg', normal: new THREE.Vector3(-1, 0, 0), color: 0xff0000, label: '-X West' },
       { id: 'yPos', normal: new THREE.Vector3(0, 1, 0), color: 0x0088ff, label: '+Y Height Top' },
       { id: 'yNeg', normal: new THREE.Vector3(0, -1, 0), color: 0x0088ff, label: '-Y Height Bottom' },
-      { id: 'zPos', normal: new THREE.Vector3(0, 0, 1), color: 0x00ff66, label: '+Z Northing South' },
-      { id: 'zNeg', normal: new THREE.Vector3(0, 0, -1), color: 0x00ff66, label: '-Z Northing North' }
+      { id: 'zPos', normal: new THREE.Vector3(0, 0, 1), color: 0x00ff00, label: '+Z Northing South' },
+      { id: 'zNeg', normal: new THREE.Vector3(0, 0, -1), color: 0x00ff00, label: '-Z Northing North' }
     ];
     
     faceConfigs.forEach(cfg => {
@@ -22221,6 +22240,7 @@ class ClippingEngine {
   
   createFaceHandle(faceId, normal, colorHex, label) {
     const group = new THREE.Group();
+    group.renderOrder = 9999;
     group.userData = {
       isGizmo: true,
       type: 'box',
@@ -22234,14 +22254,16 @@ class ClippingEngine {
     const arrowMat = new THREE.MeshBasicMaterial({
       color: colorHex,
       depthTest: false,
-      transparent: false,
+      depthWrite: false,
+      transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    arrowMat.renderOrder = 10000;
     
     // 1. OUTWARD ARROW (perpendicular to face, pointing outward)
     const arrowGroup = new THREE.Group();
+    arrowGroup.renderOrder = 9999;
     arrowGroup.userData = {
       isGizmo: true,
       type: 'box',
@@ -22256,6 +22278,7 @@ class ClippingEngine {
     const stemGeo = new THREE.CylinderGeometry(0.12, 0.12, 2.0, 16);
     stemGeo.translate(0, 1.0, 0);
     const stemMesh = new THREE.Mesh(stemGeo, arrowMat);
+    stemMesh.renderOrder = 9999;
     stemMesh.userData = { isGizmo: true, type: 'box', part: 'faceArrow', face: faceId, parentGroup: arrowGroup, handleGroup: group };
     arrowGroup.add(stemMesh);
     
@@ -22263,6 +22286,7 @@ class ClippingEngine {
     const coneGeo = new THREE.ConeGeometry(0.34, 0.75, 16);
     coneGeo.translate(0, 2.375, 0);
     const coneMesh = new THREE.Mesh(coneGeo, arrowMat);
+    coneMesh.renderOrder = 9999;
     coneMesh.userData = { isGizmo: true, type: 'box', part: 'faceArrow', face: faceId, parentGroup: arrowGroup, handleGroup: group };
     arrowGroup.add(coneMesh);
     
@@ -22285,31 +22309,34 @@ class ClippingEngine {
     
     // 2. PERPENDICULAR ROTATION RING IN THE MIDDLE OF THE ARROW
     const ringGroup = new THREE.Group();
+    ringGroup.renderOrder = 9999;
     ringGroup.userData = {
       isGizmo: true,
       type: 'box',
       part: 'faceRotate',
       face: faceId,
       normal: normal.clone(),
-      baseColor: 0xff9900,
+      baseColor: 0xffaa00,
       label: `Rotate around ${label}`
     };
     ringGroup.position.set(0, 1.0, 0); // Positioned at exact midpoint of arrow shaft (y = 1.0)
     
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xff9900, // Vivid Gold / Amber
+      color: 0xffaa00, // Vivid Gold / Amber
       depthTest: false,
-      transparent: false,
+      depthWrite: false,
+      transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    ringMat.renderOrder = 10000;
     
     const ringRadius = 0.92;
     const ringTube = 0.055;
     const ringGeo = new THREE.TorusGeometry(ringRadius, ringTube, 16, 48);
     ringGeo.rotateX(Math.PI / 2); // Perpendicular to arrow shaft
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.renderOrder = 9999;
     ringMesh.userData = { isGizmo: true, type: 'box', part: 'faceRotate', face: faceId, parentGroup: ringGroup, handleGroup: group };
     ringGroup.add(ringMesh);
     
@@ -22338,19 +22365,22 @@ class ClippingEngine {
   
   createRingHelper(radius, tube, colorHex, gizmoType, partName) {
     const group = new THREE.Group();
+    group.renderOrder = 9999;
     group.userData = { isGizmo: true, type: gizmoType, part: partName, baseColor: colorHex };
     
     const mat = new THREE.MeshBasicMaterial({
       color: colorHex,
       depthTest: false,
-      transparent: false,
+      depthWrite: false,
+      transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    mat.renderOrder = 10000;
     
     const ringGeo = new THREE.TorusGeometry(radius, tube, 12, 48);
     const ringMesh = new THREE.Mesh(ringGeo, mat);
+    ringMesh.renderOrder = 9999;
     ringMesh.userData = { isGizmo: true, type: gizmoType, part: partName, parentGroup: group };
     group.add(ringMesh);
     
@@ -23059,12 +23089,12 @@ class ClippingEngine {
     this.boxHoverFaceMesh.visible = true;
     
     const faceColors = {
-      xPos: 0xff1744, xNeg: 0xff1744,
-      yPos: 0x0066ff, yNeg: 0x0066ff,
-      zPos: 0x00e676, zNeg: 0x00e676
+      xPos: 0xff0000, xNeg: 0xff0000,
+      yPos: 0x0088ff, yNeg: 0x0088ff,
+      zPos: 0x00ff00, zNeg: 0x00ff00
     };
     if (this.boxHoverFaceMat) {
-      this.boxHoverFaceMat.color.setHex(faceColors[faceId] || 0x0099ff);
+      this.boxHoverFaceMat.color.setHex(faceColors[faceId] || 0x0088ff);
     }
     
     if (faceId === 'xPos') {
@@ -23592,9 +23622,9 @@ class ClippingEngine {
     if (absZ >= absX && absZ >= absY) {
       axisColor = 0x0088ff; // Vivid Blue (Elevation RL)
     } else if (absX >= absY) {
-      axisColor = 0xff0044; // Vivid Red (Easting)
+      axisColor = 0xff0000; // Pure Red (Easting)
     } else {
-      axisColor = 0x00ff66; // Vivid Green (Northing)
+      axisColor = 0x00ff00; // Pure Green (Northing)
     }
 
     this.planeArrowGroup.userData.baseColor = axisColor;
