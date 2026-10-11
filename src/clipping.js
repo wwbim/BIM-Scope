@@ -53,7 +53,7 @@ class ClippingEngine {
     this.activeDragGizmo = null;
     this.helpersVisible = true; // Visibility toggle for Section Plane & Box helpers and gizmos
     this.boxHelpersVisible = true; // Backwards compatibility alias
-    this.rotationSnap5Deg = false; // 5-degree angle snapping toggle
+    this.rotationSnap5Deg = true; // 5-degree angle snapping toggle (default ON)
     this.showCutawayWireframe = false; // Toggle to show architectural wireframe on cut-off side
     this.dragPlane = new THREE.Plane();
     this.dragStartHit = new THREE.Vector3();
@@ -109,10 +109,10 @@ class ClippingEngine {
     // Wireframe edges for cutting plane
     const planeEdgesGeo = new THREE.EdgesGeometry(planeGeo);
     this.planeEdgesMat = new THREE.LineBasicMaterial({
-      color: 0x0078ff,
+      color: 0x0099ff,
       linewidth: 2.5,
-      transparent: true,
-      opacity: 0.25
+      transparent: false,
+      opacity: 1.0
     });
     this.planeEdges = new THREE.LineSegments(
       planeEdgesGeo,
@@ -142,10 +142,10 @@ class ClippingEngine {
     const unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
     const boxEdgesGeo = new THREE.EdgesGeometry(unitBoxGeo);
     this.boxWireframeMat = new THREE.LineBasicMaterial({
-      color: 0x0078ff,
+      color: 0x0099ff,
       linewidth: 2.5,
-      transparent: true,
-      opacity: 0.25
+      transparent: false,
+      opacity: 1.0
     });
     this.boxWireframe = new THREE.LineSegments(
       boxEdgesGeo,
@@ -216,7 +216,7 @@ class ClippingEngine {
   initPlaneGizmo() {
     // A. Normal Translation Arrow (slender: radius 0.04, length 1.2)
     this.planeArrowGroup = new THREE.Group();
-    this.planeArrowGroup.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', baseColor: 0x0066ff };
+    this.planeArrowGroup.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', baseColor: 0x0088ff };
     
     const stemGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.2, 16);
     stemGeo.translate(0, 0.6, 0);
@@ -224,18 +224,18 @@ class ClippingEngine {
     coneGeo.translate(0, 1.35, 0);
     
     this.planeArrowMat = new THREE.MeshBasicMaterial({
-      color: 0x0066ff,
+      color: 0x0088ff,
       depthTest: false,
-      transparent: true,
+      transparent: false,
       opacity: 1.0,
       clippingPlanes: []
     });
     this.planeArrowMat.renderOrder = 10000;
     
     const stemMesh = new THREE.Mesh(stemGeo, this.planeArrowMat);
-    stemMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0066ff };
+    stemMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0088ff };
     const coneMesh = new THREE.Mesh(coneGeo, this.planeArrowMat);
-    coneMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0066ff };
+    coneMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0088ff };
     this.planeArrowGroup.add(stemMesh);
     this.planeArrowGroup.add(coneMesh);
     
@@ -256,7 +256,7 @@ class ClippingEngine {
     const knobMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       depthTest: false,
-      transparent: true,
+      transparent: false,
       opacity: 1.0,
       clippingPlanes: []
     });
@@ -266,13 +266,13 @@ class ClippingEngine {
     this.planeGizmoGroup.add(this.planeCenterKnob);
     
     // C. Thin Rotation Rings (radius ~0.95, tube ~0.025)
-    // 1. Pitch Ring (around local X axis) - Red
-    this.planeRotX = this.createRingHelper(0.95, 0.025, 0xff1744, 'plane', 'rotateX');
+    // 1. Pitch Ring (around local X axis) - Vivid Red
+    this.planeRotX = this.createRingHelper(0.95, 0.025, 0xff0044, 'plane', 'rotateX');
     this.planeRotX.rotation.y = Math.PI / 2;
     this.planeGizmoGroup.add(this.planeRotX);
     
-    // 2. Yaw Ring (around local Y axis) - Green
-    this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00e676, 'plane', 'rotateY');
+    // 2. Yaw Ring (around local Y axis) - Vivid Green
+    this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00ff66, 'plane', 'rotateY');
     this.planeRotY.rotation.x = Math.PI / 2;
     this.planeGizmoGroup.add(this.planeRotY);
   }
@@ -285,12 +285,12 @@ class ClippingEngine {
     
     // 6 Face Handles: +X/-X (Red East/West), +Y/-Y (Blue Height RL), +Z/-Z (Green Northing)
     const faceConfigs = [
-      { id: 'xPos', normal: new THREE.Vector3(1, 0, 0), color: 0xff1744, label: '+X East' },
-      { id: 'xNeg', normal: new THREE.Vector3(-1, 0, 0), color: 0xff1744, label: '-X West' },
-      { id: 'yPos', normal: new THREE.Vector3(0, 1, 0), color: 0x0066ff, label: '+Y Height Top' },
-      { id: 'yNeg', normal: new THREE.Vector3(0, -1, 0), color: 0x0066ff, label: '-Y Height Bottom' },
-      { id: 'zPos', normal: new THREE.Vector3(0, 0, 1), color: 0x00e676, label: '+Z Northing South' },
-      { id: 'zNeg', normal: new THREE.Vector3(0, 0, -1), color: 0x00e676, label: '-Z Northing North' }
+      { id: 'xPos', normal: new THREE.Vector3(1, 0, 0), color: 0xff0044, label: '+X East' },
+      { id: 'xNeg', normal: new THREE.Vector3(-1, 0, 0), color: 0xff0044, label: '-X West' },
+      { id: 'yPos', normal: new THREE.Vector3(0, 1, 0), color: 0x0088ff, label: '+Y Height Top' },
+      { id: 'yNeg', normal: new THREE.Vector3(0, -1, 0), color: 0x0088ff, label: '-Y Height Bottom' },
+      { id: 'zPos', normal: new THREE.Vector3(0, 0, 1), color: 0x00ff66, label: '+Z Northing South' },
+      { id: 'zNeg', normal: new THREE.Vector3(0, 0, -1), color: 0x00ff66, label: '-Z Northing North' }
     ];
     
     faceConfigs.forEach(cfg => {
@@ -316,7 +316,7 @@ class ClippingEngine {
     const arrowMat = new THREE.MeshBasicMaterial({
       color: colorHex,
       depthTest: false,
-      transparent: true,
+      transparent: false,
       opacity: 1.0,
       clippingPlanes: []
     });
@@ -373,15 +373,15 @@ class ClippingEngine {
       part: 'faceRotate',
       face: faceId,
       normal: normal.clone(),
-      baseColor: 0xffa800,
+      baseColor: 0xff9900,
       label: `Rotate around ${label}`
     };
     ringGroup.position.set(0, 1.0, 0); // Positioned at exact midpoint of arrow shaft (y = 1.0)
     
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xffa800, // Gold / Amber
+      color: 0xff9900, // Vivid Gold / Amber
       depthTest: false,
-      transparent: true,
+      transparent: false,
       opacity: 1.0,
       clippingPlanes: []
     });
@@ -425,7 +425,7 @@ class ClippingEngine {
     const mat = new THREE.MeshBasicMaterial({
       color: colorHex,
       depthTest: false,
-      transparent: true,
+      transparent: false,
       opacity: 1.0,
       clippingPlanes: []
     });
@@ -1231,7 +1231,7 @@ class ClippingEngine {
       const gizmoHits = raycaster.intersectObjects(this.planeGizmoGroup.children, true);
       if (gizmoHits.length > 0) {
         this.planeMat.opacity = 0.36;
-        if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+        if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
         this.planeGizmoGroup.visible = true;
         this.setHoverGizmo(gizmoHits[0].object);
         return true; // Over interactive gizmo -> cursor grab
@@ -1242,7 +1242,7 @@ class ClippingEngine {
     const planeHits = this.planeMesh ? raycaster.intersectObject(this.planeMesh) : [];
     if (planeHits.length > 0) {
       this.planeMat.opacity = 0.36;
-      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
       this.planeGizmoGroup.visible = true;
       this.clearHoverGizmo();
       return false; // On plane, but not directly on a gizmo component
@@ -1251,7 +1251,7 @@ class ClippingEngine {
     // 3. Proximity buffer tolerance: if plane gizmo is currently visible and cursor is within buffer
     if (inGizmoProximity && this.planeGizmoGroup && this.planeGizmoGroup.visible) {
       this.planeMat.opacity = 0.36;
-      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
       this.planeGizmoGroup.visible = true;
       this.clearHoverGizmo();
       return false;
@@ -1259,7 +1259,7 @@ class ClippingEngine {
 
     // 4. Mouse is not hovering plane or gizmo -> return to ghostly state
     this.planeMat.opacity = 0.08;
-    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.25;
+    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
     if (this.planeGizmoGroup) this.planeGizmoGroup.visible = false;
     this.clearHoverGizmo();
     return false;
@@ -1278,7 +1278,7 @@ class ClippingEngine {
         const gHits = raycaster.intersectObjects([activeHandle.arrowGroup, activeHandle.ringGroup], true);
         if (gHits.length > 0) {
           this.boxFillMat.opacity = 0.085;
-          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
           this.showOnlyFaceGizmo(this.hoveredBoxFace);
           this.updateBoxHoverFaceMesh(this.hoveredBoxFace);
           this.setHoverGizmo(gHits[0].object);
@@ -1295,7 +1295,7 @@ class ClippingEngine {
       
       this.hoveredBoxFace = faceId;
       this.boxFillMat.opacity = 0.085;
-      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
       this.showOnlyFaceGizmo(faceId);
       this.updateBoxHoverFaceMesh(faceId);
       this.clearHoverGizmo();
@@ -1318,7 +1318,7 @@ class ClippingEngine {
         const dist = raycaster.ray.distanceToPoint(handleCenter);
         if (dist <= handleRadius) {
           this.boxFillMat.opacity = 0.085;
-          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
           this.showOnlyFaceGizmo(this.hoveredBoxFace);
           this.updateBoxHoverFaceMesh(this.hoveredBoxFace);
           this.clearHoverGizmo();
@@ -1329,7 +1329,7 @@ class ClippingEngine {
 
     // 4. Mouse is not hovering box or face gizmo -> return to ghostly state
     this.boxFillMat.opacity = 0.025;
-    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.25;
+    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
     this.showOnlyFaceGizmo(null);
     this.updateBoxHoverFaceMesh(null);
     this.hoveredBoxFace = null;
@@ -1343,12 +1343,12 @@ class ClippingEngine {
     
     // Reset Plane
     if (this.planeMat) this.planeMat.opacity = 0.08;
-    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.25;
+    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
     if (this.planeGizmoGroup) this.planeGizmoGroup.visible = false;
     
     // Reset Box
     if (this.boxFillMat) this.boxFillMat.opacity = 0.025;
-    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.25;
+    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
     if (this.boxHoverFaceMesh) this.boxHoverFaceMesh.visible = false;
     if (this.faceHandles) {
       Object.values(this.faceHandles).forEach(h => {
@@ -1410,7 +1410,7 @@ class ClippingEngine {
     if (data.type === 'plane') {
       if (this.planeGizmoGroup) this.planeGizmoGroup.visible = true;
       if (this.planeMat) this.planeMat.opacity = 0.36;
-      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
 
       if (data.part === 'translateNormal') {
         const arrowDirLocal = new THREE.Vector3(0, 0, this.planeInvert ? 1 : -1);
@@ -1466,7 +1466,7 @@ class ClippingEngine {
       this.showOnlyFaceGizmo(data.face);
       this.updateBoxHoverFaceMesh(data.face);
       if (this.boxFillMat) this.boxFillMat.opacity = 0.085;
-      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
 
       if (data.part === 'faceArrow') {
         // Drag face outward / inward
@@ -1670,13 +1670,13 @@ class ClippingEngine {
     const absZ = Math.abs(worldNormal.y); // BIM Z (Elevation RL Height)
     const absY = Math.abs(worldNormal.z); // BIM Y (Northing)
 
-    let axisColor = 0x0066ff; // Default Z Blue
+    let axisColor = 0x0088ff; // Default Z Blue
     if (absZ >= absX && absZ >= absY) {
-      axisColor = 0x0066ff; // Blue (Elevation RL)
+      axisColor = 0x0088ff; // Vivid Blue (Elevation RL)
     } else if (absX >= absY) {
-      axisColor = 0xff1744; // Red (Easting)
+      axisColor = 0xff0044; // Vivid Red (Easting)
     } else {
-      axisColor = 0x00e676; // Green (Northing)
+      axisColor = 0x00ff66; // Vivid Green (Northing)
     }
 
     this.planeArrowGroup.userData.baseColor = axisColor;
@@ -2073,7 +2073,7 @@ class ClippingEngine {
     this.enabled = false;
     this.helpersVisible = true;
     this.boxHelpersVisible = true;
-    this.rotationSnap5Deg = false;
+    this.rotationSnap5Deg = true;
     this.showCutawayWireframe = false;
     this.planeAxis = 'Z';
     this.planeOffset = 0.5;

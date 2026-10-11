@@ -570,7 +570,7 @@ def generate_html(variant_cfg, sources):
                 <div class="control-row" style="margin-top:8px;">
                   <span class="control-label" data-i18n="secSnap5Deg">5° Rotation Snap</span>
                   <label class="toggle-switch">
-                    <input type="checkbox" id="sec-plane-snap-chk">
+                    <input type="checkbox" id="sec-plane-snap-chk" checked>
                     <span class="slider-switch"></span>
                   </label>
                 </div>
@@ -627,7 +627,7 @@ def generate_html(variant_cfg, sources):
                 <div class="control-row" style="margin-top:8px;">
                   <span class="control-label" data-i18n="secSnap5Deg">5° Rotation Snap</span>
                   <label class="toggle-switch">
-                    <input type="checkbox" id="sec-box-snap-chk">
+                    <input type="checkbox" id="sec-box-snap-chk" checked>
                     <span class="slider-switch"></span>
                   </label>
                 </div>
