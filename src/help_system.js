@@ -997,6 +997,18 @@ class BIMHelpSystem {
       halo.style.height = `${cutoutH}px`;
     }
 
+    // Step 3 of 6: move exit button down to avoid overlapping the highlighted top-right toolbar
+    const exitBtn = document.getElementById('tour-btn-exit-top');
+    if (exitBtn) {
+      if (this.currentTourStep === 2) {
+        exitBtn.style.top = '56px';
+        exitBtn.style.right = '18px';
+      } else {
+        exitBtn.style.top = '14px';
+        exitBtn.style.right = '18px';
+      }
+    }
+
     // Position Callout Card intelligently
     this.positionCallout(rect);
   }
@@ -1019,6 +1031,10 @@ class BIMHelpSystem {
       // 3D Viewport: Place callout gracefully in bottom-center
       left = Math.round((winW - cW) / 2);
       top = Math.round(winH - cH - 60);
+    } else if (this.currentTourStep === 2) {
+      // Step 3 of 6 (Top Right): Move callout to the left to leave room for the downward-shifted exit button
+      left = Math.round(winW - cW - 150);
+      top = Math.round(targetRect.bottom + pad);
     } else if (targetRect.top < 80 && targetRect.left > 200 && targetRect.right < winW - 200) {
       // Top Center Bar: Place callout directly below
       left = Math.round(targetRect.left + (targetRect.width - cW) / 2);
@@ -1065,6 +1081,12 @@ class BIMHelpSystem {
     this.isTourActive = false;
     const overlay = document.getElementById('tour-overlay-container');
     if (overlay) overlay.style.display = 'none';
+
+    const exitBtn = document.getElementById('tour-btn-exit-top');
+    if (exitBtn) {
+      exitBtn.style.top = '14px';
+      exitBtn.style.right = '18px';
+    }
 
     if (markCompleted) {
       try {
