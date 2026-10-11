@@ -22,6 +22,10 @@
   --text-inverse: #0a0d14;
   --text-on-accent: #ffffff;
   
+  --btn-unselected-bg: #222f46;
+  --btn-unselected-border: #2c3c54;
+  --btn-unselected-text: #94a3b8;
+  
   --input-bg: #0d121c;
   --input-border: #202b3d;
   --input-focus-border: var(--accent);
@@ -99,6 +103,10 @@
   --text-bright: #0a1120;
   --text-inverse: #ffffff;
   --text-on-accent: #ffffff;
+  
+  --btn-unselected-bg: #e2e8f0;
+  --btn-unselected-border: #cbd5e1;
+  --btn-unselected-text: #27364b;
   
   --tab-active-top: var(--accent);
   --tab-active-border: rgba(2, 132, 199, 0.65);
@@ -699,6 +707,53 @@ svg.help-btn-svg {
   min-height: 0;
 }
 
+/* FLOATING TOOLS PANEL BUTTON STYLES */
+.floating-tools-body .small-btn,
+.floating-tools-body .segment-btn,
+.floating-tools-body .measure-mode-btn,
+.floating-tools-body button:not(.floating-tools-close-btn) {
+  background: var(--btn-unselected-bg);
+  border: 1px solid var(--btn-unselected-border);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.floating-tools-body .small-btn:hover,
+.floating-tools-body .segment-btn:hover,
+.floating-tools-body .measure-mode-btn:hover,
+.floating-tools-body button:not(.floating-tools-close-btn):hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.floating-tools-body .small-btn.active,
+.floating-tools-body .segment-btn.active,
+.floating-tools-body .measure-mode-btn.active,
+.floating-tools-body button:not(.floating-tools-close-btn).active {
+  background: var(--bg-card-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.floating-tools-body .small-btn.active:hover,
+.floating-tools-body .segment-btn.active:hover,
+.floating-tools-body .measure-mode-btn.active:hover,
+.floating-tools-body button:not(.floating-tools-close-btn).active:hover {
+  background: var(--bg-card-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.floating-tools-body .small-btn.active svg,
+.floating-tools-body .segment-btn.active svg,
+.floating-tools-body .measure-mode-btn.active svg,
+.floating-tools-body button:not(.floating-tools-close-btn).active svg {
+  color: var(--accent);
+}
+
 .tool-tab-content {
   display: none;
   flex-direction: column;
@@ -723,8 +778,8 @@ svg.help-btn-svg {
   justify-content: center;
   gap: 4px;
   padding: 8px 4px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: var(--btn-unselected-bg);
+  border: 1px solid var(--btn-unselected-border);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 11px;
@@ -1041,9 +1096,11 @@ svg.help-btn-svg {
 }
 
 .small-btn.active {
-  background: var(--brand-primary);
-  color: var(--text-on-accent);
+  background: var(--bg-card-subtle);
+  color: var(--accent);
   border-color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--accent-glow);
 }
 
 /* TREE VIEW & STRUCTURE LIST (VIRTUAL SCROLLER) */
@@ -1336,11 +1393,11 @@ input:checked + .slider:before {
 /* SEGMENTED CONTROL & AXIS BUTTONS */
 .segmented-control {
   display: flex;
-  background: var(--bg-card);
+  background: var(--bg-panel);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 2px;
-  gap: 3px;
+  padding: 3px;
+  gap: 4px;
   width: 100%;
 }
 
@@ -1365,8 +1422,8 @@ input:checked + .slider:before {
 
 .segment-btn {
   flex: 1;
-  background: transparent;
-  border: 1px solid transparent;
+  background: var(--btn-unselected-bg);
+  border: 1px solid var(--btn-unselected-border);
   color: var(--text-secondary);
   border-radius: var(--radius-xs);
   padding: 4px 6px;
@@ -1381,42 +1438,45 @@ input:checked + .slider:before {
 .segment-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  border-color: var(--border-light);
 }
 
 .segment-btn.active {
-  background: var(--brand-primary);
+  background: var(--bg-card-subtle);
   border-color: var(--accent);
-  color: var(--text-on-accent);
+  color: var(--accent);
   font-weight: 600;
-  box-shadow: 0 0 6px var(--accent-glow);
+  box-shadow: 0 0 0 1px var(--accent-glow);
 }
 
 .segment-btn.active:hover {
-  background: var(--brand-primary-hover);
+  background: var(--bg-card-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .axis-segmented .axis-btn-x.active {
-  background: rgba(255, 71, 87, 0.18);
-  border-color: rgba(255, 71, 87, 0.5);
-  color: #ff4757;
+  background: rgba(255, 71, 87, 0.18) !important;
+  border-color: rgba(255, 71, 87, 0.6) !important;
+  color: #ff4757 !important;
   font-weight: 600;
-  box-shadow: 0 0 8px rgba(255, 71, 87, 0.25);
+  box-shadow: 0 0 0 1px rgba(255, 71, 87, 0.25) !important;
 }
 
 .axis-segmented .axis-btn-y.active {
-  background: rgba(46, 213, 115, 0.18);
-  border-color: rgba(46, 213, 115, 0.5);
-  color: #2ed573;
+  background: rgba(46, 213, 115, 0.18) !important;
+  border-color: rgba(46, 213, 115, 0.6) !important;
+  color: #2ed573 !important;
   font-weight: 600;
-  box-shadow: 0 0 8px rgba(46, 213, 115, 0.25);
+  box-shadow: 0 0 0 1px rgba(46, 213, 115, 0.25) !important;
 }
 
 .axis-segmented .axis-btn-z.active {
-  background: rgba(30, 144, 255, 0.18);
-  border-color: rgba(30, 144, 255, 0.5);
-  color: #1e90ff;
+  background: var(--bg-card-subtle) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
   font-weight: 600;
-  box-shadow: 0 0 8px rgba(30, 144, 255, 0.25);
+  box-shadow: 0 0 0 1px var(--accent-glow) !important;
 }
 
 /* RIGHT INSPECTOR PANEL */
