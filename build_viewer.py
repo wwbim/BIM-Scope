@@ -211,7 +211,14 @@ def generate_html(variant_cfg, sources):
   <!-- Favicon & Bookmarks -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='12' fill='%230a0d14'/><circle cx='12' cy='12' r='9.6' stroke='%2338bdf8' stroke-width='1.6' fill='none'/><circle cx='12' cy='12' r='7.2' stroke='%2338bdf8' stroke-width='1.1' stroke-opacity='0.8' fill='none'/><circle cx='12' cy='12' r='4.8' stroke='%2338bdf8' stroke-width='1.4' fill='rgba(0,229,255,0.18)'/><path d='M 6.6 8.4 A 6.2 6.2 0 0 1 12 5.8' stroke='%23ffffff' stroke-width='1.6' stroke-linecap='round' fill='none'/><path d='M 8.2 9.6 A 4.8 4.8 0 0 1 11.6 7.4' stroke='%2338bdf8' stroke-width='1.0' stroke-linecap='round' stroke-opacity='0.6' fill='none'/><line x1='12' y1='1.8' x2='12' y2='4.2' stroke='%2338bdf8' stroke-width='1.5' stroke-linecap='round'/><line x1='12' y1='19.8' x2='12' y2='22.2' stroke='%2338bdf8' stroke-width='1.5' stroke-linecap='round'/><line x1='1.8' y1='12' x2='4.2' y2='12' stroke='%2338bdf8' stroke-width='1.5' stroke-linecap='round'/><line x1='19.8' y1='12' x2='22.2' y2='12' stroke='%2338bdf8' stroke-width='1.5' stroke-linecap='round'/><circle cx='12' cy='12' r='1.2' fill='%2338bdf8'/></svg>">
   <link rel="alternate icon" href="favicon.ico">
-  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- PWA Progressive Web App Manifest & Installation -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0a0d14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="{app_name}">
   <style>
 {styles_css}
   </style>
@@ -1304,6 +1311,19 @@ def generate_html(variant_cfg, sources):
     }} else {{
       initApp();
     }}
+
+    // PWA Service Worker Registration (Runs silently on HTTPS/localhost, completely ignored on file://)
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {{
+      window.addEventListener('load', () => {{
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => {{
+            console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+          }})
+          .catch((err) => {{
+            console.warn('[PWA] ServiceWorker registration skipped/failed:', err);
+          }});
+      }});
+    }}
   </script>
 </body>
 </html>
@@ -1350,11 +1370,35 @@ def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliver
     shutil.copy2(proj_out, deliv_out)
     shutil.copy2(proj_index, deliv_index)
 
-    # Sync favicon assets if available
-    for fav_name in ["favicon.ico", "favicon.png", "favicon.svg", "icon-192.png"]:
-        fav_src = os.path.join(proj_dir, fav_name)
-        if os.path.exists(fav_src):
-            shutil.copy2(fav_src, os.path.join(deliv_dir, fav_name))
+    # Sync favicon and PWA assets
+    for asset_name in ["favicon.ico", "favicon.png", "favicon.svg", "icon-192.png", "icon-512.png", "sw.js"]:
+        asset_src = os.path.join(proj_dir, asset_name)
+        if not os.path.exists(asset_src):
+            asset_src = os.path.join(BASE_DIR, asset_name)
+        if os.path.exists(asset_src):
+            if asset_name == "sw.js" and variant_key == "B":
+                with open(asset_src, "r", encoding="utf-8") as sf:
+                    sw_code = sf.read().replace("bimscope-cache-v1", "swbimscope-cache-v1").replace("BIMScope.html", "SWBIMScope.html")
+                with open(os.path.join(proj_dir, "sw.js"), "w", encoding="utf-8") as tf:
+                    tf.write(sw_code)
+                with open(os.path.join(deliv_dir, "sw.js"), "w", encoding="utf-8") as tf:
+                    tf.write(sw_code)
+            else:
+                shutil.copy2(asset_src, os.path.join(deliv_dir, asset_name))
+
+    # Generate or copy tailored manifest.json
+    manifest_src = os.path.join(proj_dir, "manifest.json")
+    if not os.path.exists(manifest_src):
+        manifest_src = os.path.join(BASE_DIR, "manifest.json")
+    if os.path.exists(manifest_src):
+        with open(manifest_src, "r", encoding="utf-8") as mf:
+            m_data = json.load(mf)
+        m_data["name"] = v_info["appName"]
+        m_data["short_name"] = v_info["appName"]
+        with open(os.path.join(proj_dir, "manifest.json"), "w", encoding="utf-8") as tf:
+            json.dump(m_data, tf, indent=2, ensure_ascii=False)
+        with open(os.path.join(deliv_dir, "manifest.json"), "w", encoding="utf-8") as tf:
+            json.dump(m_data, tf, indent=2, ensure_ascii=False)
 
     print(f"[{variant_key}] Exported to Deliverables: {deliv_dir}")
 

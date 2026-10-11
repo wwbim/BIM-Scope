@@ -338,14 +338,17 @@ def run_sync(do_push=False):
         "favicon.ico",
         "favicon.png",
         "favicon.svg",
-        "icon-192.png"
+        "icon-192.png",
+        "icon-512.png",
+        "manifest.json",
+        "sw.js"
     ]
     for rf in root_files:
         src_f = os.path.join(BASE_DIR, rf)
         if os.path.exists(src_f):
             shutil.copy2(src_f, os.path.join(target_proj_dir, rf))
             print(f"  - Copied {rf}")
-            if rf.startswith("favicon") or rf.startswith("icon-"):
+            if rf.startswith("favicon") or rf.startswith("icon-") or rf in ("manifest.json", "sw.js"):
                 shutil.copy2(src_f, os.path.join(target_deliv_dir, rf))
 
     # Generate tailored documentation for SWBIM Scope
