@@ -388,21 +388,37 @@ svg.nav-arrow-icon {
 }
 
 .tool-btn.icon-circle-btn {
-  padding: 5px 6px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tool-btn.icon-circle-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .tool-btn.icon-circle-btn svg,
 svg.help-btn-svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
+  display: block;
   fill: none !important;
   stroke: currentColor;
-}
-
-.help-circle-outline {
-  fill: none !important;
-  stroke: currentColor !important;
 }
 
 .help-question-mark {

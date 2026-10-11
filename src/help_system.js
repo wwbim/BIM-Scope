@@ -40,7 +40,7 @@ class BIMHelpSystem {
         tourNext: "Next",
         tourFinish: "Finish Tour",
         tourStepLabel: "Step {current} of {total}",
-        helpTitle: "BIM Scope User Guide",
+        helpTitle: "User Guide",
         helpRerunTour: "Re-run Tour",
         helpClose: "Close",
         helpSearchPlaceholder: "Search features, controls, shortcuts...",
@@ -259,7 +259,7 @@ class BIMHelpSystem {
       tourNext: "下一步",
       tourFinish: "完成引导",
       tourStepLabel: "步骤 {current} / {total}",
-      helpTitle: "BIM Scope 使用指南",
+      helpTitle: "使用指南",
       helpRerunTour: "再次引导",
       helpClose: "关闭",
       helpSearchPlaceholder: "搜索功能、操作或关键词... (按 Esc 清空)",
@@ -555,7 +555,7 @@ class BIMHelpSystem {
             <span class="help-rerun-icon">⟲</span>
             <span id="help-btn-rerun-text">再次引导</span>
           </button>
-          <div class="help-dialog-title-text" id="help-dialog-title">BIM Scope 使用指南</div>
+          <div class="help-dialog-title-text" id="help-dialog-title">使用指南</div>
           <button type="button" class="help-dialog-close-btn" id="help-dialog-close-btn" title="Close">✕</button>
         </div>
         <div class="help-dialog-body" id="help-dialog-body">
@@ -770,12 +770,17 @@ class BIMHelpSystem {
 
             if (!isAlreadyActive) {
               item.classList.add('active');
-              // Auto-scroll so expanded section aligns at the top of the body
-              const body = document.getElementById('help-dialog-body');
-              if (body) {
-                const targetTop = Math.max(0, item.offsetTop - 10);
-                body.scrollTo({ top: targetTop, behavior: 'smooth' });
-              }
+              // Auto-scroll so expanded section aligns at the top of the body, preserving the header itself
+              requestAnimationFrame(() => {
+                const body = document.getElementById('help-dialog-body');
+                if (body && item) {
+                  const bodyRect = body.getBoundingClientRect();
+                  const itemRect = item.getBoundingClientRect();
+                  const relativeTop = itemRect.top - bodyRect.top;
+                  const targetScroll = Math.max(0, body.scrollTop + relativeTop - 8);
+                  body.scrollTo({ top: targetScroll, behavior: 'smooth' });
+                }
+              });
             }
           }
           return;

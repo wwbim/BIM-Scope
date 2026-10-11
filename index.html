@@ -402,21 +402,37 @@ svg.nav-arrow-icon {
 }
 
 .tool-btn.icon-circle-btn {
-  padding: 5px 6px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tool-btn.icon-circle-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .tool-btn.icon-circle-btn svg,
 svg.help-btn-svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
+  display: block;
   fill: none !important;
   stroke: currentColor;
-}
-
-.help-circle-outline {
-  fill: none !important;
-  stroke: currentColor !important;
 }
 
 .help-question-mark {
@@ -5294,10 +5310,9 @@ mark.help-match-highlight {
           <span data-i18n="openFile">Open Model</span>
         </button>
         <button class="tool-btn icon-circle-btn" id="btn-help-guide" title="Help & Guide" data-i18n-title="helpGuideTitle" aria-label="Help">
-          <svg class="help-btn-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle class="help-circle-outline" cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
-            <path class="help-question-mark" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-            <circle class="help-question-dot" cx="12" cy="17" r="0.8" fill="currentColor" stroke="none"></circle>
+          <svg class="help-btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path class="help-question-mark" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <circle class="help-question-dot" cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"></circle>
           </svg>
         </button>
         <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
@@ -30096,7 +30111,7 @@ class BIMHelpSystem {
         tourNext: "Next",
         tourFinish: "Finish Tour",
         tourStepLabel: "Step {current} of {total}",
-        helpTitle: "BIM Scope User Guide",
+        helpTitle: "User Guide",
         helpRerunTour: "Re-run Tour",
         helpClose: "Close",
         helpSearchPlaceholder: "Search features, controls, shortcuts...",
@@ -30315,7 +30330,7 @@ class BIMHelpSystem {
       tourNext: "下一步",
       tourFinish: "完成引导",
       tourStepLabel: "步骤 {current} / {total}",
-      helpTitle: "BIM Scope 使用指南",
+      helpTitle: "使用指南",
       helpRerunTour: "再次引导",
       helpClose: "关闭",
       helpSearchPlaceholder: "搜索功能、操作或关键词... (按 Esc 清空)",
@@ -30611,7 +30626,7 @@ class BIMHelpSystem {
             <span class="help-rerun-icon">⟲</span>
             <span id="help-btn-rerun-text">再次引导</span>
           </button>
-          <div class="help-dialog-title-text" id="help-dialog-title">BIM Scope 使用指南</div>
+          <div class="help-dialog-title-text" id="help-dialog-title">使用指南</div>
           <button type="button" class="help-dialog-close-btn" id="help-dialog-close-btn" title="Close">✕</button>
         </div>
         <div class="help-dialog-body" id="help-dialog-body">
@@ -30826,12 +30841,17 @@ class BIMHelpSystem {
 
             if (!isAlreadyActive) {
               item.classList.add('active');
-              // Auto-scroll so expanded section aligns at the top of the body
-              const body = document.getElementById('help-dialog-body');
-              if (body) {
-                const targetTop = Math.max(0, item.offsetTop - 10);
-                body.scrollTo({ top: targetTop, behavior: 'smooth' });
-              }
+              // Auto-scroll so expanded section aligns at the top of the body, preserving the header itself
+              requestAnimationFrame(() => {
+                const body = document.getElementById('help-dialog-body');
+                if (body && item) {
+                  const bodyRect = body.getBoundingClientRect();
+                  const itemRect = item.getBoundingClientRect();
+                  const relativeTop = itemRect.top - bodyRect.top;
+                  const targetScroll = Math.max(0, body.scrollTop + relativeTop - 8);
+                  body.scrollTo({ top: targetScroll, behavior: 'smooth' });
+                }
+              });
             }
           }
           return;
