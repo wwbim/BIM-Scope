@@ -1,5 +1,8 @@
 # BIMScope 🏗️
 
+> 🌐 **在线即刻体验 / Live Web App (GitHub Pages)**: [https://wwbim.github.io/BIM-Scope/](https://wwbim.github.io/BIM-Scope/)  
+> 📦 **单文件直接访问 / Direct Single-File Access**: [https://wwbim.github.io/BIM-Scope/BIMScope.html](https://wwbim.github.io/BIM-Scope/BIMScope.html)  
+
 > **纯前端、100% 离线单文件 Web BIM 与三维建筑工程查看器**  
 > **A Pure Client-Side, 100% Offline Standalone Web BIM & 3D Architectural Viewer**  
 > 基于 Three.js 引擎驱动 • 零后端依赖 • 单文件便携式分发  
