@@ -171,10 +171,14 @@ def generate_html(variant_cfg, sources):
     brand_primary_light_hover = variant_cfg.get("brandPrimaryLightHover", "#0369a1")
     brand_tab_active_border_dark = variant_cfg.get("brandTabActiveBorderDark", "rgba(56, 189, 248, 0.45)")
     brand_tab_active_border_light = variant_cfg.get("brandTabActiveBorderLight", "rgba(2, 132, 199, 0.65)")
-    model_info_banner_bg_dark = variant_cfg.get("modelInfoBannerBgDark", "var(--accent-glow)")
-    model_info_banner_border_dark = variant_cfg.get("modelInfoBannerBorderDark", "var(--accent)")
-    model_info_banner_bg_light = variant_cfg.get("modelInfoBannerBgLight", "var(--accent-glow)")
-    model_info_banner_border_light = variant_cfg.get("modelInfoBannerBorderLight", "var(--accent)")
+    model_info_banner_bg_dark = variant_cfg.get("modelInfoBannerBgDark", "rgba(56, 189, 248, 0.12)")
+    model_info_banner_border_dark = variant_cfg.get("modelInfoBannerBorderDark", "rgba(56, 189, 248, 0.35)")
+    model_info_banner_bg_light = variant_cfg.get("modelInfoBannerBgLight", "rgba(2, 132, 199, 0.08)")
+    model_info_banner_border_light = variant_cfg.get("modelInfoBannerBorderLight", "rgba(2, 132, 199, 0.25)")
+
+    is_crimson = "192, 24, 37" in brand_accent_glow or brand_accent.lower() == "#c01825"
+    panel_glow_dark_rgb = "192, 24, 37" if is_crimson else "56, 189, 248"
+    panel_glow_light_rgb = "158, 17, 29" if is_crimson else "2, 132, 199"
 
     styles_css = sources["styles_css"]
     three_js = sources["three_js"]
@@ -234,6 +238,11 @@ def generate_html(variant_cfg, sources):
       --tab-active-border: {brand_tab_active_border_dark};
       --model-info-banner-bg: {model_info_banner_bg_dark};
       --model-info-banner-border: {model_info_banner_border_dark};
+      --panel-glow-c0: rgba({panel_glow_dark_rgb}, 0.16);
+      --panel-glow-c1: rgba({panel_glow_dark_rgb}, 0.11);
+      --panel-glow-c2: rgba({panel_glow_dark_rgb}, 0.055);
+      --panel-glow-c3: rgba({panel_glow_dark_rgb}, 0.018);
+      --panel-glow-c4: rgba({panel_glow_dark_rgb}, 0);
     }}
     [data-theme="light"] {{
       --accent: {brand_accent_light};
@@ -245,6 +254,11 @@ def generate_html(variant_cfg, sources):
       --tab-active-border: {brand_tab_active_border_light};
       --model-info-banner-bg: {model_info_banner_bg_light};
       --model-info-banner-border: {model_info_banner_border_light};
+      --panel-glow-c0: rgba({panel_glow_light_rgb}, 0.10);
+      --panel-glow-c1: rgba({panel_glow_light_rgb}, 0.065);
+      --panel-glow-c2: rgba({panel_glow_light_rgb}, 0.03);
+      --panel-glow-c3: rgba({panel_glow_light_rgb}, 0.009);
+      --panel-glow-c4: rgba({panel_glow_light_rgb}, 0);
     }}
   </style>
 </head>
@@ -318,6 +332,41 @@ def generate_html(variant_cfg, sources):
       </div>
 
       <div class="nav-right">
+        <!-- Snapping Control Group (To the left of Tools) -->
+        <div class="snap-toolbar-container" id="snap-toolbar-container">
+          <!-- Collapsible Flyout (Expands to the left) -->
+          <div class="snap-flyout" id="snap-flyout">
+            <button type="button" class="snap-toggle-btn" id="btn-snap-edge" title="Snap to nearest point on feature edges (⧗)" data-i18n-title="snapTipEdge">
+              <svg viewBox="0 0 16 16" class="snap-btn-icon"><polygon points="3,3 13,3 3,13 13,13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              <span data-i18n="snapEdge">Edge</span>
+            </button>
+            <button type="button" class="snap-toggle-btn active" id="btn-snap-center" title="Snap to circle & arc centers (⨁)" data-i18n-title="snapTipCenter">
+              <svg viewBox="0 0 16 16" class="snap-btn-icon"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" stroke-width="1.4"/><line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="1.4"/></svg>
+              <span data-i18n="snapCenter">Center</span>
+            </button>
+            <button type="button" class="snap-toggle-btn active" id="btn-snap-mid" title="Snap to feature edge midpoints (△)" data-i18n-title="snapTipMid">
+              <svg viewBox="0 0 16 16" class="snap-btn-icon"><polygon points="8,2.5 14,13.5 2,13.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <span data-i18n="snapMidpoint">Mid</span>
+            </button>
+            <button type="button" class="snap-toggle-btn active" id="btn-snap-end" title="Snap to vertices & corners (□)" data-i18n-title="snapTipEnd">
+              <svg viewBox="0 0 16 16" class="snap-btn-icon"><rect x="3" y="3" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+              <span data-i18n="snapEndpoint">End</span>
+            </button>
+          </div>
+          <!-- Snap Master Button (Reflects expanded/collapsed state like Tools, with Snap label) -->
+          <button type="button" class="tool-btn" id="btn-tool-snap" title="3D Object Snapping (Hold Alt to bypass)" data-i18n-title="snapTitle">
+            <svg viewBox="0 0 24 24" class="snap-magnet-icon" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round">
+              <path d="M4 11.5 L10.5 5 C14.5 1 20 5.5 19.5 10.5 L13 17 L10.5 14.5 L15.5 9.5 C16 8 14.8 6.8 13.5 7 L8 12.5 Z"></path>
+              <path d="M4 11.5 v3.5 L6.5 17"></path>
+              <path d="M10.5 14.5 v3.5 L13 20.5 v-3.5"></path>
+              <path d="M13 20.5 L17.5 16 C20 13.5 20 10 19.5 10.5"></path>
+              <line x1="5.8" y1="10" x2="8.2" y2="12.2"></line>
+              <line x1="12" y1="16" x2="14.2" y2="13.8"></line>
+            </svg>
+            <span data-i18n="toolSnap">Snap</span>
+          </button>
+        </div>
+
         <!-- Tools Group -->
         <button class="tool-btn" id="btn-tool-tools" data-i18n="toolTools" title="Architectural & Simulation Tools" data-i18n-title="toolsTitle">
           <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
@@ -478,6 +527,18 @@ def generate_html(variant_cfg, sources):
       <!-- 3D VIEWPORT -->
       <section id="viewport-container">
         <canvas id="canvas3d"></canvas>
+
+        <!-- 2D Measurement Callouts & Leader Lines Overlay -->
+        <div id="measure-callouts-layer" class="measure-callouts-layer">
+          <svg id="measure-leader-svg" class="measure-leader-svg"></svg>
+          <div id="measure-callouts-list" class="measure-callouts-list"></div>
+        </div>
+
+        <!-- 3D Snapping HUD Tooltip Floating Tag -->
+        <div id="snap-hud-tooltip" class="snap-hud-tooltip" style="display:none">
+          <span class="snap-hud-icon" id="snap-hud-icon">□</span>
+          <span class="snap-hud-text" id="snap-hud-text">Endpoint</span>
+        </div>
         
         <!-- Viewport Watermark Logo (Bottom-Left) -->
         <img class="viewport-watermark-logo" src="{logo_ww_b64}" alt="WW Logo" width="32" height="32" draggable="false">
@@ -797,7 +858,7 @@ def generate_html(variant_cfg, sources):
               <div class="control-section">
                 <div class="control-title" data-i18n="measureModeActive">Measurement Mode</div>
                 <div class="measure-mode-btn-grid" id="measure-mode-btn-grid">
-                  <button type="button" class="measure-mode-btn" id="btn-measure-mode-point" data-mode="point" title="Point Coordinates Measurement" data-i18n-title="measurePointTitle">
+                  <button type="button" class="measure-mode-btn active" id="btn-measure-mode-point" data-mode="point" title="Point Coordinates Measurement" data-i18n-title="measurePointTitle">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <circle cx="12" cy="12" r="3"></circle>
                       <line x1="12" y1="2" x2="12" y2="6"></line>
@@ -808,7 +869,7 @@ def generate_html(variant_cfg, sources):
                     <span data-i18n="measurePoint">Point</span>
                   </button>
 
-                  <button type="button" class="measure-mode-btn active" id="btn-measure-mode-dist" data-mode="distance" title="Two-Point Distance Measurement" data-i18n-title="measureDistanceTitle">
+                  <button type="button" class="measure-mode-btn" id="btn-measure-mode-dist" data-mode="distance" title="Two-Point Distance Measurement" data-i18n-title="measureDistanceTitle">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <line x1="4" y1="20" x2="20" y2="4"></line>
                       <circle cx="4" cy="20" r="2.5" fill="currentColor"></circle>
@@ -836,7 +897,18 @@ def generate_html(variant_cfg, sources):
                     </svg>
                     <span data-i18n="measureAngle">Angle</span>
                   </button>
+
+                  <button type="button" class="measure-mode-btn" id="btn-measure-mode-radius" data-mode="radius" title="Radius Measurement (Arc / Circle / Sphere)" data-i18n-title="measureRadiusTitle">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="9"></circle>
+                      <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+                      <line x1="12" y1="12" x2="18.36" y2="5.64"></line>
+                      <polyline points="14.5 5.64 18.36 5.64 18.36 9.5"></polyline>
+                    </svg>
+                    <span data-i18n="measureRadius">Radius</span>
+                  </button>
                 </div>
+                <div class="measure-mode-hint" id="measure-mode-hint" data-i18n="measurePointHint">Click surface to move point | Drag point to probe live | Ctrl+Click: New point | Shift+Click: Delete</div>
               </div>
 
               <!-- Measurement Options Area -->
@@ -859,30 +931,85 @@ def generate_html(variant_cfg, sources):
                 </div>
                 
                 <div class="measure-result-card" id="measure-result-card">
-                  <div class="measure-result-primary">
-                    <span class="measure-result-label" data-i18n="measureResultDist">Direct Distance</span>
-                    <span class="measure-result-val" id="measure-res-distance">--</span>
+                  <!-- Point Measurement Result View -->
+                  <div id="measure-result-point-view">
+                    <div class="measure-result-primary">
+                      <span class="measure-result-label" data-i18n="measureElevPrimary">Elevation (Z / RL)</span>
+                      <span class="measure-result-val" id="measure-res-pt-elev">--</span>
+                    </div>
+                    <div class="measure-result-details" style="margin-top:6px;">
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureCoordX">X (Easting):</span>
+                        <span class="measure-detail-val" id="measure-res-pt-x">--</span>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureCoordY">Y (Northing):</span>
+                        <span class="measure-detail-val" id="measure-res-pt-y">--</span>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureCoordZ">Z (Elevation):</span>
+                        <span class="measure-detail-val" id="measure-res-pt-z">--</span>
+                      </div>
+                      <div class="measure-detail-row" style="margin-top:2px;padding-top:4px;border-top:1px dashed var(--border-color);">
+                        <span class="measure-detail-label" data-i18n="measureMaxSlope">Max Slope:</span>
+                        <span class="measure-detail-val" id="measure-res-pt-slope" style="color:var(--accent);font-weight:600;">--</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="measure-result-details" id="measure-result-details">
-                    <div class="measure-detail-row">
-                      <span class="measure-detail-label">ΔX (Easting):</span>
-                      <span class="measure-detail-val" id="measure-res-dx">--</span>
+
+                  <!-- Distance Measurement Result View -->
+                  <div id="measure-result-dist-view" style="display:none;">
+                    <div class="measure-result-primary">
+                      <span class="measure-result-label" data-i18n="measureResultDist">Direct Distance</span>
+                      <span class="measure-result-val" id="measure-res-distance">--</span>
                     </div>
-                    <div class="measure-detail-row">
-                      <span class="measure-detail-label">ΔY (Northing):</span>
-                      <span class="measure-detail-val" id="measure-res-dy">--</span>
+                    <div class="measure-result-details" id="measure-result-details" style="margin-top:6px;">
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label">ΔX (Easting):</span>
+                        <span class="measure-detail-val" id="measure-res-dx">--</span>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label">ΔY (Northing):</span>
+                        <span class="measure-detail-val" id="measure-res-dy">--</span>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label">ΔZ (Elevation):</span>
+                        <span class="measure-detail-val" id="measure-res-dz">--</span>
+                      </div>
+                      <div class="measure-coord-row">
+                        <span class="measure-coord-label" data-i18n="measurePoint1">P1:</span>
+                        <span class="measure-coord-val" id="measure-res-p1">--</span>
+                      </div>
+                      <div class="measure-coord-row">
+                        <span class="measure-coord-label" data-i18n="measurePoint2">P2:</span>
+                        <span class="measure-coord-val" id="measure-res-p2">--</span>
+                      </div>
                     </div>
-                    <div class="measure-detail-row">
-                      <span class="measure-detail-label">ΔZ (Elevation):</span>
-                      <span class="measure-detail-val" id="measure-res-dz">--</span>
+                  </div>
+
+                  <!-- Radius Measurement Result View -->
+                  <div id="measure-result-radius-view" style="display:none;">
+                    <div class="measure-result-primary">
+                      <span class="measure-result-label" data-i18n="measureResRadius">Radius (R)</span>
+                      <span class="measure-result-val" id="measure-res-radius">--</span>
                     </div>
-                    <div class="measure-coord-row">
-                      <span class="measure-coord-label" data-i18n="measurePoint1">P1:</span>
-                      <span class="measure-coord-val" id="measure-res-p1">--</span>
-                    </div>
-                    <div class="measure-coord-row">
-                      <span class="measure-coord-label" data-i18n="measurePoint2">P2:</span>
-                      <span class="measure-coord-val" id="measure-res-p2">--</span>
+                    <div class="measure-result-details" style="margin-top:6px;">
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureResDiameter">Diameter (Ø):</span>
+                        <span class="measure-detail-val" id="measure-res-diameter" style="color:var(--accent);font-weight:600;">--</span>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureResType">Geometry Type:</span>
+                        <span class="measure-detail-val" id="measure-res-geom-type">--</span>
+                      </div>
+                      <div class="measure-coord-row" style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--border-color);">
+                        <span class="measure-coord-label" data-i18n="measureResCenter">Center:</span>
+                        <span class="measure-coord-val" id="measure-res-center">--</span>
+                      </div>
+                      <div class="measure-coord-row">
+                        <span class="measure-coord-label" data-i18n="measureResPoint">Surface Pt:</span>
+                        <span class="measure-coord-val" id="measure-res-target-pt">--</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -950,6 +1077,15 @@ def generate_html(variant_cfg, sources):
           <div class="context-menu-item" id="menu-reset-sec-rot" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
             <span data-i18n="menuResetSecRot">Reset Sectioning Rotation</span>
+          </div>
+          <div class="context-menu-divider" id="menu-measure-divider" style="display:none"></div>
+          <div class="context-menu-item" id="menu-measure-create-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:var(--accent)"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>
+            <span data-i18n="menuCreateMeasurePoint">Create Measurement Point</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-delete-point" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            <span data-i18n="menuDeleteMeasurePoint">Delete Measurement Point</span>
           </div>
         </div>
 

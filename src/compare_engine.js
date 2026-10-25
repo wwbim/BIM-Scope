@@ -282,10 +282,12 @@ class ModelCompareEngine {
       if (this.fileNew.model) {
         modelNew = this.fileNew.model;
       } else if (this.fileNew.file) {
-        this.app.updateProgress(I18N.t('compareParsingModels') + ' (New)', 25);
+        this.app.updateProgress(I18N.t('compareParsingModels') + ' (New)', 20);
         const textNew = await this.readFileAsText(this.fileNew.file);
         const parserNew = new IFCParser();
-        modelNew = parserNew.parseText(textNew);
+        modelNew = await parserNew.parseTextAsync(textNew, (p, msg) => {
+          this.app.updateProgress(`${I18N.t('compareParsingModels')} (New): ${msg}`, Math.round(20 + p * 30));
+        });
         // Replace active model with New Model
         this.app.clearModel();
         this.app.setModel(modelNew);
@@ -293,14 +295,16 @@ class ModelCompareEngine {
       }
 
       // 2. Prepare Old Model
-      this.app.updateProgress(I18N.t('compareParsingModels') + ' (Old)', 55);
+      this.app.updateProgress(I18N.t('compareParsingModels') + ' (Old)', 52);
       let modelOld = null;
       if (this.fileOld.model) {
         modelOld = this.fileOld.model;
       } else if (this.fileOld.file) {
         const textOld = await this.readFileAsText(this.fileOld.file);
         const parserOld = new IFCParser();
-        modelOld = parserOld.parseText(textOld);
+        modelOld = await parserOld.parseTextAsync(textOld, (p, msg) => {
+          this.app.updateProgress(`${I18N.t('compareParsingModels')} (Old): ${msg}`, Math.round(52 + p * 28));
+        });
         this.fileOld.model = modelOld;
       }
 
@@ -308,7 +312,7 @@ class ModelCompareEngine {
         throw new Error("Failed to generate 3D representations for comparison models.");
       }
 
-      this.app.updateProgress(I18N.t('compareParsingModels') + ' (Diffing)', 80);
+      this.app.updateProgress(I18N.t('compareParsingModels') + ' (Diffing)', 82);
 
       // 3. Compute Diff
       this.computeModelDiff(modelNew, modelOld);
@@ -638,6 +642,13 @@ class ModelCompareEngine {
     // 2. Inject Deleted Elements (from Old Model) into Scene
     if (this.deletedGroup) {
       this.app.scene.remove(this.deletedGroup);
+      this.deletedGroup.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m && m.dispose && m.dispose());
+          else if (o.material.dispose) o.material.dispose();
+        }
+      });
     }
 
     this.deletedGroup = new THREE.Group();
@@ -669,14 +680,15 @@ class ModelCompareEngine {
     });
 
     this.app.scene.add(this.deletedGroup);
+    if (this.app) this.app.needsRender = true;
   }
 
   // Update opacity of unchanged elements in realtime
   setUnchangedOpacity(opacityVal) {
-    this.unchangedOpacity = opacityVal;
+    const op = opacityVal > 1 ? (opacityVal / 100) : opacityVal;
+    this.unchangedOpacity = op;
     if (!this.diffData || !this.diffData.unchanged) return;
 
-    const op = opacityVal / 100;
     this.diffData.unchanged.forEach(m => {
       if (m.material) {
         m.material.opacity = op;
@@ -685,6 +697,7 @@ class ModelCompareEngine {
         m.visible = op > 0.01;
       }
     });
+    if (this.app) this.app.needsRender = true;
   }
 
   // Ghost Mesh Handling on Element Selection
@@ -1153,12 +1166,19 @@ class ModelCompareEngine {
     // 2. Remove Ghost Mesh
     this.clearGhostMesh();
 
-    // 3. Restore Original Materials & Clean Metadata for Active Model
+    // 3. Restore Original Materials, Dispose Temporary Comparison Materials & Clean Metadata for Active Model
     if (this.app.activeModel) {
       this.app.activeModel.traverse(obj => {
         if (obj.isMesh) {
           if (this.origMaterials.has(obj.id)) {
-            obj.material = this.origMaterials.get(obj.id);
+            const origMat = this.origMaterials.get(obj.id);
+            const tempMat = obj.material;
+            obj.material = origMat;
+            obj.visible = true;
+            if (tempMat && tempMat !== origMat) {
+              if (Array.isArray(tempMat)) tempMat.forEach(m => m && m.dispose && m.dispose());
+              else if (tempMat.dispose) tempMat.dispose();
+            }
           }
           if (obj.userData) {
             delete obj.userData.compareStatus;
@@ -1171,6 +1191,18 @@ class ModelCompareEngine {
       });
     }
     this.origMaterials.clear();
+
+    // 3b. Dispose offscreen Old Model geometry & materials if not the active model
+    if (this.fileOld && this.fileOld.model && this.fileOld.model !== this.app.activeModel) {
+      this.fileOld.model.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m && m.dispose && m.dispose());
+          else if (o.material.dispose) o.material.dispose();
+        }
+      });
+      this.fileOld.model = null;
+    }
 
     // 4. Remove Injected Deleted Meshes
     if (this.deletedGroup) {
@@ -1197,6 +1229,7 @@ class ModelCompareEngine {
 
     // 7. Clear selection to refresh inspector
     this.app.clearSelection();
+    if (this.app) this.app.needsRender = true;
 
     showToast(I18N.t('compareExitConfirm'), 'success');
   }

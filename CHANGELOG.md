@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **48 小时 02 分钟 (48.04 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **11 天 21 小时 33 分钟** (2026-09-29 22:17 至 2026-10-11 19:51)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **22,114 Steps** (跨 25 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **48 小时 06 分钟 (48.10 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **11 天 21 小时 37 分钟** (2026-09-29 22:17 至 2026-10-11 19:55)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **22,150 Steps** (跨 25 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -33,7 +33,46 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-08** | 13:25~13:42, 21:37~21:46 (共 3 个时段) | 0h 46m (0.77h) | 功能迭代与持续优化 / Feature development |
 | **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | 功能迭代与持续优化 / Feature development |
 | **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | 功能迭代与持续优化 / Feature development |
-| **2026-10-11** | 00:31~01:54, 19:41~19:51 (共 3 个时段) | 3h 43m (3.73h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-11** | 00:31~01:54, 19:41~19:55 (共 3 个时段) | 3h 47m (3.78h) | 功能迭代与持续优化 / Feature development |
+---
+
+## [v1.2610252230] - 2026-10-25 22:30
+
+### 智能半径/圆弧/球面测量体系与 CAD 级尺寸箭头 / Smart Radius, Arc & Sphere Measurement System
+- **智能圆弧识别与最小二乘曲率拟合 / Arc Detection & Least-Squares Sphere Fitting**
+  - **中文**:
+    1. **圆弧环与闭合圆边界自适应识别**: 提取构件几何特征中的 rcLoops，鼠标悬停时自动通过射线到线段距离算法实时捕获被测圆弧，精确解算圆心空间坐标、三维法向量与圆弧半径。
+    2. **局部曲率最小二乘球面拟合**: 针对双曲率曲面或球体，动态检索拾取面邻近两环拓扑顶点（2-Ring Neighborhood Vertices），通过 4x4 线性方程组高斯消元求解最小二乘拟合球心与半径（RMSE 误差自适应熔断）。
+    3. **凸凹感知与远端圆心反向射线测距**: 智能判断球心/圆心与当前视线朝向的几何拓扑关系（凹面中心在视线同侧，凸面球心在模型背面）；当圆心位于几何背面时，自动将测量实线箭头放置在构件外侧指向接触点，并沿法向生成半透明虚线延伸指向远端球心，完美避免视线遮挡。
+  - **English**:
+    1. **Arc Loop & Closed Circle Adaptive Detection**: Automatically inspects mesh geometric feature rcLoops, calculating ray-to-segment distances to snap onto circular perimeters, accurately computing 3D center coordinates, normal vectors, and radius.
+    2. **Local Least-Squares Curvature Sphere Fitting**: For spherical and double-curved geometries, queries 2-ring topological vertex neighborhoods and solves a 4x4 linear system via Gaussian elimination to determine optimal sphere center and radius with adaptive RMSE thresholds.
+    3. **Convex/Concave Awareness & Far-Side Inward Arrow**: Evaluates spatial alignment between surface normal and camera vector; for convex surfaces where centers lie inside/behind geometry, places solid dimension arrows outside pointing inward toward the contact point, accompanied by dashed extension lines to the hidden center.
+
+- **CAD 级尺寸标注与极简单数值标签 / CAD-Standard Dimensions & Sleek Single-Number Value Badge**
+  - **中文**:
+    1. **屏幕恒定像素自适应缩放（Screen-Space Pixel Scaling）**: 修复了仅存在半径标注时的尺寸更新拦截守卫，在创建瞬间与每次相机变换（旋转、平移、滚轮缩放、视口重设大小）时，实时将标注各组件严格锁定在视口恒定物理像素（10px 级紧凑精细尺寸），彻底杜绝米制 1:1 巨型三维几何的渲染隐患。
+    2. **专业 CAD 十字圆心标记（Center Mark ⨁）**: 圆心位置采用专业工程制图规范的微型十字准星与中心定心圆点，随相机视角动态 Billboard 面向对齐，清晰标示圆心空间定位，杜绝粗大圆环带来的视觉困惑。
+    3. **箭头线上极简单数值标徽（Single-Value Dimension Badge）**: 摒弃点测量风格的卡片面板与冗余按钮，直接在测量箭头线段中点上方悬浮居中呈现紧凑单数值标徽（如 R 75 mm 或 R 0.075 m，随测量单位实时无缝联动切换）；支持单击直接复制完整半径/直径/坐标数据至剪贴板，支持 Shift+单击一键删除。
+    4. **鼠标悬停动态自适应对齐与安全边距裁切**: 采用 2D 梁友栋-巴斯基（Liang-Barsky）屏幕线段裁剪算法，当标注部分滑出屏幕边缘时，数值标签智能沿箭头线段在视口安全边距内平滑滑动停留，防止标签被屏幕切除。
+  - **English**:
+    1. **Screen-Space Pixel Scaling & Billboard Alignment**: Refactored the update guard to continuously lock measurement marker components to crisp, compact screen pixels (10px standard) across camera rotations, zooms, pans, and window resizes, eliminating oversized 1:1 meter-scale 3D meshes.
+    2. **CAD-Standard Center Mark (⨁)**: Anchors circle centers with standard crosshair ticks and center dot that dynamically billboard to face the camera, distinctly identifying center points without distracting oversized rings.
+    3. **Sleek Single-Number Value Badge on Arrow**: Replaces bulky card panels and redundant buttons with a single compact pill badge centered on the dimension arrow line (e.g., R 75 mm or R 0.075 m, responsive to active units); single click copies full radius/diameter/coordinates, Shift+click deletes.
+    4. **Liang-Barsky Clamping & Viewport Edge Protection**: Utilizes 2D Liang-Barsky line clipping to smoothly slide the dimension badge along the arrow within viewport bounds, preventing badges from clipping off-screen.
+
+- **三维空间点测量、最大坡度与 PWA 离线支持 / 3D Point Measurement, Slope Analysis & PWA Offline Support**
+  - **中文**:
+    1. **三维单点测量与折角引线标签**: 在任意模型表面点选即可放置三维点测量标徽，配备动态 SVG 折角引出线（Elbow Leader Line）连接至紧凑悬浮卡片，实时汇报绝对空间坐标 (X, Y, Z) 与设计标高，支持鼠标悬停抓取并自由拖拽调整标签偏移位置。
+    2. **表面最大坡度方向箭头与坡度比读数**: 自动分析拾取平面的三维法向，在点标周围以醒目黄色箭头标示最大下坡方向（Steepest Descent Arrow），并以工程标准比值 (1:X) 与百分比同时报告平面最大坡度。
+    3. **AutoCAD 级几何特征智能捕捉引擎**: 全量标配顶点端点（Endpoint）、边线中点（Midpoint）、圆/弧圆心（Center ⨁）及边线上最近点（Nearest ⧗）的动态矢量符号捕捉指示。
+    4. **PWA 渐进式 Web 应用支持**: 配备原生 manifest.json 与 Service Worker 离线缓存，支持在 Chrome/Edge/Safari 等现代浏览器中一键安装为独立桌面应用，完全脱网流畅运行。
+  - **English**:
+    1. **3D Point Measurement & Elbow Leader Lines**: Click any geometry surface to anchor a 3D coordinate marker connected via dynamic SVG elbow leader lines to a compact card displaying absolute (X, Y, Z) coordinates and elevation, with drag-and-drop label repositioning.
+    2. **Steepest Descent Arrow & Surface Slope Readouts**: Extracts surface normals to project a vivid yellow arrow indicating steepest descent, reporting slope in engineering ratios (1:X) and grade percentages.
+    3. **CAD-Grade Geometric Snapping Engine**: Snaps to geometric vertices (Endpoint), edge midpoints (Midpoint), circle centers (Center ⨁), and nearest edge lines (Nearest ⧗) with AutoCAD-style graphical glyphs.
+    4. **Progressive Web App (PWA) Offline Launch**: Integrated manifest.json and Service Worker offline caching, allowing one-click installation as a standalone desktop/mobile app without network dependencies.
+
 ---
 
 ## [v1.2610072000] - 2026-10-07 20:00

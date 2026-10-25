@@ -101,24 +101,24 @@ class True3DCompass {
     // 1. 3D Gimbal Outer Ring (Metallic Torus lying in XZ horizontal plane)
     const ringGeom = new THREE.TorusGeometry(1.68, 0.05, 16, 64);
     ringGeom.rotateX(Math.PI / 2);
-    const ringMat = new THREE.MeshStandardMaterial({
+    this.ringMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
       metalness: 0.85,
       roughness: 0.25
     });
-    const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+    const ringMesh = new THREE.Mesh(ringGeom, this.ringMat);
     this.compassGroup.add(ringMesh);
 
     // 2. Subtle translucent inner base disc
     const discGeom = new THREE.CylinderGeometry(1.62, 1.62, 0.02, 48);
-    const discMat = new THREE.MeshStandardMaterial({
+    this.discMat = new THREE.MeshStandardMaterial({
       color: 0x09101d,
       metalness: 0.9,
       roughness: 0.2,
       transparent: true,
       opacity: 0.65
     });
-    const discMesh = new THREE.Mesh(discGeom, discMat);
+    const discMesh = new THREE.Mesh(discGeom, this.discMat);
     discMesh.position.y = -0.03;
     this.compassGroup.add(discMesh);
 
@@ -380,18 +380,55 @@ class True3DCompass {
     window.addEventListener('pointerup', onPointerUp);
   }
 
-  update() {
-    if (!this.app || !this.app.camera || !this.app.controls) return;
+  setTheme(themeName) {
+    if (themeName === 'light') {
+      if (this.ringMat) this.ringMat.color.setHex(0x64748b);
+      if (this.discMat) {
+        this.discMat.color.setHex(0xe2e8f0);
+        this.discMat.opacity = 0.78;
+      }
+    } else {
+      if (this.ringMat) this.ringMat.color.setHex(0x334155);
+      if (this.discMat) {
+        this.discMat.color.setHex(0x09101d);
+        this.discMat.opacity = 0.65;
+      }
+    }
+    this.needsRender = true;
+    this.update(true);
+  }
+
+  update(force = false) {
+    if (!this.app || !this.app.camera || !this.app.controls || !this.renderer) return;
     const mainCam = this.app.camera;
     const controls = this.app.controls;
 
     // View direction vector from target to camera in main scene
-    const dir = new THREE.Vector3();
-    dir.copy(mainCam.position).sub(controls.target).normalize();
+    const dx = mainCam.position.x - controls.target.x;
+    const dy = mainCam.position.y - controls.target.y;
+    const dz = mainCam.position.z - controls.target.z;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    const nx = dx / len, ny = dy / len, nz = dz / len;
+    const ux = mainCam.up.x, uy = mainCam.up.y, uz = mainCam.up.z;
+
+    if (!force && !this.needsRender &&
+        this._lastNx !== undefined &&
+        Math.abs(nx - this._lastNx) < 1e-4 &&
+        Math.abs(ny - this._lastNy) < 1e-4 &&
+        Math.abs(nz - this._lastNz) < 1e-4 &&
+        Math.abs(ux - this._lastUx) < 1e-4 &&
+        Math.abs(uy - this._lastUy) < 1e-4 &&
+        Math.abs(uz - this._lastUz) < 1e-4) {
+      return;
+    }
+
+    this._lastNx = nx; this._lastNy = ny; this._lastNz = nz;
+    this._lastUx = ux; this._lastUy = uy; this._lastUz = uz;
+    this.needsRender = false;
 
     // Position compass camera at same orientation vector at fixed distance
     const dist = 4.8;
-    this.camera.position.copy(dir).multiplyScalar(dist);
+    this.camera.position.set(nx * dist, ny * dist, nz * dist);
     this.camera.lookAt(0, 0, 0);
     this.camera.up.copy(mainCam.up);
 
@@ -967,6 +1004,1004 @@ class VirtualBimTree {
   }
 }
 
+// =========================================================================
+// 3D GEOMETRIC OBJECT SNAPPING ENGINE (ENDPOINT, MIDPOINT, CIRCLE/ARC CENTER)
+// =========================================================================
+class BimSnapEngine {
+  constructor(app) {
+    this.app = app;
+    this.enabled = true;
+    this.snapEndpoint = true;
+    this.snapMidpoint = true;
+    this.snapCenter = true;
+    this.snapEdge = false;
+    this.flyoutOpen = false;
+    this.altBypassed = false;
+    this.pixelTolerance = 20;
+
+    this.currentSnap = null;
+    this.cachedFeatures = new WeakMap();
+
+    this.initIndicators();
+    this.initUI();
+    this.initKeyboard();
+  }
+
+  initIndicators() {
+    this.indicatorGroup = new THREE.Group();
+    this.indicatorGroup.name = 'SnapIndicatorGroup';
+    this.indicatorGroup.visible = false;
+    this.indicatorGroup.renderOrder = 2500;
+    this.app.scene.add(this.indicatorGroup);
+
+    // 1. Endpoint Glyph: Square (□) in Vivid CAD Magenta (0xff00ff)
+    this.endpointObj = new THREE.Group();
+    const sqVerts = new Float32Array([
+      -0.5, -0.5, 0,   0.5, -0.5, 0,
+       0.5, -0.5, 0,   0.5,  0.5, 0,
+       0.5,  0.5, 0,  -0.5,  0.5, 0,
+      -0.5,  0.5, 0,  -0.5, -0.5, 0
+    ]);
+    const sqGeom = new THREE.BufferGeometry();
+    sqGeom.setAttribute('position', new THREE.BufferAttribute(sqVerts, 3));
+    const sqLineMat = new THREE.LineBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.endpointObj.add(new THREE.LineSegments(sqGeom, sqLineMat));
+
+    const sqFillGeom = new THREE.PlaneGeometry(0.96, 0.96);
+    const sqFillMat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.22,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.endpointObj.add(new THREE.Mesh(sqFillGeom, sqFillMat));
+    this.indicatorGroup.add(this.endpointObj);
+
+    // 2. Midpoint Glyph: Equilateral Triangle (△) in Vivid CAD Magenta (0xff00ff)
+    this.midpointObj = new THREE.Group();
+    const triVerts = new Float32Array([
+       0.0,   0.62, 0,   -0.56, -0.38, 0,
+      -0.56, -0.38, 0,    0.56, -0.38, 0,
+       0.56, -0.38, 0,    0.0,   0.62, 0
+    ]);
+    const triGeom = new THREE.BufferGeometry();
+    triGeom.setAttribute('position', new THREE.BufferAttribute(triVerts, 3));
+    const triLineMat = new THREE.LineBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.midpointObj.add(new THREE.LineSegments(triGeom, triLineMat));
+
+    const triShape = new THREE.Shape();
+    triShape.moveTo(0, 0.60);
+    triShape.lineTo(-0.54, -0.36);
+    triShape.lineTo(0.54, -0.36);
+    triShape.closePath();
+    const triShapeGeom = new THREE.ShapeGeometry(triShape);
+    const triFillMat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.22,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.midpointObj.add(new THREE.Mesh(triShapeGeom, triFillMat));
+    this.indicatorGroup.add(this.midpointObj);
+
+    // 3. Circle/Arc Center Glyph: Crosshair Circle (⨁) in Vivid CAD Magenta (0xff00ff)
+    this.centerObj = new THREE.Group();
+    const ringGeom = new THREE.RingGeometry(0.46, 0.58, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.centerObj.add(new THREE.Mesh(ringGeom, ringMat));
+
+    const crossVerts = new Float32Array([
+      -0.78, 0, 0,  0.78, 0, 0,
+       0, -0.78, 0,  0, 0.78, 0
+    ]);
+    const crossGeom = new THREE.BufferGeometry();
+    crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
+    const crossMat = new THREE.LineBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.centerObj.add(new THREE.LineSegments(crossGeom, crossMat));
+    this.indicatorGroup.add(this.centerObj);
+
+    // 4. On Edge Glyph: AutoCAD Nearest Hourglass (⧗) in Vivid CAD Magenta (0xff00ff)
+    this.edgeObj = new THREE.Group();
+    const hgVerts = new Float32Array([
+      -0.55,  0.55, 0,    0.55,  0.55, 0,
+       0.55,  0.55, 0,   -0.55, -0.55, 0,
+      -0.55, -0.55, 0,    0.55, -0.55, 0,
+       0.55, -0.55, 0,   -0.55,  0.55, 0
+    ]);
+    const hgGeom = new THREE.BufferGeometry();
+    hgGeom.setAttribute('position', new THREE.BufferAttribute(hgVerts, 3));
+    const hgLineMat = new THREE.LineBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.edgeObj.add(new THREE.LineSegments(hgGeom, hgLineMat));
+
+    const hgFillVerts = new Float32Array([
+      -0.55,  0.55, 0,    0.55,  0.55, 0,   0, 0, 0,
+      -0.55, -0.55, 0,    0, 0, 0,          0.55, -0.55, 0
+    ]);
+    const hgFillGeom = new THREE.BufferGeometry();
+    hgFillGeom.setAttribute('position', new THREE.BufferAttribute(hgFillVerts, 3));
+    const hgFillMat = new THREE.MeshBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.22,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.edgeObj.add(new THREE.Mesh(hgFillGeom, hgFillMat));
+    this.indicatorGroup.add(this.edgeObj);
+
+    // 5. Source Arc/Circle Boundary Highlight Loop
+    this.arcHighlightGeom = new THREE.BufferGeometry();
+    this.arcHighlightMat = new THREE.LineBasicMaterial({
+      color: 0xff00ff,
+      transparent: true,
+      opacity: 0.90,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.arcHighlightLine = new THREE.Line(this.arcHighlightGeom, this.arcHighlightMat);
+    this.arcHighlightLine.renderOrder = 2490;
+    this.arcHighlightLine.visible = false;
+    this.app.scene.add(this.arcHighlightLine);
+
+    this.indicatorGroup.traverse((child) => {
+      child.renderOrder = 2500;
+    });
+  }
+
+  initUI() {
+    this.magnetBtn = document.getElementById('btn-tool-snap');
+    this.flyoutEl = document.getElementById('snap-flyout');
+    this.btnEdge = document.getElementById('btn-snap-edge');
+    this.btnCenter = document.getElementById('btn-snap-center');
+    this.btnMid = document.getElementById('btn-snap-mid');
+    this.btnEnd = document.getElementById('btn-snap-end');
+    this.hudTooltip = document.getElementById('snap-hud-tooltip');
+    this.hudIcon = document.getElementById('snap-hud-icon');
+    this.hudText = document.getElementById('snap-hud-text');
+
+    if (this.magnetBtn) {
+      this.magnetBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleFlyout();
+      });
+    }
+
+    if (this.btnEdge) {
+      this.btnEdge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.snapEdge = !this.snapEdge;
+        this.btnEdge.classList.toggle('active', this.snapEdge);
+        this.syncMagnetActiveState();
+      });
+    }
+
+    if (this.btnCenter) {
+      this.btnCenter.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.snapCenter = !this.snapCenter;
+        this.btnCenter.classList.toggle('active', this.snapCenter);
+        this.syncMagnetActiveState();
+      });
+    }
+
+    if (this.btnMid) {
+      this.btnMid.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.snapMidpoint = !this.snapMidpoint;
+        this.btnMid.classList.toggle('active', this.snapMidpoint);
+        this.syncMagnetActiveState();
+      });
+    }
+
+    if (this.btnEnd) {
+      this.btnEnd.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.snapEndpoint = !this.snapEndpoint;
+        this.btnEnd.classList.toggle('active', this.snapEndpoint);
+        this.syncMagnetActiveState();
+      });
+    }
+
+    this.syncMagnetActiveState();
+  }
+
+  initKeyboard() {
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Alt') {
+        this.altBypassed = true;
+        this.hideIndicator();
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Alt') {
+        this.altBypassed = false;
+      }
+    });
+  }
+
+  toggleFlyout() {
+    this.setFlyoutOpen(!this.flyoutOpen);
+  }
+
+  setFlyoutOpen(open) {
+    this.flyoutOpen = Boolean(open);
+    if (this.flyoutEl) {
+      this.flyoutEl.classList.toggle('open', this.flyoutOpen);
+    }
+    if (this.magnetBtn) {
+      this.magnetBtn.classList.toggle('active', this.flyoutOpen);
+      const titleKey = this.flyoutOpen ? 'snapToolbarCollapse' : 'snapToolbarExpand';
+      this.magnetBtn.title = I18N.t(titleKey) || I18N.t('snapTitle');
+    }
+  }
+
+  syncMagnetActiveState() {
+    const anyActive = this.snapEndpoint || this.snapMidpoint || this.snapCenter || this.snapEdge;
+    this.enabled = anyActive;
+  }
+
+  clear() {
+    this.cachedFeatures = new WeakMap();
+    this.hideIndicator();
+  }
+
+  hideIndicator() {
+    this.currentSnap = null;
+    if (this.indicatorGroup) this.indicatorGroup.visible = false;
+    if (this.arcHighlightLine) this.arcHighlightLine.visible = false;
+    if (this.hudTooltip) this.hudTooltip.style.display = 'none';
+  }
+
+  detectArcLoops(featureEdges, edgeAdjacency, vertexMap) {
+    if (!featureEdges || featureEdges.length < 3) return [];
+
+    const visitedEdges = new Set();
+    const arcLoops = [];
+
+    // Helper: circumcircle for 3 coplanar 3D points
+    const fitCircle3P = (p0, p1, p2) => {
+      const d1 = new THREE.Vector3().subVectors(p1, p0);
+      const d2 = new THREE.Vector3().subVectors(p2, p0);
+      const n = new THREE.Vector3().crossVectors(d1, d2);
+      const nLenSq = n.lengthSq();
+      if (nLenSq < 1e-9) return null; // collinear
+
+      const len1Sq = d1.lengthSq();
+      const len2Sq = d2.lengthSq();
+      const crossVec = new THREE.Vector3()
+        .addScaledVector(d2, len1Sq)
+        .addScaledVector(d1, -len2Sq)
+        .cross(n)
+        .multiplyScalar(0.5 / nLenSq);
+
+      const center = p0.clone().add(crossVec);
+      const radius = center.distanceTo(p0);
+      return { center, radius, normal: n.normalize() };
+    };
+
+    // Find connected paths / loops in feature edges
+    for (const edge of featureEdges) {
+      if (visitedEdges.has(edge)) continue;
+
+      const chainKeys = [edge.keyA, edge.keyB];
+      const chainEdges = [edge];
+      visitedEdges.add(edge);
+
+      let currKey = edge.keyB;
+      let prevKey = edge.keyA;
+      let isClosed = false;
+
+      while (true) {
+        const neighbors = edgeAdjacency.get(currKey) || [];
+        const nextCandidate = neighbors.find(nb => nb.neighborKey !== prevKey && !visitedEdges.has(nb.edge));
+        if (nextCandidate) {
+          visitedEdges.add(nextCandidate.edge);
+          chainEdges.push(nextCandidate.edge);
+          prevKey = currKey;
+          currKey = nextCandidate.neighborKey;
+          chainKeys.push(currKey);
+          if (currKey === chainKeys[0]) {
+            isClosed = true;
+            break;
+          }
+        } else if (neighbors.some(nb => nb.neighborKey === chainKeys[0] && chainKeys.length >= 4)) {
+          isClosed = true;
+          break;
+        } else {
+          break;
+        }
+      }
+
+      if (!isClosed) {
+        currKey = chainKeys[0];
+        prevKey = chainKeys[1];
+        while (true) {
+          const neighbors = edgeAdjacency.get(currKey) || [];
+          const nextCandidate = neighbors.find(nb => nb.neighborKey !== prevKey && !visitedEdges.has(nb.edge));
+          if (nextCandidate) {
+            visitedEdges.add(nextCandidate.edge);
+            chainEdges.unshift(nextCandidate.edge);
+            prevKey = currKey;
+            currKey = nextCandidate.neighborKey;
+            chainKeys.unshift(currKey);
+            if (currKey === chainKeys[chainKeys.length - 1]) {
+              isClosed = true;
+              break;
+            }
+          } else {
+            break;
+          }
+        }
+      }
+
+      if (chainKeys.length < 4) continue;
+
+      const chainPoints = chainKeys.map(k => {
+        const v = vertexMap.get(k);
+        return v ? (v.point || v) : null;
+      }).filter(Boolean);
+      if (chainPoints.length < 4) continue;
+
+      const pts = isClosed ? chainPoints.slice(0, -1) : chainPoints;
+      if (pts.length < (isClosed ? 6 : 4)) continue;
+
+      // Verify this is a smooth curved arc/circle approximation, not a polygon with sharp corners (e.g. square box)
+      let isSmoothCurve = true;
+      const maxTurnAngleCos = Math.cos((45 * Math.PI) / 180);
+      const testCount = isClosed ? pts.length : pts.length - 2;
+      for (let i = 0; i < testCount; i++) {
+        const pA = pts[i];
+        const pB = pts[(i + 1) % pts.length];
+        const pC = pts[(i + 2) % pts.length];
+        const d1 = new THREE.Vector3().subVectors(pB, pA).normalize();
+        const d2 = new THREE.Vector3().subVectors(pC, pB).normalize();
+        if (d1.dot(d2) < maxTurnAngleCos) {
+          isSmoothCurve = false;
+          break;
+        }
+      }
+      if (!isSmoothCurve) continue;
+
+      const N = pts.length;
+      let p0, p1, p2;
+      if (isClosed) {
+        p0 = pts[0];
+        p1 = pts[Math.floor(N / 3)];
+        p2 = pts[Math.floor((2 * N) / 3)];
+      } else {
+        p0 = pts[0];
+        p1 = pts[Math.floor(N / 2)];
+        p2 = pts[N - 1];
+      }
+      const circleFit = fitCircle3P(p0, p1, p2);
+      if (!circleFit || circleFit.radius < 0.005 || circleFit.radius > 5000) continue;
+
+      let isGoodArc = true;
+      for (const pt of pts) {
+        const distToCenter = pt.distanceTo(circleFit.center);
+        if (Math.abs(distToCenter - circleFit.radius) > Math.max(0.01, circleFit.radius * 0.05)) {
+          isGoodArc = false;
+          break;
+        }
+      }
+
+      if (isGoodArc) {
+        const vStart = new THREE.Vector3().subVectors(pts[0], circleFit.center).normalize();
+        const vEnd = new THREE.Vector3().subVectors(pts[pts.length - 1], circleFit.center).normalize();
+        const angleSpan = isClosed ? (Math.PI * 2) : vStart.angleTo(vEnd);
+
+        if (isClosed || angleSpan >= (30 * Math.PI / 180)) {
+          arcLoops.push({
+            center: circleFit.center,
+            radius: circleFit.radius,
+            normal: circleFit.normal,
+            isClosed,
+            points: pts
+          });
+        }
+      }
+    }
+
+    return arcLoops;
+  }
+
+  extractMeshFeatures(mesh) {
+    if (!mesh || !mesh.geometry) return null;
+    if (this.cachedFeatures.has(mesh)) {
+      return this.cachedFeatures.get(mesh);
+    }
+
+    const geom = mesh.geometry;
+    const pos = geom.attributes.position;
+    if (!pos || pos.count < 3) return null;
+
+    const index = geom.index;
+    const vertexCount = index ? index.count : pos.count;
+    const getIdx = (t) => (index ? index.getX(t) : t);
+
+    const precision = 1e4;
+    const edgeMap = new Map();
+    const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
+    const ab = new THREE.Vector3(), ac = new THREE.Vector3(), normal = new THREE.Vector3();
+
+    for (let t = 0; t < vertexCount; t += 3) {
+      const i0 = getIdx(t);
+      const i1 = getIdx(t + 1);
+      const i2 = getIdx(t + 2);
+
+      va.fromBufferAttribute(pos, i0);
+      vb.fromBufferAttribute(pos, i1);
+      vc.fromBufferAttribute(pos, i2);
+
+      ab.subVectors(vb, va);
+      ac.subVectors(vc, va);
+      normal.crossVectors(ab, ac);
+      const len = normal.length();
+      if (len < 1e-8) continue;
+      normal.multiplyScalar(1 / len);
+
+      const k0 = `${Math.round(va.x * precision)},${Math.round(va.y * precision)},${Math.round(va.z * precision)}`;
+      const k1 = `${Math.round(vb.x * precision)},${Math.round(vb.y * precision)},${Math.round(vb.z * precision)}`;
+      const k2 = `${Math.round(vc.x * precision)},${Math.round(vc.y * precision)},${Math.round(vc.z * precision)}`;
+      if (k0 === k1 || k1 === k2 || k2 === k0) continue;
+
+      const normCopy = normal.clone();
+      const triVerts = [va.clone(), vb.clone(), vc.clone()];
+      const triKeys = [k0, k1, k2];
+
+      for (let e = 0; e < 3; e++) {
+        const next = (e + 1) % 3;
+        const keyA = triKeys[e];
+        const keyB = triKeys[next];
+        const edgeKey = keyA < keyB ? `${keyA}_${keyB}` : `${keyB}_${keyA}`;
+
+        let entry = edgeMap.get(edgeKey);
+        if (!entry) {
+          entry = {
+            p0: triVerts[e],
+            p1: triVerts[next],
+            keyA,
+            keyB,
+            normals: []
+          };
+          edgeMap.set(edgeKey, entry);
+        }
+        entry.normals.push(normCopy);
+      }
+    }
+
+    const cosThreshold = Math.cos((25 * Math.PI) / 180);
+    const featureEdges = [];
+    const vertexMap = new Map();
+    const edgeAdjacency = new Map();
+
+    for (const entry of edgeMap.values()) {
+      const norms = entry.normals;
+      let isFeature = false;
+      if (norms.length === 1) {
+        isFeature = true;
+      } else {
+        for (let i = 0; i < norms.length; i++) {
+          for (let j = i + 1; j < norms.length; j++) {
+            if (norms[i].dot(norms[j]) <= cosThreshold) {
+              isFeature = true;
+              break;
+            }
+          }
+          if (isFeature) break;
+        }
+      }
+
+      if (isFeature) {
+        const mid = new THREE.Vector3().addVectors(entry.p0, entry.p1).multiplyScalar(0.5);
+        const featEdge = {
+          p0: entry.p0,
+          p1: entry.p1,
+          mid,
+          keyA: entry.keyA,
+          keyB: entry.keyB,
+          normals: entry.normals,
+          normal: norms[0]
+        };
+        featureEdges.push(featEdge);
+
+        if (!vertexMap.has(entry.keyA)) vertexMap.set(entry.keyA, { point: entry.p0, normals: [] });
+        if (!vertexMap.has(entry.keyB)) vertexMap.set(entry.keyB, { point: entry.p1, normals: [] });
+
+        for (let n = 0; n < entry.normals.length; n++) {
+          vertexMap.get(entry.keyA).normals.push(entry.normals[n]);
+          vertexMap.get(entry.keyB).normals.push(entry.normals[n]);
+        }
+
+        if (!edgeAdjacency.has(entry.keyA)) edgeAdjacency.set(entry.keyA, []);
+        if (!edgeAdjacency.has(entry.keyB)) edgeAdjacency.set(entry.keyB, []);
+        edgeAdjacency.get(entry.keyA).push({ edge: featEdge, neighborKey: entry.keyB });
+        edgeAdjacency.get(entry.keyB).push({ edge: featEdge, neighborKey: entry.keyA });
+      }
+    }
+
+    const vertices = Array.from(vertexMap.values());
+    const arcLoops = this.detectArcLoops(featureEdges, edgeAdjacency, vertexMap);
+
+    const features = {
+      featureEdges,
+      vertices,
+      arcLoops
+    };
+
+    this.cachedFeatures.set(mesh, features);
+    return features;
+  }
+
+  isPointOccluded(point, camera) {
+    if (!this.app || !point) return false;
+
+    const clippingPlanes = (this.app.clippingEngine && this.app.clippingEngine.enabled) ? 
+      (this.app.clippingEngine.clippingPlanes || []) : [];
+
+    if (clippingPlanes.length > 0) {
+      for (let p = 0; p < clippingPlanes.length; p++) {
+        if (clippingPlanes[p].distanceToPoint(point) < 0) return true;
+      }
+    }
+
+    let origin, dir, maxDist;
+    if (camera.isOrthographicCamera) {
+      dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      origin = point.clone().addScaledVector(dir, -500);
+      maxDist = 500 - 0.02;
+    } else {
+      dir = new THREE.Vector3().subVectors(point, camera.position);
+      const totalDist = dir.length();
+      const margin = Math.min(0.04, Math.max(0.005, totalDist * 0.005));
+      maxDist = totalDist - margin;
+      if (maxDist <= 0.01) return false;
+      dir.normalize();
+      origin = camera.position;
+    }
+
+    if (!this._occludeRaycaster) {
+      this._occludeRaycaster = new THREE.Raycaster();
+    }
+    this._occludeRaycaster.set(origin, dir);
+    this._occludeRaycaster.near = 0.05;
+    this._occludeRaycaster.far = maxDist;
+
+    const searchRoots = this.app.activeModel ? [this.app.activeModel] : this.app.scene.children;
+    const hits = this._occludeRaycaster.intersectObjects(searchRoots, true);
+    for (let i = 0; i < hits.length; i++) {
+      const h = hits[i];
+      if (this.app.isPickableElement(h.object) && h.distance < maxDist) {
+        if (clippingPlanes.length > 0) {
+          let clipped = false;
+          for (let p = 0; p < clippingPlanes.length; p++) {
+            if (clippingPlanes[p].distanceToPoint(h.point) < 0) {
+              clipped = true;
+              break;
+            }
+          }
+          if (clipped) continue;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  resolveSnap(clientX, clientY, camera, hit = null) {
+    if (!this.enabled || this.altBypassed) {
+      this.hideIndicator();
+      return null;
+    }
+
+    const container = this.app.container;
+    const canvas = this.app.canvas || container;
+    const rect = canvas.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    const cw = rect.width || container.clientWidth || window.innerWidth;
+    const ch = rect.height || container.clientHeight || window.innerHeight;
+
+    // Generous boundary margin to allow snapping when cursor is just outside silhouette
+    if (localX < -40 || localX > cw + 40 || localY < -40 || localY > ch + 40) {
+      this.hideIndicator();
+      return null;
+    }
+
+    let mesh = (hit && hit.object) ? hit.object : this.lastHoveredMesh;
+    if (!mesh || !this.app.isPickableElement(mesh)) {
+      this.hideIndicator();
+      return null;
+    }
+
+    const features = this.extractMeshFeatures(mesh);
+    if (!features) {
+      this.hideIndicator();
+      return null;
+    }
+
+    mesh.updateWorldMatrix(true, false);
+    if (camera.updateMatrixWorld) camera.updateMatrixWorld();
+
+    const matrixWorld = mesh.matrixWorld;
+    const projVec = new THREE.Vector3();
+    const tempP = new THREE.Vector3();
+    const tempN = new THREE.Vector3();
+    const vCam = new THREE.Vector3();
+
+    const isOrtho = Boolean(camera.isOrthographicCamera);
+    const camDir = isOrtho ? new THREE.Vector3() : null;
+    if (isOrtho) camera.getWorldDirection(camDir);
+
+    const tol = this.pixelTolerance || 20;
+    let bestCandidate = null;
+    let bestDistSq = tol * tol;
+
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
+    const hitNormal = (hit && hit.face && hit.face.normal) ?
+      hit.face.normal.clone().applyMatrix3(normalMatrix).normalize() :
+      new THREE.Vector3(0, 1, 0);
+
+    // 1. Test Endpoints (Vertices)
+    if (this.snapEndpoint && features.vertices.length > 0) {
+      for (let i = 0; i < features.vertices.length; i++) {
+        const vObj = features.vertices[i];
+        const pLocal = vObj.point || vObj;
+        const vNorms = vObj.normals || [];
+
+        tempP.copy(pLocal).applyMatrix4(matrixWorld);
+
+        // Back-face culling for vertex: must have at least one adjacent face facing toward the camera
+        if (vNorms.length > 0) {
+          if (isOrtho) {
+            vCam.copy(camDir).negate();
+          } else {
+            vCam.subVectors(camera.position, tempP);
+          }
+          let isFront = false;
+          for (let n = 0; n < vNorms.length; n++) {
+            tempN.copy(vNorms[n]).applyMatrix3(normalMatrix);
+            if (tempN.dot(vCam) > 0) {
+              isFront = true;
+              break;
+            }
+          }
+          if (!isFront) continue; // Skip back vertex
+        }
+
+        projVec.copy(tempP).project(camera);
+        if (projVec.z > 1.0 || projVec.z < -1.0) continue;
+
+        const sx = (projVec.x * 0.5 + 0.5) * cw;
+        const sy = (-projVec.y * 0.5 + 0.5) * ch;
+        const dSq = (sx - localX) * (sx - localX) + (sy - localY) * (sy - localY);
+
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestCandidate = {
+            type: 'endpoint',
+            point: tempP.clone(),
+            normal: hitNormal,
+            targetMesh: mesh,
+            screenX: sx,
+            screenY: sy,
+            hudLabel: I18N.t('snapHudEnd') || 'Endpoint',
+            hudIcon: '□'
+          };
+        }
+      }
+    }
+
+    // 2. Test Edge Midpoints
+    if (this.snapMidpoint && features.featureEdges.length > 0) {
+      for (let i = 0; i < features.featureEdges.length; i++) {
+        const edge = features.featureEdges[i];
+        tempP.copy(edge.mid).applyMatrix4(matrixWorld);
+
+        // Back-face culling for edge midpoint: at least one adjacent face must face toward camera
+        if (edge.normals && edge.normals.length > 0) {
+          if (isOrtho) {
+            vCam.copy(camDir).negate();
+          } else {
+            vCam.subVectors(camera.position, tempP);
+          }
+          let isFront = false;
+          for (let n = 0; n < edge.normals.length; n++) {
+            tempN.copy(edge.normals[n]).applyMatrix3(normalMatrix);
+            if (tempN.dot(vCam) > 0) {
+              isFront = true;
+              break;
+            }
+          }
+          if (!isFront) continue; // Skip back edge
+        }
+
+        projVec.copy(tempP).project(camera);
+        if (projVec.z > 1.0 || projVec.z < -1.0) continue;
+
+        const sx = (projVec.x * 0.5 + 0.5) * cw;
+        const sy = (-projVec.y * 0.5 + 0.5) * ch;
+        const dSq = (sx - localX) * (sx - localX) + (sy - localY) * (sy - localY);
+
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestCandidate = {
+            type: 'midpoint',
+            point: tempP.clone(),
+            normal: hitNormal,
+            targetMesh: mesh,
+            screenX: sx,
+            screenY: sy,
+            hudLabel: I18N.t('snapHudMid') || 'Midpoint',
+            hudIcon: '△'
+          };
+        }
+      }
+    }
+
+    // 3. Test Circle / Arc Centers
+    if (this.snapCenter && features.arcLoops.length > 0) {
+      for (let i = 0; i < features.arcLoops.length; i++) {
+        const arc = features.arcLoops[i];
+        tempP.copy(arc.center).applyMatrix4(matrixWorld);
+
+        // Back-face culling for closed circular caps (e.g. cylinder back end)
+        if (arc.isClosed) {
+          if (isOrtho) {
+            vCam.copy(camDir).negate();
+          } else {
+            vCam.subVectors(camera.position, tempP);
+          }
+          tempN.copy(arc.normal).applyMatrix3(normalMatrix);
+          if (tempN.dot(vCam) <= 0) continue; // Skip back cap
+        }
+
+        const arcWorldPoints = arc.points.map(pt => pt.clone().applyMatrix4(matrixWorld));
+
+        let nearArcPerimeter = false;
+        for (let j = 0; j < arcWorldPoints.length - 1; j++) {
+          const ptA = arcWorldPoints[j];
+          const ptB = arcWorldPoints[j + 1];
+          projVec.copy(ptA).project(camera);
+          const ax = (projVec.x * 0.5 + 0.5) * cw;
+          const ay = (-projVec.y * 0.5 + 0.5) * ch;
+          projVec.copy(ptB).project(camera);
+          const bx = (projVec.x * 0.5 + 0.5) * cw;
+          const by = (-projVec.y * 0.5 + 0.5) * ch;
+
+          const segDx = bx - ax, segDy = by - ay;
+          const segLenSq = segDx * segDx + segDy * segDy;
+          let t = segLenSq > 0 ? ((localX - ax) * segDx + (localY - ay) * segDy) / segLenSq : 0;
+          t = Math.max(0, Math.min(1, t));
+          const closeX = ax + t * segDx, closeY = ay + t * segDy;
+          const pDistSq = (localX - closeX) * (localX - closeX) + (localY - closeY) * (localY - closeY);
+          if (pDistSq <= (tol + 4) * (tol + 4)) {
+            nearArcPerimeter = true;
+            break;
+          }
+        }
+
+        projVec.copy(tempP).project(camera);
+        if (projVec.z > 1.0 || projVec.z < -1.0) continue;
+        const cx = (projVec.x * 0.5 + 0.5) * cw;
+        const cy = (-projVec.y * 0.5 + 0.5) * ch;
+        const cDistSq = (localX - cx) * (localX - cx) + (localY - cy) * (localY - cy);
+
+        if (cDistSq < bestDistSq || nearArcPerimeter) {
+          const arcWorldNorm = arc.normal.clone().applyMatrix3(normalMatrix).normalize();
+          bestDistSq = Math.min(bestDistSq, cDistSq);
+          bestCandidate = {
+            type: 'center',
+            point: tempP.clone(),
+            normal: arcWorldNorm,
+            targetMesh: mesh,
+            arcData: { ...arc, worldPoints: arcWorldPoints },
+            screenX: cx,
+            screenY: cy,
+            hudLabel: I18N.t('snapHudCenter') || 'Circle Center',
+            hudIcon: '⨁'
+          };
+        }
+      }
+    }
+
+    // 4. Test On Edge (Visible feature edge nearest point, lower priority than End, Mid, Center)
+    if (this.snapEdge && features.featureEdges.length > 0 && !bestCandidate) {
+      const mouseNDC = new THREE.Vector2((localX / cw) * 2 - 1, -(localY / ch) * 2 + 1);
+      const testRaycaster = this.app.raycaster || new THREE.Raycaster();
+      testRaycaster.setFromCamera(mouseNDC, camera);
+      const mouseRay = testRaycaster.ray;
+
+      const v0 = new THREE.Vector3();
+      const v1 = new THREE.Vector3();
+      const ptOnRay = new THREE.Vector3();
+      const ptOnSeg = new THREE.Vector3();
+      const projSeg = new THREE.Vector3();
+
+      for (let i = 0; i < features.featureEdges.length; i++) {
+        const edge = features.featureEdges[i];
+        v0.copy(edge.p0).applyMatrix4(matrixWorld);
+        v1.copy(edge.p1).applyMatrix4(matrixWorld);
+
+        // Back-face culling for edge
+        if (edge.normals && edge.normals.length > 0) {
+          tempP.addVectors(v0, v1).multiplyScalar(0.5);
+          if (isOrtho) {
+            vCam.copy(camDir).negate();
+          } else {
+            vCam.subVectors(camera.position, tempP);
+          }
+          let isFront = false;
+          for (let n = 0; n < edge.normals.length; n++) {
+            tempN.copy(edge.normals[n]).applyMatrix3(normalMatrix);
+            if (tempN.dot(vCam) > 0) {
+              isFront = true;
+              break;
+            }
+          }
+          if (!isFront) continue; // Skip back edge
+        }
+
+        // True 3D line-of-sight closest point on segment (zero perspective distortion, removes 0.2m offset)
+        mouseRay.distanceSqToSegment(v0, v1, ptOnRay, ptOnSeg);
+
+        projSeg.copy(ptOnSeg).project(camera);
+        if (projSeg.z > 1.0 || projSeg.z < -1.0) continue;
+
+        const sx = (projSeg.x * 0.5 + 0.5) * cw;
+        const sy = (-projSeg.y * 0.5 + 0.5) * ch;
+        const dSq = (localX - sx) * (localX - sx) + (localY - sy) * (localY - sy);
+
+        if (dSq < bestDistSq) {
+          let edgeNormal = hitNormal;
+          if (edge.normals && edge.normals.length > 0) {
+            for (let n = 0; n < edge.normals.length; n++) {
+              const candNorm = edge.normals[n].clone().applyMatrix3(normalMatrix).normalize();
+              if (candNorm.dot(vCam) > 0) {
+                edgeNormal = candNorm;
+                break;
+              }
+            }
+          }
+
+          bestDistSq = dSq;
+          bestCandidate = {
+            type: 'edge',
+            point: ptOnSeg.clone(),
+            normal: edgeNormal,
+            targetMesh: mesh,
+            screenX: sx,
+            screenY: sy,
+            hudLabel: I18N.t('snapHudEdge') || 'On Edge',
+            hudIcon: '⧗'
+          };
+        }
+      }
+    }
+
+    // Final occlusion verification: ensure candidate is not occluded by a front surface
+    if (bestCandidate && this.isPointOccluded(bestCandidate.point, camera)) {
+      bestCandidate = null;
+    }
+
+    if (bestCandidate) {
+      this.lastHoveredMesh = mesh;
+      this.currentSnap = bestCandidate;
+      this.showIndicator(bestCandidate, camera, container);
+      return bestCandidate;
+    } else {
+      if (hit && hit.object) {
+        this.lastHoveredMesh = hit.object;
+      } else {
+        this.lastHoveredMesh = null;
+      }
+      this.hideIndicator();
+      return null;
+    }
+  }
+
+  showIndicator(snap, camera, container) {
+    if (!this.indicatorGroup) return;
+
+    this.indicatorGroup.position.copy(snap.point);
+    this.indicatorGroup.visible = true;
+
+    this.endpointObj.visible = (snap.type === 'endpoint');
+    this.midpointObj.visible = (snap.type === 'midpoint');
+    this.centerObj.visible = (snap.type === 'center');
+    this.edgeObj.visible = (snap.type === 'edge');
+
+    this.updateIndicatorScale(camera, container, snap.point);
+
+    if (snap.type === 'center' && snap.arcData && snap.arcData.worldPoints && snap.arcData.worldPoints.length > 1) {
+      this.arcHighlightGeom.setFromPoints(snap.arcData.worldPoints);
+      this.arcHighlightLine.visible = true;
+    } else {
+      this.arcHighlightLine.visible = false;
+    }
+
+    if (this.hudTooltip) {
+      if (this.hudIcon) this.hudIcon.textContent = snap.hudIcon;
+      if (this.hudText) this.hudText.textContent = snap.hudLabel;
+      const cw = (container && container.clientWidth) || window.innerWidth;
+      const leftPx = Math.max(8, Math.min(cw - 110, Math.round(snap.screenX + 14)));
+      const topPx = Math.max(8, Math.round(snap.screenY - 12));
+      this.hudTooltip.style.left = `${leftPx}px`;
+      this.hudTooltip.style.top = `${topPx}px`;
+      this.hudTooltip.style.display = 'inline-flex';
+    }
+
+    this.app.requestRender(100);
+  }
+
+  updateIndicatorScale(camera, container, targetPoint = null) {
+    if (!this.indicatorGroup || !this.indicatorGroup.visible) return;
+    const p = targetPoint || this.indicatorGroup.position;
+    const ch = container ? (container.clientHeight || 1000) : 1000;
+
+    let worldPerPixel;
+    if (camera.isOrthographicCamera) {
+      worldPerPixel = ((camera.top - camera.bottom) / (camera.zoom || 1)) / ch;
+    } else {
+      const dist = camera.position.distanceTo(p);
+      const fovRad = ((camera.fov || 45) * Math.PI) / 180;
+      worldPerPixel = (2 * dist * Math.tan(fovRad / 2)) / ch;
+    }
+
+    const scale = Math.max(1e-5, worldPerPixel * 15);
+    this.indicatorGroup.scale.set(scale, scale, scale);
+    this.indicatorGroup.quaternion.copy(camera.quaternion);
+
+    if (this.hudTooltip && this.currentSnap && camera) {
+      const proj = new THREE.Vector3().copy(this.currentSnap.point).project(camera);
+      const cw = container.clientWidth || window.innerWidth;
+      const sx = (proj.x * 0.5 + 0.5) * cw;
+      const sy = (-proj.y * 0.5 + 0.5) * ch;
+      const leftPx = Math.max(8, Math.min(cw - 110, Math.round(sx + 14)));
+      const topPx = Math.max(8, Math.round(sy - 12));
+      this.hudTooltip.style.left = `${leftPx}px`;
+      this.hudTooltip.style.top = `${topPx}px`;
+    }
+  }
+}
+
 // Main Application Controller for 3D BIM Viewer
 class BIMViewerApp {
   constructor() {
@@ -1077,11 +2112,19 @@ class BIMViewerApp {
     this.isFloatingToolsOpen = false;
     this.activeToolTab = 'tab-section-content';
     this.isMeasureMode = false;
-    this.measureMode = 'distance';
+    this.measureMode = 'point';
     this.measureUnit = 'm';
     this.measurePoints = [];
     this.measureLine = null;
     this.lastMeasurementData = null;
+    this.measureMarkers = [];
+    this.measurePointCounter = 0;
+    this.activeMeasurePointId = null;
+    this.hoveredMeasureMarker = null;
+    this.isDraggingMeasurePoint = false;
+    this.draggingMeasureMarker = null;
+    this.contextMenuMeasureMarker = null;
+    this.contextMenuMeasureSurfaceHit = null;
     
     this.activeModel = null;
     this.modelOpacity = 1.0;
@@ -1093,12 +2136,18 @@ class BIMViewerApp {
     this.drawCalls = 0;
     this.ramMb = null;
     
-    // Performance optimization states: rAF throttles & DOM caches
+    // Performance optimization states: rAF throttles, DOM caches & smart on-demand rendering
     this.hoverRaf = null;
     this.pendingMouseMoveEvt = null;
     this.cachedCoordEls = null;
     this.cachedCamEls = null;
     this.cachedPerfEls = null;
+    this.needsRender = true;
+    this._activeRenderUntil = performance.now() + 1500;
+    this._lastCamPos = new THREE.Vector3(NaN, NaN, NaN);
+    this._lastCamQuat = new THREE.Quaternion();
+    this._lastCamZoom = -1;
+    this._lastActiveModel = null;
     
     // UI Theme System ('dark' | 'light')
     this.currentTheme = 'dark';
@@ -1134,6 +2183,7 @@ class BIMViewerApp {
       this.compareEngine = new ModelCompareEngine(this);
     }
     this.initPivotHelper();
+    this.initMeasurementSystem();
     this.initSelectionHelper();
     this.initContextMenu();
     this.initEventListeners();
@@ -1148,10 +2198,31 @@ class BIMViewerApp {
       this.helpSystem = new BIMHelpSystem(this);
       this.helpSystem.checkAutoStart();
     }
+
+    // Wake on-demand renderer on user interaction
+    this._wakeRender = () => this.requestRender(250);
+    window.addEventListener('pointerdown', this._wakeRender, { passive: true });
+    window.addEventListener('wheel', this._wakeRender, { passive: true });
+    window.addEventListener('keydown', this._wakeRender, { passive: true });
+    window.addEventListener('input', this._wakeRender, { passive: true });
+    window.addEventListener('change', this._wakeRender, { passive: true });
+    window.addEventListener('click', this._wakeRender, { passive: true });
+    window.addEventListener('resize', this._wakeRender, { passive: true });
+    if (this.container) {
+      this.container.addEventListener('pointermove', this._wakeRender, { passive: true });
+    }
     
     // Animation loop
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
+  }
+
+  requestRender(durationMs = 200) {
+    this.needsRender = true;
+    const until = performance.now() + durationMs;
+    if (until > (this._activeRenderUntil || 0)) {
+      this._activeRenderUntil = until;
+    }
   }
   
   initPivotHelper() {
@@ -1242,8 +2313,9 @@ class BIMViewerApp {
       this.scene.fog = null;
     } else {
       const far = this.camera ? this.camera.far : this.visibleDistance;
+      const fogColor = this.currentTheme === 'light' ? 0xf1f5f9 : 0x0c1017;
       // Gentle linear fog fading in from 45% to 98% of visible distance
-      this.scene.fog = new THREE.Fog(0x0c1017, far * 0.45, far * 0.98);
+      this.scene.fog = new THREE.Fog(fogColor, far * 0.45, far * 0.98);
     }
   }
 
@@ -1782,7 +2854,7 @@ class BIMViewerApp {
 
       chip.innerHTML = `
         <span class="category-dot" style="background:${colorHex}"></span>
-        <span class="legend-chip-name">${localizedName}</span>
+        <span class="legend-chip-name">${this.escapeHtml(localizedName)}</span>
         <span class="legend-chip-count">${count}</span>
       `;
 
@@ -1904,7 +2976,17 @@ class BIMViewerApp {
     this.renderModelInfoInspector();
   }
   
+  revokeActiveBlobUrls() {
+    if (this._activeBlobUrls && this._activeBlobUrls.size > 0) {
+      this._activeBlobUrls.forEach(url => {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+      });
+      this._activeBlobUrls.clear();
+    }
+  }
+
   clearModel() {
+    this.revokeActiveBlobUrls();
     if (this.activeModel) {
       this.scene.remove(this.activeModel);
       const texturesToDispose = new Set();
@@ -1951,7 +3033,13 @@ class BIMViewerApp {
       this.updateBottomBarOverflow();
     }
     this.clearSelection();
+    this.clearMeasurement();
+    this.hideMeasurePointPreview();
+    if (this.snapEngine) {
+      this.snapEngine.clear();
+    }
     this.hideAnimationPlayer();
+    this.needsRender = true;
   }
 
   // Robust Architectural Edge Extractor with coplanar multi-triangle elimination
@@ -2729,13 +3817,13 @@ class BIMViewerApp {
         obj.userData.isBoxHelper || obj.userData.isPlaneHelperMesh || 
         obj.userData.isPivotHelper || obj.userData.isHighlightOverlay || 
         obj.userData.isHoverOverlay || obj.userData.isCapHelper ||
-        obj.userData.isGhostMesh)) {
+        obj.userData.isGhostMesh || obj.userData.isMeasureMarker)) {
       return false;
     }
     let curr = obj.parent;
     while (curr) {
       if (curr.userData && (curr.userData.isStencilGroup || curr.userData.isGizmo || 
-          curr.userData.isHighlightOverlay || curr.userData.isHoverOverlay)) {
+          curr.userData.isHighlightOverlay || curr.userData.isHoverOverlay || curr.userData.isMeasureMarker)) {
         return false;
       }
       curr = curr.parent;
@@ -5688,21 +6776,172 @@ class BIMViewerApp {
     return target;
   }
 
+  classifySceneGraphNodes(model, modelName, options = {}) {
+    const {
+      formatFlag = 'isGLTF',
+      defaultCategory = 'Component',
+      hasBIMKeywords = true,
+      skipTextures = false
+    } = options;
+
+    if (model.updateMatrixWorld) model.updateMatrixWorld(true);
+
+    let meshIndex = 0;
+    const defaultStructFallback = (modelName || '').replace(/\.[^/.]+$/, '') || 'Model';
+    const levelRegex = /(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i;
+
+    const classifyNode = (node, parentStructure = null, parentPath = []) => {
+      const currentPath = [...parentPath];
+      if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
+        currentPath.push(node.name);
+      }
+
+      let structure = parentStructure;
+      if (!structure && node !== model) {
+        if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
+          if (node.name && node.name !== 'Scene') {
+            structure = node.name;
+          }
+        }
+      }
+
+      if (node.isMesh) {
+        meshIndex++;
+        node.castShadow = true;
+        node.receiveShadow = true;
+        if (node.material) {
+          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          mats.forEach(m => {
+            if (!m) return;
+            m.side = THREE.DoubleSide;
+            if (skipTextures) {
+              m.map = null;
+              m.needsUpdate = true;
+            }
+            if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
+              m.clippingPlanes = this.clippingEngine.clippingPlanes;
+              m.clipShadows = true;
+            }
+          });
+        }
+
+        const box = new THREE.Box3().setFromObject(node);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+
+        const finalStructure = structure || (currentPath.length > 1 ? currentPath[0] : defaultStructFallback);
+
+        const matNames = Array.isArray(node.material)
+          ? node.material.map(m => (m && m.name) || '').join(' ')
+          : ((node.material && node.material.name) || '');
+
+        const allText = [
+          node.name || '',
+          (node.parent && node.parent.name) || '',
+          structure || '',
+          matNames,
+          currentPath.join(' ')
+        ].join(' ').toLowerCase();
+
+        let category = defaultCategory;
+        if (hasBIMKeywords) {
+          if (/wall|墙/i.test(allText)) category = 'Wall';
+          else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
+          else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
+          else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
+          else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
+          else if (/door|gate|门/i.test(allText)) category = 'Door';
+          else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
+          else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
+          else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
+          else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
+          else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
+          else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
+          else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
+          else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
+          else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
+          else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
+            category = node.parent.name;
+          }
+        } else {
+          if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
+            category = node.parent.name;
+          } else if (node.material && node.material.name) {
+            category = node.material.name;
+          } else {
+            category = finalStructure;
+          }
+        }
+
+        this.applyBIMMaterialStyling(node, category, allText);
+
+        let level = 'Ground Level';
+        const levelMatch = allText.match(levelRegex);
+        if (levelMatch) {
+          level = levelMatch[0].toUpperCase();
+        } else {
+          const y = (box.min.y + box.max.y) / 2;
+          if (y < -0.5) level = 'Basement Level';
+          else if (y < 4.0) level = 'Level 1 (Ground)';
+          else if (y < 8.0) level = 'Level 2';
+          else if (y < 12.0) level = 'Level 3';
+          else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
+        }
+
+        let elemName = node.name || '';
+        if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh' || elemName === 'default') {
+          elemName = `${category} #${meshIndex}`;
+        }
+
+        node.userData = {
+          structure: finalStructure,
+          category: category,
+          rawCategory: category,
+          element: elemName,
+          level: level,
+          dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
+          height: `${size.y.toFixed(2)} m`,
+          rlMin: box.min.y.toFixed(2),
+          rlMax: box.max.y.toFixed(2),
+          guid: node.uuid,
+          [formatFlag]: true,
+          nodePath: currentPath,
+          _cachedWorldBox: box
+        };
+      }
+
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(child => classifyNode(child, structure, currentPath));
+      }
+    };
+
+    classifyNode(model);
+  }
+
   processFiles(mainFile, allFiles = [], optimize = false) {
     const ext = mainFile.name.split('.').pop().toLowerCase();
     this.showProgressModal(true, I18N.t('stageReading'), 10);
     
-    // Build in-memory blob map for all accompanying files (.bin, .png, .jpg, .tga, etc.)
+    // Build in-memory blob map for accompanying files (.bin, .png, .jpg, .tga, etc.)
+    if (!this._activeBlobUrls) this._activeBlobUrls = new Set();
+    const pendingBlobUrls = [];
     const blobMap = new Map();
     allFiles.forEach(f => {
+      // Skip creating unneeded blob URL for standalone primary IFC/OBJ files
+      if (f === mainFile && (ext === 'ifc' || ext === 'obj' || ext === 'dae')) return;
       try {
         const url = URL.createObjectURL(f);
+        pendingBlobUrls.push(url);
         blobMap.set(f.name, url);
         blobMap.set(f.name.toLowerCase(), url);
       } catch (err) {
         console.warn("Could not create blob URL for file:", f.name, err);
       }
     });
+
+    const registerPendingBlobs = () => {
+      pendingBlobUrls.forEach(u => this._activeBlobUrls.add(u));
+    };
 
     const manager = new THREE.LoadingManager();
     manager.addHandler(/\.tga$/i, new THREE.TGALoader(manager));
@@ -5743,123 +6982,16 @@ class BIMViewerApp {
         loader.parse(arrayBuffer, '', (gltf) => {
           this.updateProgress(I18N.t('stageMeshing'), 80);
           this.clearModel();
+          registerPendingBlobs();
           
           const model = gltf.scene;
           model.name = mainFile.name;
           
-          // Extract deep hierarchy, categories, levels & metadata from GLTF Scene Graph
-          let meshIndex = 0;
-          const classifyNode = (node, parentStructure = null, parentPath = []) => {
-            const currentPath = [...parentPath];
-            if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
-              currentPath.push(node.name);
-            }
-
-            // Determine if this node represents a structure or sub-assembly
-            let structure = parentStructure;
-            if (!structure && node !== model) {
-              if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
-                if (node.name && node.name !== 'Scene') {
-                  structure = node.name;
-                }
-              }
-            }
-
-            if (node.isMesh) {
-              meshIndex++;
-              node.castShadow = true;
-              node.receiveShadow = true;
-              if (node.material) {
-                if (Array.isArray(node.material)) {
-                  node.material.forEach(m => m.side = THREE.DoubleSide);
-                } else {
-                  node.material.side = THREE.DoubleSide;
-                }
-              }
-
-              // Compute bounding box
-              const box = new THREE.Box3().setFromObject(node);
-              const size = new THREE.Vector3();
-              box.getSize(size);
-
-              // 1. Structure Grouping: use highest ancestor group or fallback
-              const finalStructure = structure || 
-                (currentPath.length > 1 ? currentPath[0] : (mainFile.name.replace(/\.[^/.]+$/, "") || "Model"));
-
-              // 2. Semantic Category Extraction from node/mesh/material names & lineage
-              const allText = [
-                node.name || '',
-                (node.parent && node.parent.name) || '',
-                (node.material && node.material.name) || '',
-                currentPath.join(' ')
-              ].join(' ').toLowerCase();
-
-              let category = 'Component';
-              if (/wall|墙/i.test(allText)) category = 'Wall';
-              else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
-              else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
-              else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
-              else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
-              else if (/door|gate|门/i.test(allText)) category = 'Door';
-              else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
-              else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
-              else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
-              else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
-              else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
-              else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
-              else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
-              else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
-              else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
-              else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
-                category = node.parent.name;
-              }
-
-              // Apply Architectural Material & Color Differentiation
-              this.applyBIMMaterialStyling(node, category, allText);
-
-              // 3. Level Extraction
-              let level = 'Ground Level';
-              const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
-              if (levelMatch) {
-                level = levelMatch[0].toUpperCase();
-              } else {
-                const y = (box.min.y + box.max.y) / 2;
-                if (y < -0.5) level = 'Basement Level';
-                else if (y < 4.0) level = 'Level 1 (Ground)';
-                else if (y < 8.0) level = 'Level 2';
-                else if (y < 12.0) level = 'Level 3';
-                else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
-              }
-
-              // 4. Element Clean Name
-              let elemName = node.name || '';
-              if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh') {
-                elemName = `${category} #${meshIndex}`;
-              }
-
-              node.userData = {
-                structure: finalStructure,
-                category: category,
-                rawCategory: category,
-                element: elemName,
-                level: level,
-                dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
-                height: `${size.y.toFixed(2)} m`,
-                rlMin: box.min.y.toFixed(2),
-                rlMax: box.max.y.toFixed(2),
-                guid: node.uuid,
-                isGLTF: true,
-                nodePath: currentPath
-              };
-            }
-
-            // Traverse children
-            if (node.children && node.children.length > 0) {
-              node.children.forEach(child => classifyNode(child, structure, currentPath));
-            }
-          };
-
-          classifyNode(model);
+          this.classifySceneGraphNodes(model, mainFile.name, {
+            formatFlag: 'isGLTF',
+            defaultCategory: 'Component',
+            hasBIMKeywords: true
+          });
           
           document.getElementById('project-title-text').textContent = mainFile.name;
           this.setModel(model);
@@ -5912,11 +7044,11 @@ class BIMViewerApp {
       reader.readAsArrayBuffer(mainFile);
       
     } else if (ext === 'ifc') {
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const text = e.target.result;
         
         try {
-          const rootGroup = this.ifcParser.parseText(text, (percent, msg) => {
+          const rootGroup = await this.ifcParser.parseTextAsync(text, (percent, msg) => {
             this.updateProgress(msg, Math.round(percent * 100));
           });
           
@@ -6280,9 +7412,11 @@ class BIMViewerApp {
     const addFiles = (files) => {
       const fileArr = Array.from(files || []);
       let added = 0;
+      if (!this._activeBlobUrls) this._activeBlobUrls = new Set();
       fileArr.forEach(f => {
         try {
           const url = URL.createObjectURL(f);
+          this._activeBlobUrls.add(url);
           blobMap.set(f.name, url);
           blobMap.set(f.name.toLowerCase(), url);
           added++;
@@ -6414,129 +7548,16 @@ class BIMViewerApp {
         }
       }
 
-      let meshIndex = 0;
-      const classifyNode = (node, parentStructure = null, parentPath = []) => {
-        const currentPath = [...parentPath];
-        if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
-          currentPath.push(node.name);
-        }
-
-        let structure = parentStructure;
-        if (!structure && node !== model) {
-          if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
-            if (node.name && node.name !== 'Scene') {
-              structure = node.name;
-            }
-          }
-        }
-
-        if (node.isMesh) {
-          meshIndex++;
-          node.castShadow = true;
-          node.receiveShadow = true;
-          if (node.material) {
-            const mats = Array.isArray(node.material) ? node.material : [node.material];
-            mats.forEach(m => {
-              m.side = THREE.DoubleSide;
-              if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
-                m.clippingPlanes = this.clippingEngine.clippingPlanes;
-                m.clipShadows = true;
-              }
-            });
-          }
-
-          // Compute world bounding box for elevation and dimensions
-          const box = new THREE.Box3().setFromObject(node);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-
-          const finalStructure = structure || 
-            (currentPath.length > 1 ? currentPath[0] : (modelName.replace(/\.[^/.]+$/, "") || "Model"));
-
-          let category = 'Component';
-          const allText = [
-            node.name || '',
-            (node.parent && node.parent.name) || '',
-            (node.material && node.material.name) || '',
-            currentPath.join(' ')
-          ].join(' ').toLowerCase();
-
-          if (hasBIMKeywords) {
-            if (/wall|墙/i.test(allText)) category = 'Wall';
-            else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
-            else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
-            else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
-            else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
-            else if (/door|gate|门/i.test(allText)) category = 'Door';
-            else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
-            else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
-            else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
-            else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
-            else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
-            else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
-            else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
-            else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
-            else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
-            else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
-              category = node.parent.name;
-            }
-          } else {
-            // Raw Scene Graph naming
-            if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
-              category = node.parent.name;
-            } else if (node.material && node.material.name) {
-              category = node.material.name;
-            } else {
-              category = finalStructure;
-            }
-          }
-
-          // Apply Architectural Material & Color Differentiation
-          this.applyBIMMaterialStyling(node, category, allText);
-
-          // Level calculation
-          let level = 'Ground Level';
-          const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
-          if (levelMatch) {
-            level = levelMatch[0].toUpperCase();
-          } else {
-            const y = (box.min.y + box.max.y) / 2;
-            if (y < -0.5) level = 'Basement Level';
-            else if (y < 4.0) level = 'Level 1 (Ground)';
-            else if (y < 8.0) level = 'Level 2';
-            else if (y < 12.0) level = 'Level 3';
-            else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
-          }
-
-          let elemName = node.name || '';
-          if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh') {
-            elemName = `${category} #${meshIndex}`;
-          }
-
-          node.userData = {
-            structure: finalStructure,
-            category: category,
-            rawCategory: category,
-            element: elemName,
-            level: level,
-            dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
-            height: `${size.y.toFixed(2)} m`,
-            rlMin: box.min.y.toFixed(2),
-            rlMax: box.max.y.toFixed(2),
-            guid: node.uuid,
-            isFBX: true,
-            nodePath: currentPath
-          };
-        }
-
-        if (node.children && node.children.length > 0) {
-          node.children.forEach(child => classifyNode(child, structure, currentPath));
-        }
-      };
-
-      classifyNode(model);
+      this.classifySceneGraphNodes(model, modelName, {
+        formatFlag: 'isFBX',
+        defaultCategory: 'Component',
+        hasBIMKeywords
+      });
 
       this.clearModel();
+      if (blobMap && this._activeBlobUrls) {
+        blobMap.forEach(url => this._activeBlobUrls.add(url));
+      }
       document.getElementById('project-title-text').textContent = modelName;
       this.setModel(model);
 
@@ -6717,131 +7738,17 @@ class BIMViewerApp {
         }
       }
 
-      let meshIndex = 0;
-      const classifyNode = (node, parentStructure = null, parentPath = []) => {
-        const currentPath = [...parentPath];
-        if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
-          currentPath.push(node.name);
-        }
-
-        let structure = parentStructure;
-        if (!structure && node !== model) {
-          if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
-            if (node.name && node.name !== 'Scene') {
-              structure = node.name;
-            }
-          }
-        }
-
-        if (node.isMesh) {
-          meshIndex++;
-          node.castShadow = true;
-          node.receiveShadow = true;
-          if (node.material) {
-            const mats = Array.isArray(node.material) ? node.material : [node.material];
-            mats.forEach(m => {
-              m.side = THREE.DoubleSide; // Critical for SketchUp DAE
-              if (skipTextures) {
-                m.map = null;
-                m.needsUpdate = true;
-              }
-              if (this.clippingEngine && this.clippingEngine.clippingPlanes) {
-                m.clippingPlanes = this.clippingEngine.clippingPlanes;
-                m.clipShadows = true;
-              }
-            });
-          }
-
-          // Compute world bounding box for elevation and dimensions
-          const box = new THREE.Box3().setFromObject(node);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-
-          const finalStructure = structure || 
-            (currentPath.length > 1 ? currentPath[0] : (modelName.replace(/\.[^/.]+$/, "") || "Model"));
-
-          let category = 'Component';
-          const allText = [
-            node.name || '',
-            (node.parent && node.parent.name) || '',
-            (node.material && node.material.name) || '',
-            currentPath.join(' ')
-          ].join(' ').toLowerCase();
-
-          if (hasBIMKeywords) {
-            if (/wall|墙/i.test(allText)) category = 'Wall';
-            else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
-            else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
-            else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
-            else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
-            else if (/door|gate|门/i.test(allText)) category = 'Door';
-            else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
-            else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
-            else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
-            else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
-            else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
-            else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
-            else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
-            else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
-            else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
-            else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
-              category = node.parent.name;
-            }
-          } else {
-            if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
-              category = node.parent.name;
-            } else if (node.material && node.material.name) {
-              category = node.material.name;
-            } else {
-              category = finalStructure;
-            }
-          }
-
-          // Apply Architectural Material & Color Differentiation
-          this.applyBIMMaterialStyling(node, category, allText);
-
-          let level = 'Ground Level';
-          const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
-          if (levelMatch) {
-            level = levelMatch[0].toUpperCase();
-          } else {
-            const y = (box.min.y + box.max.y) / 2;
-            if (y < -0.5) level = 'Basement Level';
-            else if (y < 4.0) level = 'Level 1 (Ground)';
-            else if (y < 8.0) level = 'Level 2';
-            else if (y < 12.0) level = 'Level 3';
-            else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
-          }
-
-          let elemName = node.name || '';
-          if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh') {
-            elemName = `${category} #${meshIndex}`;
-          }
-
-          node.userData = {
-            structure: finalStructure,
-            category: category,
-            rawCategory: category,
-            element: elemName,
-            level: level,
-            dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
-            height: `${size.y.toFixed(2)} m`,
-            rlMin: box.min.y.toFixed(2),
-            rlMax: box.max.y.toFixed(2),
-            guid: node.uuid,
-            isDAE: true,
-            nodePath: currentPath
-          };
-        }
-
-        if (node.children && node.children.length > 0) {
-          node.children.forEach(child => classifyNode(child, structure, currentPath));
-        }
-      };
-
-      classifyNode(model);
+      this.classifySceneGraphNodes(model, modelName, {
+        formatFlag: 'isDAE',
+        defaultCategory: 'Component',
+        hasBIMKeywords,
+        skipTextures
+      });
 
       this.clearModel();
+      if (blobMap && this._activeBlobUrls) {
+        blobMap.forEach(url => this._activeBlobUrls.add(url));
+      }
       document.getElementById('project-title-text').textContent = modelName;
       this.setModel(model);
 
@@ -7000,117 +7907,16 @@ class BIMViewerApp {
         return;
       }
 
-      let meshIndex = 0;
-      const classifyNode = (node, parentStructure = null, parentPath = []) => {
-        const currentPath = [...parentPath];
-        if (node.name && node.name !== 'Scene' && node.name !== 'RootNode') {
-          currentPath.push(node.name);
-        }
-
-        let structure = parentStructure;
-        if (!structure && node !== model) {
-          if (node.isGroup || (node.children && node.children.length > 0 && !node.isMesh)) {
-            if (node.name && node.name !== 'Scene') {
-              structure = node.name;
-            }
-          }
-        }
-
-        if (node.isMesh) {
-          meshIndex++;
-          node.castShadow = true;
-          node.receiveShadow = true;
-
-          const box = new THREE.Box3().setFromObject(node);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-
-          const finalStructure = structure || 
-            (currentPath.length > 1 ? currentPath[0] : (modelName.replace(/\.[^/.]+$/, "") || "Model"));
-
-          const allText = [
-            node.name || '',
-            (node.parent && node.parent.name) || '',
-            structure || '',
-            currentPath.join(' '),
-            Array.isArray(node.material) ? node.material.map(m => (m && m.name) || '').join(' ') : ((node.material && node.material.name) || '')
-          ].join(' ');
-
-          let category = 'Architectural / Generic';
-          if (hasBIMKeywords) {
-            if (/wall|墙/i.test(allText)) category = 'Wall';
-            else if (/slab|floor|deck|地坪|楼板|地面/i.test(allText)) category = 'Slab';
-            else if (/column|pillar|post|立柱|柱/i.test(allText)) category = 'Column';
-            else if (/beam|girder|joist|大梁|横梁|梁/i.test(allText)) category = 'Beam';
-            else if (/roof|canopy|ceiling|屋顶|屋面|天花|雨棚/i.test(allText)) category = 'Roof';
-            else if (/door|gate|门/i.test(allText)) category = 'Door';
-            else if (/curtain|幕墙/i.test(allText)) category = 'Curtain Wall';
-            else if (/window|glass|glazing|窗|玻璃/i.test(allText)) category = 'Window / Glazing';
-            else if (/stair|step|tread|楼梯|踏步/i.test(allText)) category = 'Stair';
-            else if (/railing|parapet|balustrade|栏杆|护栏/i.test(allText)) category = 'Railing';
-            else if (/pipe|duct|conduit|hvac|plumb|风管|水管|管道|机电/i.test(allText)) category = 'MEP Services';
-            else if (/truss|steel|frame|brace|桁架|钢架|钢结构/i.test(allText)) category = 'Structural Steel';
-            else if (/foundation|footing|pile|承台|桩基|地基|基础/i.test(allText)) category = 'Foundation';
-            else if (/furniture|chair|table|desk|seat|bed|家具|桌|椅/i.test(allText)) category = 'Furniture';
-            else if (/site|terrain|topo|earth|ground|场地|地形/i.test(allText)) category = 'Site & Terrain';
-            else if (node.parent && node.parent.name && node.parent.name !== 'Scene') {
-              category = node.parent.name;
-            }
-          } else {
-            if (node.parent && node.parent.name && node.parent.name !== 'Scene' && node.parent.name !== 'RootNode') {
-              category = node.parent.name;
-            } else if (node.material && node.material.name) {
-              category = node.material.name;
-            } else {
-              category = finalStructure;
-            }
-          }
-
-          // Apply Architectural Material & Color Differentiation
-          this.applyBIMMaterialStyling(node, category, allText);
-
-          let level = 'Ground Level';
-          const levelMatch = allText.match(/(level\s*\d+|floor\s*\d+|storey\s*\d+|story\s*\d+|lvl\s*\d+|b\d+|1f|2f|3f|4f|5f|地下\s*\d+层|地上\s*\d+层|\d+层|\d+楼)/i);
-          if (levelMatch) {
-            level = levelMatch[0].toUpperCase();
-          } else {
-            const y = (box.min.y + box.max.y) / 2;
-            if (y < -0.5) level = 'Basement Level';
-            else if (y < 4.0) level = 'Level 1 (Ground)';
-            else if (y < 8.0) level = 'Level 2';
-            else if (y < 12.0) level = 'Level 3';
-            else if (y >= 12.0) level = `Upper Level (${y.toFixed(1)}m)`;
-          }
-
-          let elemName = node.name || '';
-          if (!elemName || elemName.startsWith('mesh_') || elemName.startsWith('node_') || elemName === 'Mesh' || elemName === 'default') {
-            elemName = `${category} #${meshIndex}`;
-          }
-
-          node.userData = {
-            structure: finalStructure,
-            category: category,
-            rawCategory: category,
-            element: elemName,
-            level: level,
-            dimensions: `${size.x.toFixed(2)}m × ${size.z.toFixed(2)}m`,
-            height: `${size.y.toFixed(2)} m`,
-            rlMin: box.min.y.toFixed(2),
-            rlMax: box.max.y.toFixed(2),
-            guid: node.uuid,
-            isOBJ: true,
-            nodePath: currentPath
-          };
-        }
-
-        if (node.children && node.children.length > 0) {
-          node.children.forEach(child => classifyNode(child, structure, currentPath));
-        }
-      };
-
-      classifyNode(model);
+      this.classifySceneGraphNodes(model, modelName, {
+        formatFlag: 'isOBJ',
+        defaultCategory: 'Architectural / Generic',
+        hasBIMKeywords
+      });
 
       this.clearModel();
+      if (blobMap && this._activeBlobUrls) {
+        blobMap.forEach(url => this._activeBlobUrls.add(url));
+      }
       document.getElementById('project-title-text').textContent = modelName;
       this.setModel(model);
 
@@ -7520,20 +8326,79 @@ class BIMViewerApp {
         }
 
         const ctxMenu = document.getElementById('context-menu');
-        if (this.isOrbiting || this.isPanning || this.isLeftInteracting || this.isBoxSelecting || this.isGizmoDragging || this.isMeasureMode || (ctxMenu && ctxMenu.style.display === 'flex')) {
+        if (this.isOrbiting || this.isPanning || this.isLeftInteracting || this.isBoxSelecting || this.isGizmoDragging || this.isDraggingMeasurePoint || (ctxMenu && ctxMenu.style.display === 'flex')) {
           this.clearHoverOverlay();
           return;
+        }
+
+        // Check hover on 3D Measurement Point Markers (draggable across all measure modes)
+        if (this.measureMarkers && this.measureMarkers.length > 0) {
+          const markerHits = this.intersectMeasureMarkers(this.raycaster);
+          if (markerHits.length > 0) {
+            this.setHoveredMeasureMarker(markerHits[0].marker);
+            this.clearHoverOverlay();
+            this.canvas.style.cursor = 'grab';
+            return;
+          } else if (this.hoveredMeasureMarker) {
+            this.setHoveredMeasureMarker(null);
+          }
         }
 
         // Target activeModel children instead of entire scene to skip auxiliary cameras/lights/compass
         const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
         const intersects = this.raycaster.intersectObjects(searchRoots, true);
         const valid = intersects.filter(hit => this.isPickableElement(hit.object));
-        
-        if (valid.length > 0) {
-          const hitMesh = valid[0].object;
-          const p = valid[0].point;
-          const northing = Math.abs(p.z);
+
+        // Evaluate snap whenever snap engine is enabled (works both when hovering over mesh and on edge silhouette)
+        let snapResult = null;
+        if (this.snapEngine && this.snapEngine.enabled) {
+          snapResult = this.snapEngine.resolveSnap(clientX, clientY, this.camera, valid.length > 0 ? valid[0] : null);
+        }
+
+        if (this.isMeasureMode) {
+          this.clearHoverOverlay();
+          this.canvas.style.cursor = 'crosshair';
+          let effectiveHit = snapResult ? {
+            point: snapResult.point,
+            normal: snapResult.normal,
+            object: snapResult.targetMesh,
+            face: { normal: snapResult.normal }
+          } : (valid.length > 0 ? valid[0] : null);
+
+          if (effectiveHit) {
+            const p = effectiveHit.point;
+            const northing = Math.abs(p.z);
+            if (!this.cachedCoordEls) {
+              this.cachedCoordEls = {
+                x: document.getElementById('coord-x'),
+                y: document.getElementById('coord-y'),
+                rl: document.getElementById('coord-rl')
+              };
+            }
+            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
+            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(-p.z) < 0.05 ? "0.0" : Math.abs(-p.z).toFixed(1);
+            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+
+            if (this.measureMode === 'point') {
+              this.updateMeasurePointPreview(effectiveHit);
+            } else if (this.measureMode === 'radius') {
+              const radTarget = this.detectRadiusTarget(effectiveHit, clientX, clientY);
+              if (radTarget) {
+                this.updateRadiusPreview(radTarget);
+              } else {
+                this.hideRadiusPreview();
+              }
+            }
+          } else {
+            this.hideMeasurePointPreview();
+            this.hideRadiusPreview();
+          }
+          return;
+        }
+
+        if (valid.length > 0 || snapResult) {
+          const hitMesh = snapResult ? snapResult.targetMesh : valid[0].object;
+          const p = snapResult ? snapResult.point : (valid.length > 0 ? valid[0].point : null);
           
           if (!this.cachedCoordEls) {
             this.cachedCoordEls = {
@@ -7542,9 +8407,12 @@ class BIMViewerApp {
               rl: document.getElementById('coord-rl')
             };
           }
-          if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-          if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
-          if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+          if (p) {
+            const northing = Math.abs(p.z);
+            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
+            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
+            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+          }
 
           // Subtle hover highlight on current pointed element
           const isAlreadySel = (hitMesh === this.selectedMesh) || (this.selectedMeshes && this.selectedMeshes.includes(hitMesh));
@@ -7557,7 +8425,12 @@ class BIMViewerApp {
           }
         } else {
           this.clearHoverOverlay();
-          this.canvas.style.cursor = 'default';
+          if (this.snapEngine) {
+            this.snapEngine.hideIndicator();
+          }
+          this.hideMeasurePointPreview();
+          this.hideRadiusPreview();
+          this.canvas.style.cursor = this.isMeasureMode ? 'crosshair' : 'default';
         }
       });
     });
@@ -7571,6 +8444,11 @@ class BIMViewerApp {
       if (this.clippingEngine) {
         this.clippingEngine.clearHoverState();
       }
+      if (this.snapEngine) {
+        this.snapEngine.hideIndicator();
+      }
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
       this.clearHoverOverlay();
       this.canvas.style.cursor = 'default';
     });
@@ -7585,16 +8463,35 @@ class BIMViewerApp {
         this.isNavigatingViewHistory = false;
       }
       if (e.button === 0) { // Left click / drag
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
         // Check if clicking Section Gizmo (highest priority)
         if (this.clippingEngine && this.clippingEngine.enabled) {
-          const rect = this.canvas.getBoundingClientRect();
-          this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-          this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-          this.raycaster.setFromCamera(this.mouse, this.camera);
           const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
           if (gizmoHits.length > 0) {
             this.isGizmoDragging = true;
             this.clippingEngine.startDrag(gizmoHits[0].object, this.raycaster, this.camera, e);
+            this.canvas.style.cursor = 'grabbing';
+            return;
+          }
+        }
+
+        // Check if clicking or dragging a 3D Measurement Point Marker
+        if (this.measureMarkers && this.measureMarkers.length > 0) {
+          const markerHits = this.intersectMeasureMarkers(this.raycaster);
+          if (markerHits.length > 0) {
+            const hitMarker = markerHits[0].marker;
+            if (e.shiftKey) {
+              this.deleteMeasurePoint(hitMarker.id);
+              return;
+            }
+            this.setActiveMeasurePoint(hitMarker.id);
+            this.isDraggingMeasurePoint = true;
+            this.draggingMeasureMarker = hitMarker;
+            this.setMeasureMarkerDragging(hitMarker, true);
             this.canvas.style.cursor = 'grabbing';
             return;
           }
@@ -7651,13 +8548,40 @@ class BIMViewerApp {
         this.syncSectionUI();
         return;
       }
+      if (this.isDraggingMeasurePoint && this.draggingMeasureMarker) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+        const intersects = this.raycaster.intersectObjects(searchRoots, true);
+        const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+        let effectiveHit = valid.length > 0 ? valid[0] : null;
+        if (this.snapEngine && this.snapEngine.enabled) {
+          const snap = this.snapEngine.resolveSnap(e.clientX, e.clientY, this.camera, effectiveHit);
+          if (snap) {
+            effectiveHit = {
+              object: snap.targetMesh,
+              point: snap.point,
+              normal: snap.normal,
+              face: { normal: snap.normal }
+            };
+          }
+        }
+        if (effectiveHit) {
+          this.updateMeasurePointFromHit(this.draggingMeasureMarker, effectiveHit);
+        }
+        return;
+      }
       if (this.isLeftInteracting) {
         const dx = e.clientX - this.leftDownPos.x;
         const dy = e.clientY - this.leftDownPos.y;
         if (Math.hypot(dx, dy) > 4) {
           this.leftMoved = true;
-          this.isBoxSelecting = true;
-          this.updateMarqueeBox(this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
+          if (!this.isMeasureMode) {
+            this.isBoxSelecting = true;
+            this.updateMarqueeBox(this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
+          }
         }
       } else if (this.isOrbiting) {
         const dx = e.clientX - this.orbitStartX;
@@ -7689,6 +8613,15 @@ class BIMViewerApp {
         this.clippingEngine.endDrag();
         this.canvas.style.cursor = 'default';
         this.syncSectionUI();
+        return;
+      }
+      if (this.isDraggingMeasurePoint) {
+        if (this.draggingMeasureMarker) {
+          this.setMeasureMarkerDragging(this.draggingMeasureMarker, false);
+        }
+        this.isDraggingMeasurePoint = false;
+        this.draggingMeasureMarker = null;
+        this.canvas.style.cursor = this.isMeasureMode ? 'crosshair' : 'default';
         return;
       }
       if (e.button === 0 && this.isLeftInteracting) {
@@ -7795,6 +8728,33 @@ class BIMViewerApp {
     // apply only to intentionally selected elements without cursor offset misclicks.
     // If no element is selected, it displays the root/global context menu.
     this.clearHoverOverlay();
+
+    // Detect if right-clicking on a measurement point marker or on a model surface in Point Measure mode
+    this.contextMenuMeasureMarker = null;
+    this.contextMenuMeasureSurfaceHit = null;
+    if (this.canvas && this.camera) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+
+      if (this.measureMarkers && this.measureMarkers.length > 0) {
+        const markerHits = this.intersectMeasureMarkers(this.raycaster);
+        if (markerHits.length > 0) {
+          this.contextMenuMeasureMarker = markerHits[0].marker;
+        }
+      }
+
+      if (!this.contextMenuMeasureMarker && this.isMeasureMode && this.measureMode === 'point') {
+        const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+        const intersects = this.raycaster.intersectObjects(searchRoots, true);
+        const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+        if (valid.length > 0) {
+          this.contextMenuMeasureSurfaceHit = valid[0];
+        }
+      }
+    }
+
     this.showContextMenu(e.clientX, e.clientY);
   }
 
@@ -7899,6 +8859,23 @@ class BIMViewerApp {
       itemSecDivider.style.display = (isSecBox || isSecEnabled) ? 'block' : 'none';
     }
 
+    // Measurement Context Menu Items (Point Measure Mode / Marker Right-Click)
+    const itemMeasureDivider = document.getElementById('menu-measure-divider');
+    const itemMeasureCreate = document.getElementById('menu-measure-create-point');
+    const itemMeasureDelete = document.getElementById('menu-measure-delete-point');
+    const canCreateMeasurePt = !!(this.isMeasureMode && this.measureMode === 'point' && !this.contextMenuMeasureMarker && this.contextMenuMeasureSurfaceHit);
+    const canDeleteMeasurePt = !!this.contextMenuMeasureMarker;
+
+    if (itemMeasureCreate) {
+      itemMeasureCreate.style.display = canCreateMeasurePt ? 'flex' : 'none';
+    }
+    if (itemMeasureDelete) {
+      itemMeasureDelete.style.display = canDeleteMeasurePt ? 'flex' : 'none';
+    }
+    if (itemMeasureDivider) {
+      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt) ? 'block' : 'none';
+    }
+
     // Position menu within viewport bounds
     const vRect = this.container.getBoundingClientRect();
     let left = clientX - vRect.left;
@@ -7990,6 +8967,11 @@ class BIMViewerApp {
 
     if (itemResetSecRot) itemResetSecRot.style.display = isSecEnabled ? 'flex' : 'none';
     if (itemSecDivider) itemSecDivider.style.display = (isSecBox || isSecEnabled) ? 'block' : 'none';
+
+    ['menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
 
     // Position menu
     const vRect = this.container.getBoundingClientRect();
@@ -8202,6 +9184,28 @@ class BIMViewerApp {
           this.clippingEngine.resetSectionRotation();
           this.syncSectionUI();
           showToast(I18N.t('secRotResetMsg'), 'success');
+        }
+      };
+    }
+
+    const btnMeasureCreate = document.getElementById('menu-measure-create-point');
+    if (btnMeasureCreate) {
+      btnMeasureCreate.onclick = () => {
+        const hit = this.contextMenuMeasureSurfaceHit;
+        this.hideContextMenu();
+        if (hit) {
+          this.createMeasurePoint(hit);
+        }
+      };
+    }
+
+    const btnMeasureDelete = document.getElementById('menu-measure-delete-point');
+    if (btnMeasureDelete) {
+      btnMeasureDelete.onclick = () => {
+        const marker = this.contextMenuMeasureMarker;
+        this.hideContextMenu();
+        if (marker) {
+          this.deleteMeasurePoint(marker.id);
         }
       };
     }
@@ -8526,11 +9530,34 @@ class BIMViewerApp {
       if (this.clippingEngine.intersectGizmos(this.raycaster).length > 0) return;
     }
 
-    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+    const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+    const intersects = this.raycaster.intersectObjects(searchRoots, true);
     const valid = intersects.filter(hit => this.isPickableElement(hit.object));
     
     if (this.isMeasureMode) {
-      if (valid.length > 0) this.handleMeasureClick(valid[0].point);
+      let hit = valid.length > 0 ? valid[0] : null;
+      if (this.snapEngine && this.snapEngine.enabled) {
+        const snap = this.snapEngine.currentSnap || this.snapEngine.resolveSnap(e.clientX, e.clientY, this.camera, hit);
+        if (snap) {
+          hit = {
+            object: snap.targetMesh,
+            point: snap.point,
+            normal: snap.normal,
+            face: { normal: snap.normal }
+          };
+        }
+      }
+      if (this.measureMode === 'radius') {
+        const radTarget = this.currentRadiusTarget || this.detectRadiusTarget(hit, e.clientX, e.clientY);
+        if (radTarget) {
+          this.createOrUpdateRadiusMeasurement(radTarget, e);
+        }
+        return;
+      }
+      if (hit) {
+        this.hideMeasurePointPreview();
+        this.handleMeasureClick(hit, e);
+      }
       return;
     }
     
@@ -8653,6 +9680,10 @@ class BIMViewerApp {
       if (this.compass3d) {
         this.compass3d.update();
       }
+      this.camera.updateMatrixWorld();
+      if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+        this.updateMeasureMarkersAndCallouts();
+      }
       return;
     }
 
@@ -8678,9 +9709,1679 @@ class BIMViewerApp {
     if (this.compass3d) {
       this.compass3d.update();
     }
+    this.camera.updateMatrixWorld();
+    if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+      this.updateMeasureMarkersAndCallouts();
+    }
   }
   
-  handleMeasureClick(point) {
+  // =========================================================================
+  // 3D GEOMETRIC OBJECT SNAPPING ENGINE (ENDPOINT, MIDPOINT, CIRCLE/ARC CENTER)
+  // =========================================================================
+  createSnapEngine() {
+    return new BimSnapEngine(this);
+  }
+
+  // =========================================================================
+  // STANDARDIZED DRAGGABLE MEASUREMENT POINT & POINT MEASURE ENGINE
+  // =========================================================================
+  initMeasurementSystem() {
+    this.snapEngine = new BimSnapEngine(this);
+    this.measureMarkersGroup = new THREE.Group();
+    this.measureMarkersGroup.name = 'MeasureMarkersGroup';
+    this.measureMarkersGroup.userData = { isMeasureMarker: true };
+    this.scene.add(this.measureMarkersGroup);
+    this.measureMarkers = [];
+    this.measurePointCounter = 0;
+    this.activeMeasurePointId = null;
+    this.initMeasurePointPreview();
+
+    this.radiusMeasurements = [];
+    this.radiusMeasurementCounter = 0;
+    this.activeRadiusMeasurementId = null;
+    this.currentRadiusTarget = null;
+    this.initRadiusPreview();
+  }
+
+  initMeasurePointPreview() {
+    this.measurePreviewGroup = new THREE.Group();
+    this.measurePreviewGroup.name = 'MeasurePreviewGroup';
+    this.measurePreviewGroup.visible = false;
+    this.measurePreviewGroup.renderOrder = 1300;
+
+    const ringGeom = new THREE.RingGeometry(0.48, 0.66, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.75,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.measurePreviewGroup.add(new THREE.Mesh(ringGeom, ringMat));
+
+    const dotGeom = new THREE.CircleGeometry(0.15, 24);
+    const dotMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.measurePreviewGroup.add(new THREE.Mesh(dotGeom, dotMat));
+
+    const crossVerts = new Float32Array([
+      0, 0.66, 0,   0, 0.96, 0,
+      0, -0.66, 0,  0, -0.96, 0,
+      -0.66, 0, 0,  -0.96, 0, 0,
+      0.66, 0, 0,   0.96, 0, 0
+    ]);
+    const crossGeom = new THREE.BufferGeometry();
+    crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
+    const crossMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.75,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.measurePreviewGroup.add(new THREE.LineSegments(crossGeom, crossMat));
+
+    this.scene.add(this.measurePreviewGroup);
+  }
+
+  updateMeasurePointPreview(hit) {
+    if (!this.measurePreviewGroup || !hit || !hit.point) return;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    const n = slopeData.normal || new THREE.Vector3(0, 1, 0);
+
+    const t1 = new THREE.Vector3();
+    if (slopeData && !slopeData.isFlat && slopeData.downhillDir && slopeData.downhillDir.lengthSq() > 0.001) {
+      t1.copy(slopeData.downhillDir).normalize();
+    } else {
+      const ref = Math.abs(n.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      t1.crossVectors(ref, n).normalize();
+    }
+    const t2 = new THREE.Vector3().crossVectors(n, t1).normalize();
+    t1.crossVectors(t2, n).normalize();
+
+    const basisMat = new THREE.Matrix4().makeBasis(t1, t2, n);
+    this.measurePreviewGroup.position.copy(hit.point);
+    this.measurePreviewGroup.quaternion.setFromRotationMatrix(basisMat);
+
+    const ch = (this.container && this.container.clientHeight) || 1000;
+    const isOrtho = Boolean(this.camera && this.camera.isOrthographicCamera);
+    let worldPerPixel;
+    if (isOrtho) {
+      worldPerPixel = ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) / ch;
+    } else {
+      const dist = this.camera.position.distanceTo(hit.point);
+      const fovRad = ((this.camera.fov || 45) * Math.PI) / 180;
+      worldPerPixel = (2 * dist * Math.tan(fovRad / 2)) / ch;
+    }
+    const scale = Math.max(1e-5, worldPerPixel * 13.5);
+    this.measurePreviewGroup.scale.set(scale, scale, scale);
+    this.measurePreviewGroup.visible = true;
+    this.requestRender(100);
+  }
+
+  hideMeasurePointPreview() {
+    if (this.measurePreviewGroup && this.measurePreviewGroup.visible) {
+      this.measurePreviewGroup.visible = false;
+      this.requestRender(100);
+    }
+  }
+
+  // =========================================================================
+  // RADIUS MEASUREMENT ENGINE (ARCS, CIRCLES, SPHERES & INCOMPLETE SPHERICAL CAPS)
+  // =========================================================================
+
+  initRadiusPreview() {
+    this.radiusPreviewGroup = new THREE.Group();
+    this.radiusPreviewGroup.name = 'RadiusPreviewGroup';
+    this.radiusPreviewGroup.visible = false;
+    this.radiusPreviewGroup.renderOrder = 2400;
+
+    // 1. Center indicator: ring + center dot + cross
+    this.radiusPreviewCenterGroup = new THREE.Group();
+    const ringGeom = new THREE.RingGeometry(0.26, 0.36, 24);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.radiusPreviewCenterGroup.add(new THREE.Mesh(ringGeom, ringMat));
+
+    const dotGeom = new THREE.CircleGeometry(0.12, 16);
+    const dotMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.radiusPreviewCenterGroup.add(new THREE.Mesh(dotGeom, dotMat));
+
+    const crossVerts = new Float32Array([
+      0, 0.36, 0,   0, 0.65, 0,
+      0, -0.36, 0,  0, -0.65, 0,
+      -0.36, 0, 0,  -0.65, 0, 0,
+      0.36, 0, 0,   0.65, 0, 0
+    ]);
+    const crossGeom = new THREE.BufferGeometry();
+    crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
+    const crossMat = new THREE.LineBasicMaterial({
+      color: 0xf59e0b,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.radiusPreviewCenterGroup.add(new THREE.LineSegments(crossGeom, crossMat));
+    this.radiusPreviewGroup.add(this.radiusPreviewCenterGroup);
+
+    // 2. Main solid radius line & cone arrowhead
+    const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]);
+    this.radiusPreviewLine = new THREE.Line(lineGeom, new THREE.LineBasicMaterial({
+      color: 0xf59e0b,
+      linewidth: 3,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.radiusPreviewGroup.add(this.radiusPreviewLine);
+
+    const coneGeom = new THREE.ConeGeometry(0.2, 0.6, 16);
+    coneGeom.translate(0, -0.3, 0);
+    this.radiusPreviewCone = new THREE.Mesh(coneGeom, new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.radiusPreviewGroup.add(this.radiusPreviewCone);
+
+    // 3. Dashed extension line (used when sphere center is on the far side)
+    const dashedGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]);
+    this.radiusPreviewDashedLine = new THREE.Line(dashedGeom, new THREE.LineDashedMaterial({
+      color: 0xf59e0b,
+      dashSize: 0.2,
+      gapSize: 0.15,
+      transparent: true,
+      opacity: 0.65,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.radiusPreviewDashedLine.computeLineDistances();
+    this.radiusPreviewDashedLine.visible = false;
+    this.radiusPreviewGroup.add(this.radiusPreviewDashedLine);
+
+    this.scene.add(this.radiusPreviewGroup);
+
+    // 4. Floating DOM Preview Badge (Single clean number on arrow)
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (listEl) {
+      this.radiusPreviewBadgeEl = document.createElement('div');
+      this.radiusPreviewBadgeEl.className = 'measure-radius-callout preview';
+      this.radiusPreviewBadgeEl.style.display = 'none';
+      this.radiusPreviewBadgeEl.style.pointerEvents = 'none';
+      this.radiusPreviewBadgeEl.textContent = '--';
+      listEl.appendChild(this.radiusPreviewBadgeEl);
+    }
+  }
+
+  // 4x4 Linear System Solver for Least-Squares Sphere Fitting
+  solve4x4(M, V) {
+    const A = [
+      [M[0][0], M[0][1], M[0][2], M[0][3], V[0]],
+      [M[1][0], M[1][1], M[1][2], M[1][3], V[1]],
+      [M[2][0], M[2][1], M[2][2], M[2][3], V[2]],
+      [M[3][0], M[3][1], M[3][2], M[3][3], V[3]],
+    ];
+
+    for (let col = 0; col < 4; col++) {
+      let maxRow = col;
+      let maxVal = Math.abs(A[col][col]);
+      for (let r = col + 1; r < 4; r++) {
+        if (Math.abs(A[r][col]) > maxVal) {
+          maxVal = Math.abs(A[r][col]);
+          maxRow = r;
+        }
+      }
+      if (maxVal < 1e-12) return null;
+
+      if (maxRow !== col) {
+        const temp = A[col];
+        A[col] = A[maxRow];
+        A[maxRow] = temp;
+      }
+
+      for (let r = col + 1; r < 4; r++) {
+        const factor = A[r][col] / A[col][col];
+        for (let c = col; c <= 4; c++) {
+          A[r][c] -= factor * A[col][c];
+        }
+      }
+    }
+
+    const sol = [0, 0, 0, 0];
+    for (let r = 3; r >= 0; r--) {
+      let sum = A[r][4];
+      for (let c = r + 1; c < 4; c++) {
+        sum -= A[r][c] * sol[c];
+      }
+      if (Math.abs(A[r][r]) < 1e-12) return null;
+      sol[r] = sum / A[r][r];
+    }
+
+    return sol;
+  }
+
+  fitSphereLeastSquares(points) {
+    if (!points || points.length < 5) return null;
+
+    const M = [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ];
+    const V = [0, 0, 0, 0];
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const x = p.x, y = p.y, z = p.z;
+      const sq = x * x + y * y + z * z;
+      const row = [x, y, z, 1];
+
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          M[r][c] += row[r] * row[c];
+        }
+        V[r] += row[r] * sq;
+      }
+    }
+
+    const sol = this.solve4x4(M, V);
+    if (!sol) return null;
+
+    const cx = sol[0] * 0.5;
+    const cy = sol[1] * 0.5;
+    const cz = sol[2] * 0.5;
+    const rSq = sol[3] + cx * cx + cy * cy + cz * cz;
+    if (rSq <= 1e-6) return null;
+
+    const radius = Math.sqrt(rSq);
+    const center = new THREE.Vector3(cx, cy, cz);
+
+    let sumSqErr = 0;
+    for (let i = 0; i < points.length; i++) {
+      const d = points[i].distanceTo(center) - radius;
+      sumSqErr += d * d;
+    }
+    const rmse = Math.sqrt(sumSqErr / points.length);
+
+    return { center, radius, rmse };
+  }
+
+  // 2D Liang-Barsky Screen Line Segment Clipping
+  clipSegmentToScreen(x0, y0, x1, y1, xmin, xmax, ymin, ymax) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+
+    let t0 = 0.0;
+    let t1 = 1.0;
+
+    const p = [-dx, dx, -dy, dy];
+    const q = [x0 - xmin, xmax - x0, y0 - ymin, ymax - y0];
+
+    for (let i = 0; i < 4; i++) {
+      if (Math.abs(p[i]) < 1e-9) {
+        if (q[i] < 0) return null;
+      } else {
+        const t = q[i] / p[i];
+        if (p[i] < 0) {
+          if (t > t1) return null;
+          if (t > t0) t0 = t;
+        } else {
+          if (t < t0) return null;
+          if (t < t1) t1 = t;
+        }
+      }
+    }
+
+    return { t0, t1 };
+  }
+
+  detectRadiusTarget(hit, clientX, clientY) {
+    if (!hit || !hit.object || !this.camera) return null;
+    const mesh = hit.object;
+    if (!this.isPickableElement(mesh) || !mesh.geometry) return null;
+
+    mesh.updateWorldMatrix(true, false);
+    const matrixWorld = mesh.matrixWorld;
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(matrixWorld);
+
+    // 1. First Priority: Detect Circle / Arc loops (from extracted mesh features)
+    if (this.snapEngine) {
+      const features = this.snapEngine.extractMeshFeatures(mesh);
+      if (features && features.arcLoops && features.arcLoops.length > 0) {
+        let bestArc = null;
+        let bestDistSq = Infinity;
+        let bestTargetPt = null;
+
+        const cw = (this.container && this.container.clientWidth) || 800;
+        const ch = (this.container && this.container.clientHeight) || 600;
+        const rect = this.canvas.getBoundingClientRect();
+        const localX = clientX - rect.left;
+        const localY = clientY - rect.top;
+
+        const mouseRay = this.raycaster ? this.raycaster.ray : null;
+        const ptOnRay = new THREE.Vector3();
+        const ptOnSeg = new THREE.Vector3();
+        const projPt = new THREE.Vector3();
+
+        for (const arc of features.arcLoops) {
+          const worldCenter = arc.center.clone().applyMatrix4(matrixWorld);
+          const worldNormal = arc.normal.clone().applyMatrix3(normalMatrix).normalize();
+          const worldPts = arc.points.map(p => p.clone().applyMatrix4(matrixWorld));
+
+          // Test if mouse ray or hit point is near perimeter
+          for (let j = 0; j < worldPts.length - 1; j++) {
+            const p0 = worldPts[j];
+            const p1 = worldPts[j + 1];
+
+            if (mouseRay) {
+              mouseRay.distanceSqToSegment(p0, p1, ptOnRay, ptOnSeg);
+              projPt.copy(ptOnSeg).project(this.camera);
+              if (projPt.z >= -1.0 && projPt.z <= 1.0) {
+                const sx = (projPt.x * 0.5 + 0.5) * cw;
+                const sy = (-projPt.y * 0.5 + 0.5) * ch;
+                const dSq = (sx - localX) * (sx - localX) + (sy - localY) * (sy - localY);
+                if (dSq < bestDistSq && dSq < 35 * 35) {
+                  bestDistSq = dSq;
+                  bestArc = arc;
+                  const d0 = ptOnSeg.distanceToSquared(p0);
+                  const d1 = ptOnSeg.distanceToSquared(p1);
+                  bestTargetPt = (d0 <= d1 ? p0 : p1).clone();
+                }
+              }
+            }
+          }
+        }
+
+        if (bestArc && bestTargetPt) {
+          const worldCenter = bestArc.center.clone().applyMatrix4(matrixWorld);
+          const worldNormal = bestArc.normal.clone().applyMatrix3(normalMatrix).normalize();
+          return {
+            type: 'arc',
+            geomType: bestArc.isClosed ? 'circle' : 'arc',
+            center: worldCenter,
+            radius: worldCenter.distanceTo(bestTargetPt),
+            normal: worldNormal,
+            targetPoint: bestTargetPt,
+            mesh,
+            isClosed: bestArc.isClosed,
+            isCenterFarSide: false
+          };
+        }
+      }
+    }
+
+    // 2. Second Priority: Detect Sphere / Spherical Surface by Least Squares curvature fitting
+    const geom = mesh.geometry;
+    const pos = geom.attributes.position;
+    if (!pos || pos.count < 6) return null;
+    const index = geom.index;
+    const faceIndex = hit.faceIndex;
+    if (faceIndex === undefined || faceIndex === null) return null;
+
+    // Cache vertex-to-triangle adjacency map on geometry
+    if (!geom.userData._vToTris) {
+      const vToTris = new Map();
+      const triCount = index ? index.count / 3 : pos.count / 3;
+      for (let t = 0; t < triCount; t++) {
+        const a = index ? index.getX(t * 3) : t * 3;
+        const b = index ? index.getX(t * 3 + 1) : t * 3 + 1;
+        const c = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+        if (!vToTris.has(a)) vToTris.set(a, []);
+        vToTris.get(a).push(t);
+        if (!vToTris.has(b)) vToTris.set(b, []);
+        vToTris.get(b).push(t);
+        if (!vToTris.has(c)) vToTris.set(c, []);
+        vToTris.get(c).push(t);
+      }
+      geom.userData._vToTris = vToTris;
+    }
+    const vToTris = geom.userData._vToTris;
+
+    const i0 = index ? index.getX(faceIndex * 3) : faceIndex * 3;
+    const i1 = index ? index.getX(faceIndex * 3 + 1) : faceIndex * 3 + 1;
+    const i2 = index ? index.getX(faceIndex * 3 + 2) : faceIndex * 3 + 2;
+
+    const ring1Tris = new Set();
+    for (const v of [i0, i1, i2]) {
+      const tris = vToTris.get(v) || [];
+      for (let k = 0; k < tris.length; k++) ring1Tris.add(tris[k]);
+    }
+    const ring1Verts = new Set();
+    for (const tr of ring1Tris) {
+      for (let k = 0; k < 3; k++) {
+        ring1Verts.add(index ? index.getX(tr * 3 + k) : tr * 3 + k);
+      }
+    }
+    const ring2Tris = new Set();
+    for (const v of ring1Verts) {
+      const tris = vToTris.get(v) || [];
+      for (let k = 0; k < tris.length; k++) ring2Tris.add(tris[k]);
+    }
+
+    const uniqueWorldPts = [];
+    const visitedVerts = new Set();
+    for (const tr of ring2Tris) {
+      for (let k = 0; k < 3; k++) {
+        const idx = index ? index.getX(tr * 3 + k) : tr * 3 + k;
+        if (!visitedVerts.has(idx)) {
+          visitedVerts.add(idx);
+          const pt = new THREE.Vector3().fromBufferAttribute(pos, idx).applyMatrix4(matrixWorld);
+          uniqueWorldPts.push(pt);
+        }
+      }
+    }
+
+    if (uniqueWorldPts.length < 6) return null;
+
+    const fit = this.fitSphereLeastSquares(uniqueWorldPts);
+    if (!fit || fit.radius < 0.01 || fit.radius > 5000) return null;
+    const maxAllowedRmse = Math.max(0.005, fit.radius * 0.02);
+    if (fit.rmse > maxAllowedRmse) return null;
+
+    // Closest mesh vertex to hit.point
+    let closestVertex = null;
+    let minD = Infinity;
+    for (let k = 0; k < uniqueWorldPts.length; k++) {
+      const d = uniqueWorldPts[k].distanceToSquared(hit.point);
+      if (d < minD) {
+        minD = d;
+        closestVertex = uniqueWorldPts[k];
+      }
+    }
+    if (!closestVertex) return null;
+
+    // Far side check: whether sphere center is on the far side of visible surface
+    const uOut = new THREE.Vector3().subVectors(closestVertex, fit.center).normalize();
+    const vCam = new THREE.Vector3();
+    if (this.camera.isOrthographicCamera) {
+      this.camera.getWorldDirection(vCam);
+    } else {
+      vCam.subVectors(closestVertex, this.camera.position).normalize();
+    }
+    const isCenterFarSide = (uOut.dot(vCam) < 0);
+
+    return {
+      type: 'sphere',
+      geomType: 'sphere',
+      center: fit.center,
+      radius: fit.radius,
+      normal: uOut,
+      targetPoint: closestVertex,
+      mesh,
+      isClosed: true,
+      isCenterFarSide
+    };
+  }
+
+  updateRadiusPreview(target) {
+    if (!this.radiusPreviewGroup || !target) return;
+    this.currentRadiusTarget = target;
+
+    const cw = (this.container && this.container.clientWidth) || 800;
+    const ch = (this.container && this.container.clientHeight) || 600;
+    const isOrtho = Boolean(this.camera && this.camera.isOrthographicCamera);
+
+    let worldPerPixel;
+    if (isOrtho) {
+      worldPerPixel = ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) / ch;
+    } else {
+      const dist = this.camera.position.distanceTo(target.targetPoint);
+      const fovRad = ((this.camera.fov || 45) * Math.PI) / 180;
+      worldPerPixel = (2 * dist * Math.tan(fovRad / 2)) / ch;
+    }
+    const markerScale = Math.max(1e-5, worldPerPixel * 10);
+
+    const C = target.center;
+    const P = target.targetPoint;
+
+    let arrowStart, arrowEnd;
+    let conePos, coneDir;
+
+    if (!target.isCenterFarSide) {
+      // Normal internal arrow: from Center C to Target Point P
+      arrowStart = C;
+      arrowEnd = P;
+      conePos = P;
+      coneDir = new THREE.Vector3().subVectors(P, C).normalize();
+      this.radiusPreviewDashedLine.visible = false;
+      this.radiusPreviewCenterGroup.visible = true;
+      this.radiusPreviewCenterGroup.position.copy(C);
+      const cDist = isOrtho ? 1 : this.camera.position.distanceTo(C);
+      const cWorldPerPix = isOrtho ? worldPerPixel : (2 * cDist * Math.tan(((this.camera.fov || 45) * Math.PI) / 360)) / ch;
+      const cScale = Math.max(1e-5, cWorldPerPix * 10);
+      this.radiusPreviewCenterGroup.scale.set(cScale, cScale, cScale);
+      this.radiusPreviewCenterGroup.quaternion.copy(this.camera.quaternion);
+    } else {
+      // Far side center (convex sphere viewed from outside):
+      // Arrow from outside pointing inward to P
+      const uOut = target.normal || new THREE.Vector3().subVectors(P, C).normalize();
+      const arrowLen = Math.min(target.radius * 0.45, Math.max(0.15, worldPerPixel * 140));
+      const Pouter = P.clone().addScaledVector(uOut, arrowLen);
+      arrowStart = Pouter;
+      arrowEnd = P;
+      conePos = P;
+      coneDir = uOut.clone().negate();
+
+      // Semi-transparent dashed line from P to C
+      this.radiusPreviewDashedLine.visible = true;
+      this.radiusPreviewDashedLine.geometry.setFromPoints([P, C]);
+      this.radiusPreviewDashedLine.computeLineDistances();
+
+      // Center marker at C
+      this.radiusPreviewCenterGroup.visible = true;
+      this.radiusPreviewCenterGroup.position.copy(C);
+      const cDist = isOrtho ? 1 : this.camera.position.distanceTo(C);
+      const cWorldPerPix = isOrtho ? worldPerPixel : (2 * cDist * Math.tan(((this.camera.fov || 45) * Math.PI) / 360)) / ch;
+      const cScale = Math.max(1e-5, cWorldPerPix * 10);
+      this.radiusPreviewCenterGroup.scale.set(cScale, cScale, cScale);
+      this.radiusPreviewCenterGroup.quaternion.copy(this.camera.quaternion);
+    }
+
+    // Update Solid Arrow Line
+    this.radiusPreviewLine.geometry.setFromPoints([arrowStart, arrowEnd]);
+
+    // Update Arrow Cone
+    const coneScale = Math.max(1e-5, worldPerPixel * 10);
+    this.radiusPreviewCone.position.copy(conePos);
+    this.radiusPreviewCone.scale.set(coneScale, coneScale, coneScale);
+    const upVec = new THREE.Vector3(0, 1, 0);
+    const quat = new THREE.Quaternion().setFromUnitVectors(upVec, coneDir);
+    this.radiusPreviewCone.quaternion.copy(quat);
+
+    this.radiusPreviewGroup.visible = true;
+
+    // Update Floating Text Badge with Liang-Barsky Screen Clamping
+    if (this.radiusPreviewBadgeEl) {
+      const proj0 = arrowStart.clone().project(this.camera);
+      const proj1 = arrowEnd.clone().project(this.camera);
+
+      if ((proj0.z > 1.0 && proj1.z > 1.0) || (proj0.z < -1.0 && proj1.z < -1.0)) {
+        this.radiusPreviewBadgeEl.style.display = 'none';
+      } else {
+        const s0x = (proj0.x * 0.5 + 0.5) * cw;
+        const s0y = (-proj0.y * 0.5 + 0.5) * ch;
+        const s1x = (proj1.x * 0.5 + 0.5) * cw;
+        const s1y = (-proj1.y * 0.5 + 0.5) * ch;
+
+        const safeMargin = 32;
+        const clipRes = this.clipSegmentToScreen(s0x, s0y, s1x, s1y, safeMargin, cw - safeMargin, safeMargin, ch - safeMargin);
+
+        if (!clipRes) {
+          this.radiusPreviewBadgeEl.style.display = 'none';
+        } else {
+          const tClamped = Math.max(clipRes.t0, Math.min(clipRes.t1, 0.5));
+          const badgeX = s0x + tClamped * (s1x - s0x);
+          const badgeY = s0y + tClamped * (s1y - s0y);
+
+          const unit = this.measureUnit || 'm';
+          const scale = unit === 'mm' ? 1000 : 1;
+          const rFormatted = (target.radius * scale).toFixed(unit === 'mm' ? 0 : 3);
+
+          this.radiusPreviewBadgeEl.textContent = `R ${rFormatted} ${unit}`;
+          this.radiusPreviewBadgeEl.style.display = 'block';
+          this.radiusPreviewBadgeEl.style.transform = `translate3d(${Math.round(badgeX)}px, ${Math.round(badgeY)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+    }
+
+    this.requestRender(100);
+  }
+
+  hideRadiusPreview() {
+    this.currentRadiusTarget = null;
+    if (this.radiusPreviewGroup && this.radiusPreviewGroup.visible) {
+      this.radiusPreviewGroup.visible = false;
+    }
+    if (this.radiusPreviewBadgeEl && this.radiusPreviewBadgeEl.style.display !== 'none') {
+      this.radiusPreviewBadgeEl.style.display = 'none';
+    }
+    this.requestRender(100);
+  }
+
+  createOrUpdateRadiusMeasurement(target, event = null) {
+    if (!target) return;
+    const isCtrl = Boolean(event && (event.ctrlKey || event.metaKey));
+
+    if (!isCtrl && this.radiusMeasurements && this.radiusMeasurements.length > 0) {
+      const toRemove = [...this.radiusMeasurements];
+      for (const m of toRemove) {
+        this.deleteRadiusMeasurement(m.id);
+      }
+    }
+
+    const id = `measure-rad-${++this.radiusMeasurementCounter}`;
+    const displayIndex = (this.radiusMeasurements ? this.radiusMeasurements.length : 0) + 1;
+
+    // 3D Visual Group for placed radius measurement
+    const group = new THREE.Group();
+    group.name = `RadiusGroup_${id}`;
+    group.userData = { isRadiusMeasurement: true, id };
+
+    // Arrow line and cone
+    const C = target.center;
+    const P = target.targetPoint;
+    let arrowStart, arrowEnd, coneDir;
+    let dashedLine = null;
+
+    const ch = (this.container && this.container.clientHeight) || 600;
+    const isOrtho = Boolean(this.camera && this.camera.isOrthographicCamera);
+    let worldPerPixel;
+    if (isOrtho) {
+      worldPerPixel = ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) / ch;
+    } else {
+      const dist = this.camera.position.distanceTo(target.targetPoint);
+      worldPerPixel = (2 * dist * Math.tan(((this.camera.fov || 45) * Math.PI) / 360)) / ch;
+    }
+
+    // Center marker (Refined CAD Center Mark Reticle)
+    const centerGroup = new THREE.Group();
+    const ringGeom = new THREE.RingGeometry(0.26, 0.36, 24);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
+    centerGroup.add(new THREE.Mesh(ringGeom, ringMat));
+    const dotGeom = new THREE.CircleGeometry(0.12, 16);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
+    centerGroup.add(new THREE.Mesh(dotGeom, dotMat));
+    const crossVerts = new Float32Array([
+      0, 0.36, 0,   0, 0.65, 0,
+      0, -0.36, 0,  0, -0.65, 0,
+      -0.36, 0, 0,  -0.65, 0, 0,
+      0.36, 0, 0,   0.65, 0, 0
+    ]);
+    const crossGeom = new THREE.BufferGeometry();
+    crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
+    const crossMat = new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
+    centerGroup.add(new THREE.LineSegments(crossGeom, crossMat));
+    centerGroup.position.copy(target.center);
+
+    const cDist = isOrtho ? 1 : this.camera.position.distanceTo(target.center);
+    const cWorldPerPix = isOrtho ? worldPerPixel : (2 * cDist * Math.tan(((this.camera.fov || 45) * Math.PI) / 360)) / ch;
+    const cScale = Math.max(1e-5, cWorldPerPix * 10);
+    centerGroup.scale.set(cScale, cScale, cScale);
+    centerGroup.quaternion.copy(this.camera.quaternion);
+    group.add(centerGroup);
+
+    if (!target.isCenterFarSide) {
+      arrowStart = C.clone();
+      arrowEnd = P.clone();
+      coneDir = new THREE.Vector3().subVectors(P, C).normalize();
+    } else {
+      const uOut = target.normal || new THREE.Vector3().subVectors(P, C).normalize();
+      const arrowLen = Math.min(target.radius * 0.45, Math.max(0.15, worldPerPixel * 140));
+      arrowStart = P.clone().addScaledVector(uOut, arrowLen);
+      arrowEnd = P.clone();
+      coneDir = uOut.clone().negate();
+
+      const dGeom = new THREE.BufferGeometry().setFromPoints([P, C]);
+      dashedLine = new THREE.Line(dGeom, new THREE.LineDashedMaterial({ color: 0xf59e0b, dashSize: 0.2, gapSize: 0.15, transparent: true, opacity: 0.65, depthTest: false, depthWrite: false }));
+      dashedLine.computeLineDistances();
+      group.add(dashedLine);
+    }
+
+    const lineGeom = new THREE.BufferGeometry().setFromPoints([arrowStart, arrowEnd]);
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3, depthTest: false, depthWrite: false });
+    const arrowLine = new THREE.Line(lineGeom, lineMat);
+    group.add(arrowLine);
+
+    const coneGeom = new THREE.ConeGeometry(0.2, 0.6, 16);
+    coneGeom.translate(0, -0.3, 0);
+    const coneMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, depthTest: false, depthWrite: false });
+    const cone = new THREE.Mesh(coneGeom, coneMat);
+    cone.position.copy(arrowEnd);
+    cone.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), coneDir));
+
+    const pDist = isOrtho ? 1 : this.camera.position.distanceTo(target.targetPoint);
+    const pWorldPerPix = isOrtho ? worldPerPixel : (2 * pDist * Math.tan(((this.camera.fov || 45) * Math.PI) / 360)) / ch;
+    const coneScale = Math.max(1e-5, pWorldPerPix * 10);
+    cone.scale.set(coneScale, coneScale, coneScale);
+    group.add(cone);
+
+    this.scene.add(group);
+
+    // Callout DOM badge
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    let calloutEl = null;
+    if (listEl) {
+      calloutEl = document.createElement('div');
+      calloutEl.className = 'measure-radius-callout active';
+      calloutEl.dataset.radId = id;
+      const unit = this.measureUnit || 'm';
+      const scale = unit === 'mm' ? 1000 : 1;
+      const rFormatted = (target.radius * scale).toFixed(unit === 'mm' ? 0 : 3);
+      const dFormatted = (target.radius * 2 * scale).toFixed(unit === 'mm' ? 0 : 3);
+      const geomLabel = target.geomType === 'circle' ? I18N.t('measureGeomCircle') : (target.geomType === 'arc' ? I18N.t('measureGeomArc') : I18N.t('measureGeomSphere'));
+
+      calloutEl.textContent = `R ${rFormatted} ${unit}`;
+      calloutEl.title = `Radius (R): ${rFormatted} ${unit}\nDiameter (Ø): ${dFormatted} ${unit} | ${geomLabel}\nClick to copy, Shift+Click to delete`;
+
+      calloutEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.shiftKey) {
+          this.deleteRadiusMeasurement(id);
+          return;
+        }
+        const text = `Radius (R): ${rFormatted} ${unit}\nDiameter (Ø): ${dFormatted} ${unit}\nGeometry: ${geomLabel}\nCenter: (${target.center.x.toFixed(3)}, ${target.center.y.toFixed(3)}, ${target.center.z.toFixed(3)})\nTarget Point: (${target.targetPoint.x.toFixed(3)}, ${target.targetPoint.y.toFixed(3)}, ${target.targetPoint.z.toFixed(3)})`;
+        this.copyToClipboard(text, null);
+        showToast(I18N.t('measureCopiedToast'), 'success', 2200);
+      });
+
+      listEl.appendChild(calloutEl);
+    }
+
+    const radRecord = {
+      id,
+      index: displayIndex,
+      target,
+      group,
+      centerGroup,
+      arrowLine,
+      arrowStart,
+      arrowEnd,
+      cone,
+      coneDir,
+      dashedLine,
+      calloutEl
+    };
+
+    if (!this.radiusMeasurements) this.radiusMeasurements = [];
+    this.radiusMeasurements.push(radRecord);
+    this.activeRadiusMeasurementId = id;
+
+    this.renderMeasurementResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.hideRadiusPreview();
+
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    showToast(`${I18N.t('measureResRadius')}: ${(target.radius * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`, 'success');
+  }
+
+  deleteRadiusMeasurement(id) {
+    if (!this.radiusMeasurements) return;
+    const idx = this.radiusMeasurements.findIndex(m => m.id === id);
+    if (idx < 0) return;
+    const m = this.radiusMeasurements[idx];
+
+    if (m.group) {
+      m.group.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(mat => mat && mat.dispose());
+          else obj.material.dispose();
+        }
+      });
+      this.scene.remove(m.group);
+    }
+
+    if (m.calloutEl && m.calloutEl.parentNode) {
+      m.calloutEl.parentNode.removeChild(m.calloutEl);
+    }
+
+    this.radiusMeasurements.splice(idx, 1);
+    if (this.activeRadiusMeasurementId === id) {
+      this.activeRadiusMeasurementId = this.radiusMeasurements.length > 0 ? this.radiusMeasurements[this.radiusMeasurements.length - 1].id : null;
+    }
+
+    this.renderMeasurementResults();
+    this.requestRender(200);
+  }
+
+  intersectMeasureMarkers(raycaster) {
+    if (!this.measureMarkers || this.measureMarkers.length === 0 || !this.measureMarkersGroup) return [];
+    const pickDiscs = [];
+    for (const m of this.measureMarkers) {
+      if (m && m.hitDisc && m.group && m.group.visible) {
+        pickDiscs.push(m.hitDisc);
+      }
+    }
+    if (pickDiscs.length === 0) return [];
+    const hits = raycaster.intersectObjects(pickDiscs, false);
+    if (hits.length === 0) return [];
+    const results = [];
+    for (const h of hits) {
+      const markerId = h.object.userData && h.object.userData.markerId;
+      const marker = this.measureMarkers.find(m => m.id === markerId);
+      if (marker) {
+        results.push({ hit: h, marker });
+      }
+    }
+    return results;
+  }
+
+  computeSurfaceNormalAndSlope(hit) {
+    const worldNormal = new THREE.Vector3(0, 1, 0);
+    if (hit && hit.normal && hit.normal.isVector3) {
+      worldNormal.copy(hit.normal).normalize();
+    } else if (hit && hit.face && hit.face.normal && hit.object) {
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+      worldNormal.copy(hit.face.normal).applyMatrix3(normalMatrix).normalize();
+      if (this.raycaster && this.raycaster.ray && worldNormal.dot(this.raycaster.ray.direction) > 0) {
+        worldNormal.negate();
+      }
+    }
+
+    const up = new THREE.Vector3(0, 1, 0);
+    const dotUp = worldNormal.dot(up);
+    const absCos = Math.min(1, Math.max(0, Math.abs(dotUp)));
+    const angleRad = Math.acos(absCos);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    // Project -up (0, -1, 0) onto surface tangent plane for steepest descent (downhill)
+    const downhillDir = new THREE.Vector3(0, -1, 0).addScaledVector(worldNormal, dotUp);
+    const downhillLen = downhillDir.length();
+
+    const isFlat = angleDeg < 0.05 || downhillLen < 1e-4;
+    const isVertical = absCos < 1e-4 || angleDeg > 89.94;
+
+    if (!isFlat) {
+      downhillDir.divideScalar(downhillLen);
+    } else {
+      downhillDir.set(1, 0, 0);
+    }
+
+    let percent = 0;
+    let ratioX = Infinity;
+    if (!isFlat && !isVertical) {
+      const tanTheta = Math.tan(angleRad);
+      percent = tanTheta * 100;
+      ratioX = tanTheta > 1e-6 ? (1 / tanTheta) : Infinity;
+    } else if (isVertical) {
+      percent = Infinity;
+      ratioX = 0;
+    }
+
+    return {
+      normal: worldNormal,
+      isFlat,
+      isVertical,
+      angleDeg: isFlat ? 0 : (isVertical ? 90 : angleDeg),
+      percent,
+      ratioX,
+      downhillDir
+    };
+  }
+
+  formatSlopeString(slopeData) {
+    if (!slopeData) return '--';
+    if (slopeData.isFlat) {
+      return I18N.t('measureSlopeFlat');
+    }
+    if (slopeData.isVertical) {
+      return I18N.t('measureSlopeVertical');
+    }
+    const ratioStr = slopeData.ratioX >= 100
+      ? `1:${Math.round(slopeData.ratioX)}`
+      : `1:${slopeData.ratioX.toFixed(1)}`;
+    const pctStr = `${slopeData.percent.toFixed(1)}%`;
+    const degStr = `${slopeData.angleDeg.toFixed(1)}°`;
+    return `${ratioStr} · ${pctStr} · ${degStr}`;
+  }
+
+  /**
+   * Standardized 3D Measurement Point Marker Factory (Reusable across Point, Distance, Multi-point & Angle modes)
+   * Includes:
+   *  1. Invisible Hit Disc for easy hover/drag/Shift-delete/right-click
+   *  2. Surface-aligned Reticle Cursor (outer ring, center dot, crosshairs)
+   *  3. Drag Orientation Square Patch (`小型方片`) shown during point dragging to indicate surface orientation
+   *  4. Steepest Descent Slope Arrow (`最大坡度方向箭头`) with a gap from the cursor ring
+   */
+  createStandardMeasureMarkerMesh(id, options = {}) {
+    const { showSlopeArrow = true } = options;
+    const group = new THREE.Group();
+    group.userData = { isMeasureMarker: true, markerId: id };
+
+    // 1. Invisible Hit Disc (for raycast picking & dragging)
+    const hitGeom = new THREE.CircleGeometry(1.25, 24);
+    const hitMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    const hitDisc = new THREE.Mesh(hitGeom, hitMat);
+    hitDisc.renderOrder = 1200;
+    hitDisc.userData = { isMeasureMarker: true, markerId: id };
+    group.add(hitDisc);
+
+    // 2. Surface Reticle Cursor (Ring + Center Dot + Crosshair Ticks)
+    const cursorGroup = new THREE.Group();
+    cursorGroup.userData = { isMeasureMarker: true, markerId: id };
+
+    const ringGeom = new THREE.RingGeometry(0.48, 0.66, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.96,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    const ringMesh = new THREE.Mesh(ringGeom, ringMat);
+    ringMesh.renderOrder = 1202;
+    ringMesh.userData = { isMeasureMarker: true, markerId: id };
+    cursorGroup.add(ringMesh);
+
+    const dotGeom = new THREE.CircleGeometry(0.17, 24);
+    const dotMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 1.0,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    const dotMesh = new THREE.Mesh(dotGeom, dotMat);
+    dotMesh.renderOrder = 1203;
+    dotMesh.userData = { isMeasureMarker: true, markerId: id };
+    cursorGroup.add(dotMesh);
+
+    const crossVerts = new Float32Array([
+      0, 0.66, 0,   0, 0.96, 0,
+      0, -0.66, 0,  0, -0.96, 0,
+      -0.66, 0, 0,  -0.96, 0, 0,
+      0.66, 0, 0,   0.96, 0, 0
+    ]);
+    const crossGeom = new THREE.BufferGeometry();
+    crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
+    const crossMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false
+    });
+    const crossLines = new THREE.LineSegments(crossGeom, crossMat);
+    crossLines.renderOrder = 1202;
+    crossLines.userData = { isMeasureMarker: true, markerId: id };
+    cursorGroup.add(crossLines);
+
+    group.add(cursorGroup);
+
+    // 3. Standardized Surface Orientation Square Patch (Shown while dragging any measurement point)
+    const dragPatchGroup = new THREE.Group();
+    dragPatchGroup.visible = false;
+    dragPatchGroup.userData = { isMeasureMarker: true, markerId: id };
+
+    const patchFillGeom = new THREE.PlaneGeometry(2.8, 2.8);
+    const patchFillMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.20,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    const patchFillMesh = new THREE.Mesh(patchFillGeom, patchFillMat);
+    patchFillMesh.renderOrder = 1201;
+    patchFillMesh.userData = { isMeasureMarker: true, markerId: id };
+    dragPatchGroup.add(patchFillMesh);
+
+    const h = 1.4;
+    const patchWireVerts = new Float32Array([
+      // Outer square border
+      -h, -h, 0,   h, -h, 0,
+       h, -h, 0,   h,  h, 0,
+       h,  h, 0,  -h,  h, 0,
+      -h,  h, 0,  -h, -h, 0,
+      // Subtle inner sub-grid lines
+      -h, 0, 0,   -0.96, 0, 0,
+       0.96, 0, 0, h, 0, 0,
+       0, -h, 0,   0, -0.96, 0,
+       0, 0.96, 0, 0, h, 0,
+      // Normal indicator stem along local +Z
+       0, 0, 0,    0, 0, 1.15
+    ]);
+    const patchWireGeom = new THREE.BufferGeometry();
+    patchWireGeom.setAttribute('position', new THREE.BufferAttribute(patchWireVerts, 3));
+    const patchWireMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      depthWrite: false
+    });
+    const patchWireLines = new THREE.LineSegments(patchWireGeom, patchWireMat);
+    patchWireLines.renderOrder = 1202;
+    patchWireLines.userData = { isMeasureMarker: true, markerId: id };
+    dragPatchGroup.add(patchWireLines);
+
+    group.add(dragPatchGroup);
+
+    // 4. Maximum Slope Downhill Arrow (with a clear gap from cursor ring: ring ends at 0.66/0.96, arrow tail starts at +1.18 along local +X)
+    const slopeArrowGroup = new THREE.Group();
+    slopeArrowGroup.visible = Boolean(showSlopeArrow);
+    slopeArrowGroup.userData = { isMeasureMarker: true, markerId: id };
+
+    // Arrow shaft from x = 1.18 to x = 2.58 (length 1.40, width 0.18)
+    const shaftGeom = new THREE.PlaneGeometry(1.40, 0.18);
+    shaftGeom.translate(1.18 + 0.70, 0, 0);
+    const arrowMat = new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      transparent: true,
+      opacity: 0.98,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    });
+    const shaftMesh = new THREE.Mesh(shaftGeom, arrowMat);
+    shaftMesh.renderOrder = 1203;
+    shaftMesh.userData = { isMeasureMarker: true, markerId: id };
+    slopeArrowGroup.add(shaftMesh);
+
+    // Arrow head triangle from x = 2.52 to x = 3.36
+    const headGeom = new THREE.BufferGeometry();
+    const headVerts = new Float32Array([
+      2.52,  0.42, 0,
+      2.52, -0.42, 0,
+      3.36,  0.0,  0
+    ]);
+    headGeom.setAttribute('position', new THREE.BufferAttribute(headVerts, 3));
+    const headMesh = new THREE.Mesh(headGeom, arrowMat);
+    headMesh.renderOrder = 1203;
+    headMesh.userData = { isMeasureMarker: true, markerId: id };
+    slopeArrowGroup.add(headMesh);
+
+    group.add(slopeArrowGroup);
+
+    return {
+      group,
+      hitDisc,
+      cursorGroup,
+      ringMat,
+      dotMat,
+      crossMat,
+      dragPatchGroup,
+      slopeArrowGroup,
+      arrowMat
+    };
+  }
+
+  orientMeasureMarkerToSurface(marker) {
+    if (!marker || !marker.group) return;
+    const n = marker.normal || new THREE.Vector3(0, 1, 0);
+    const slope = marker.slopeData;
+
+    // Local +X = downhill tangent vector (or horizontal tangent when flat)
+    // Local +Z = outward surface normal
+    // Local +Y = n x t1 (right-handed orthonormal basis in tangent plane)
+    const t1 = new THREE.Vector3();
+    if (slope && !slope.isFlat && slope.downhillDir && slope.downhillDir.lengthSq() > 0.001) {
+      t1.copy(slope.downhillDir).normalize();
+    } else {
+      const ref = Math.abs(n.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      t1.crossVectors(ref, n).normalize();
+    }
+    const t2 = new THREE.Vector3().crossVectors(n, t1).normalize();
+    t1.crossVectors(t2, n).normalize();
+
+    const basisMat = new THREE.Matrix4().makeBasis(t1, t2, n);
+    marker.group.position.copy(marker.point);
+    marker.group.quaternion.setFromRotationMatrix(basisMat);
+
+    // Hide slope arrow on pure horizontal plane (0%), show on sloped/vertical surfaces
+    if (marker.slopeArrowGroup) {
+      marker.slopeArrowGroup.visible = Boolean(marker.showSlopeArrow && slope && !slope.isFlat);
+    }
+  }
+
+  createMeasurePoint(hit, options = {}) {
+    if (!hit || !hit.point) return null;
+    if (!this.measureMarkersGroup) this.initMeasurementSystem();
+
+    const id = `measure-pt-${++this.measurePointCounter}`;
+    const displayIndex = this.measureMarkers.filter(m => m.mode === 'point').length + 1;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    const meshParts = this.createStandardMeasureMarkerMesh(id, { showSlopeArrow: true });
+
+    // Stagger callout offset slightly when multiple points exist
+    const staggerIdx = (displayIndex - 1) % 4;
+    const marker = {
+      id,
+      index: displayIndex,
+      mode: options.mode || 'point',
+      point: hit.point.clone(),
+      normal: slopeData.normal.clone(),
+      slopeData,
+      showSlopeArrow: true,
+      calloutOffset: { x: 44 + staggerIdx * 10, y: -56 + staggerIdx * 14 },
+      calloutEl: null,
+      leaderLineEl: null,
+      leaderDotEl: null,
+      ...meshParts
+    };
+
+    this.measureMarkersGroup.add(marker.group);
+    this.measureMarkers.push(marker);
+
+    this.orientMeasureMarkerToSurface(marker);
+    this.createOrUpdateMeasureCalloutDOM(marker);
+    this.setActiveMeasurePoint(marker.id);
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(250);
+    return marker;
+  }
+
+  updateMeasurePointFromHit(marker, hit) {
+    if (!marker || !hit || !hit.point) return;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    marker.point.copy(hit.point);
+    marker.normal.copy(slopeData.normal);
+    marker.slopeData = slopeData;
+
+    this.orientMeasureMarkerToSurface(marker);
+    this.createOrUpdateMeasureCalloutDOM(marker);
+    if (this.activeMeasurePointId === marker.id) {
+      this.renderMeasurementResults();
+    }
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  deleteMeasurePoint(id) {
+    if (!this.measureMarkers) return;
+    const idx = this.measureMarkers.findIndex(m => m.id === id);
+    if (idx < 0) return;
+
+    const marker = this.measureMarkers[idx];
+    if (this.hoveredMeasureMarker === marker) {
+      this.hoveredMeasureMarker = null;
+    }
+    if (this.draggingMeasureMarker === marker) {
+      this.isDraggingMeasurePoint = false;
+      this.draggingMeasureMarker = null;
+    }
+
+    // Dispose 3D resources
+    if (marker.group) {
+      marker.group.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(mat => mat && mat.dispose());
+          else obj.material.dispose();
+        }
+      });
+      if (this.measureMarkersGroup) {
+        this.measureMarkersGroup.remove(marker.group);
+      }
+    }
+
+    // Remove 2D Callout & Leader SVG elements
+    if (marker.calloutEl && marker.calloutEl.parentNode) {
+      marker.calloutEl.parentNode.removeChild(marker.calloutEl);
+    }
+    if (marker.leaderLineEl && marker.leaderLineEl.parentNode) {
+      marker.leaderLineEl.parentNode.removeChild(marker.leaderLineEl);
+    }
+    if (marker.leaderDotEl && marker.leaderDotEl.parentNode) {
+      marker.leaderDotEl.parentNode.removeChild(marker.leaderDotEl);
+    }
+
+    this.measureMarkers.splice(idx, 1);
+
+    // Renumber remaining point markers sequentially
+    let ptIdx = 1;
+    this.measureMarkers.forEach(m => {
+      if (m.mode === 'point') {
+        m.index = ptIdx++;
+        this.createOrUpdateMeasureCalloutDOM(m);
+      }
+    });
+
+    if (this.activeMeasurePointId === id) {
+      const remaining = this.measureMarkers.filter(m => m.mode === 'point');
+      this.activeMeasurePointId = remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+    }
+
+    this.setActiveMeasurePoint(this.activeMeasurePointId);
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(250);
+  }
+
+  getActiveMeasurePoint() {
+    if (!this.measureMarkers || this.measureMarkers.length === 0) return null;
+    if (this.activeMeasurePointId) {
+      const found = this.measureMarkers.find(m => m.id === this.activeMeasurePointId && m.mode === 'point');
+      if (found) return found;
+    }
+    const pointMarkers = this.measureMarkers.filter(m => m.mode === 'point');
+    return pointMarkers.length > 0 ? pointMarkers[pointMarkers.length - 1] : null;
+  }
+
+  setActiveMeasurePoint(id) {
+    this.activeMeasurePointId = id;
+    if (this.measureMarkers) {
+      this.measureMarkers.forEach(m => {
+        const isActive = m.id === id;
+        const isHovered = this.hoveredMeasureMarker === m;
+        if (m.ringMat) {
+          m.ringMat.color.setHex(isHovered ? 0xfbbf24 : (isActive ? 0x00f0ff : 0x38bdf8));
+        }
+        if (m.crossMat) {
+          m.crossMat.color.setHex(isHovered ? 0xfbbf24 : (isActive ? 0x00f0ff : 0x38bdf8));
+        }
+        if (m.calloutEl) {
+          m.calloutEl.classList.toggle('active', isActive);
+        }
+        if (m.leaderLineEl) {
+          m.leaderLineEl.classList.toggle('inactive', !isActive);
+        }
+      });
+    }
+    this.renderMeasurementResults();
+    this.requestRender(200);
+  }
+
+  setHoveredMeasureMarker(marker) {
+    if (this.hoveredMeasureMarker === marker) return;
+    this.hoveredMeasureMarker = marker;
+    this.setActiveMeasurePoint(this.activeMeasurePointId);
+  }
+
+  setMeasureMarkerDragging(marker, isDragging) {
+    if (!marker) return;
+    if (marker.dragPatchGroup) {
+      marker.dragPatchGroup.visible = Boolean(isDragging);
+    }
+    if (marker.ringMat) {
+      marker.ringMat.color.setHex(isDragging ? 0xfbbf24 : 0x00f0ff);
+    }
+    if (marker.crossMat) {
+      marker.crossMat.color.setHex(isDragging ? 0xfbbf24 : 0x00f0ff);
+    }
+    this.requestRender(200);
+  }
+
+  formatMeasurePointCoords(point) {
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decimals = unit === 'mm' ? 0 : 3;
+    // BIM Engineering Coordinate Convention: X = Easting (point.x), Y = Northing (-point.z), Z = Elevation (point.y)
+    const rawX = point.x * scale;
+    const rawY = -point.z * scale;
+    const rawZ = point.y * scale;
+    const cleanZero = (v) => (Math.abs(v) < 1e-5 ? 0 : v);
+    return {
+      unit,
+      xStr: `${cleanZero(rawX).toFixed(decimals)} ${unit}`,
+      yStr: `${cleanZero(rawY).toFixed(decimals)} ${unit}`,
+      zStr: `${cleanZero(rawZ).toFixed(decimals)} ${unit}`
+    };
+  }
+
+  createOrUpdateMeasureCalloutDOM(marker) {
+    if (!marker) return;
+    const listEl = document.getElementById('measure-callouts-list');
+    const svgEl = document.getElementById('measure-leader-svg');
+    if (!listEl || !svgEl) return;
+
+    const coords = this.formatMeasurePointCoords(marker.point);
+    const slopeStr = this.formatSlopeString(marker.slopeData);
+    const copyTooltip = I18N.t('measureCopyTooltip');
+    const slopeLabel = I18N.t('measureMaxSlope');
+
+    const copyIconSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+
+    if (!marker.leaderLineEl) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const line = document.createElementNS(ns, 'polyline');
+      line.setAttribute('class', 'measure-leader-line');
+      svgEl.appendChild(line);
+      marker.leaderLineEl = line;
+
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('class', 'measure-leader-dot');
+      dot.setAttribute('r', '3');
+      svgEl.appendChild(dot);
+      marker.leaderDotEl = dot;
+    }
+
+    if (!marker.calloutEl) {
+      const card = document.createElement('div');
+      card.className = 'measure-point-callout';
+      card.dataset.markerId = marker.id;
+
+      card.innerHTML = `
+        <div class="measure-callout-header">
+          <span class="measure-callout-badge"></span>
+          <button type="button" class="callout-copy-btn" title="${this.escapeHtml(copyTooltip)}">${copyIconSvg}</button>
+        </div>
+        <div class="measure-callout-rows">
+          <div class="measure-callout-row">
+            <span class="measure-callout-key">X:</span>
+            <span class="measure-callout-val val-x"></span>
+          </div>
+          <div class="measure-callout-row">
+            <span class="measure-callout-key">Y:</span>
+            <span class="measure-callout-val val-y"></span>
+          </div>
+          <div class="measure-callout-row">
+            <span class="measure-callout-key">Z:</span>
+            <span class="measure-callout-val val-z"></span>
+          </div>
+          <div class="measure-callout-row slope-row">
+            <span class="measure-callout-key key-slope"></span>
+            <span class="measure-callout-val val-slope"></span>
+          </div>
+        </div>
+      `;
+
+      // Copy button click handler (SVG-only button with hover tooltip)
+      const copyBtn = card.querySelector('.callout-copy-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+        });
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const c = this.formatMeasurePointCoords(marker.point);
+          const s = this.formatSlopeString(marker.slopeData);
+          const text = `X: ${c.xStr}\nY: ${c.yStr}\nZ: ${c.zStr}\n${I18N.t('measureMaxSlope')}: ${s}`;
+          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+          copyBtn.classList.add('copied');
+          this.copyToClipboard(text, null);
+          showToast(I18N.t('measureCopiedToast'), 'success', 2200);
+          setTimeout(() => {
+            if (copyBtn) {
+              copyBtn.innerHTML = copyIconSvg;
+              copyBtn.classList.remove('copied');
+            }
+          }, 1200);
+        });
+      }
+
+      // Dragging callout micro-panel to adjust its screen offset, or Shift+Click to delete
+      let isDraggingCard = false;
+      let startX = 0;
+      let startY = 0;
+      let origOffsetX = 0;
+      let origOffsetY = 0;
+
+      card.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.callout-copy-btn')) return;
+        e.stopPropagation();
+        if (e.button === 0 && e.shiftKey) {
+          this.deleteMeasurePoint(marker.id);
+          return;
+        }
+        this.setActiveMeasurePoint(marker.id);
+        if (e.button === 0) {
+          isDraggingCard = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origOffsetX = marker.calloutOffset.x;
+          origOffsetY = marker.calloutOffset.y;
+          card.classList.add('dragging');
+          card.setPointerCapture(e.pointerId);
+        }
+      });
+
+      card.addEventListener('pointermove', (e) => {
+        if (!isDraggingCard) return;
+        e.stopPropagation();
+        marker.calloutOffset.x = origOffsetX + (e.clientX - startX);
+        marker.calloutOffset.y = origOffsetY + (e.clientY - startY);
+        this.updateMeasureMarkersAndCallouts();
+      });
+
+      const endCardDrag = (e) => {
+        if (!isDraggingCard) return;
+        isDraggingCard = false;
+        card.classList.remove('dragging');
+        try { card.releasePointerCapture(e.pointerId); } catch (err) {}
+      };
+      card.addEventListener('pointerup', endCardDrag);
+      card.addEventListener('pointercancel', endCardDrag);
+
+      // Right-click on Callout card opens context menu with Delete Measurement Point
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.contextMenuMeasureMarker = marker;
+        this.contextMenuMeasureSurfaceHit = null;
+        this.showContextMenu(e.clientX, e.clientY);
+      });
+
+      listEl.appendChild(card);
+      marker.calloutEl = card;
+    }
+
+    const badgeEl = marker.calloutEl.querySelector('.measure-callout-badge');
+    if (badgeEl) {
+      badgeEl.textContent = `#${marker.index} PT`;
+    }
+    const copyBtn = marker.calloutEl.querySelector('.callout-copy-btn');
+    if (copyBtn) {
+      copyBtn.title = copyTooltip;
+    }
+    const valX = marker.calloutEl.querySelector('.val-x');
+    if (valX) valX.textContent = coords.xStr;
+    const valY = marker.calloutEl.querySelector('.val-y');
+    if (valY) valY.textContent = coords.yStr;
+    const valZ = marker.calloutEl.querySelector('.val-z');
+    if (valZ) valZ.textContent = coords.zStr;
+    const keySlope = marker.calloutEl.querySelector('.key-slope');
+    if (keySlope) keySlope.textContent = `${slopeLabel}:`;
+    const valSlope = marker.calloutEl.querySelector('.val-slope');
+    if (valSlope) valSlope.textContent = slopeStr;
+  }
+
+  updateMeasureMarkersAndCallouts() {
+    if (!this.camera || !this.container) return;
+    const hasPointMarkers = Boolean(this.measureMarkers && this.measureMarkers.length > 0);
+    const hasRadiusMarkers = Boolean(this.radiusMeasurements && this.radiusMeasurements.length > 0);
+    if (!hasPointMarkers && !hasRadiusMarkers) return;
+
+    // Ensure camera world and inverse-world matrices reflect any immediate position/zoom changes (e.g. wheel zoom)
+    this.camera.updateMatrixWorld();
+
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+    const isOrtho = Boolean(this.camera.isOrthographicCamera);
+    const fovRad = ((this.camera.fov || 45) * Math.PI) / 180;
+    const tanHalfFov = Math.tan(fovRad / 2);
+
+    const projVec = new THREE.Vector3();
+
+    if (hasPointMarkers) {
+      for (const marker of this.measureMarkers) {
+        if (!marker || !marker.group) continue;
+
+        // 1. Constant Screen-Space Pixel Scaling for 3D Cursor, Gap, Slope Arrow & Drag Orientation Patch
+        let worldPerPixel;
+        if (isOrtho) {
+          worldPerPixel = ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) / ch;
+        } else {
+          const dist = this.camera.position.distanceTo(marker.point);
+          worldPerPixel = (2 * dist * tanHalfFov) / ch;
+        }
+        const scale = Math.max(1e-5, worldPerPixel * 13.5);
+        marker.group.scale.set(scale, scale, scale);
+
+        // 2. Project 3D Point to 2D Viewport Coordinates for Callout & Leader Line
+        projVec.copy(marker.point).project(this.camera);
+        const isBehindCam = projVec.z > 1.0 || projVec.z < -1.0;
+
+        if (isBehindCam) {
+          if (marker.calloutEl) marker.calloutEl.style.display = 'none';
+          if (marker.leaderLineEl) marker.leaderLineEl.style.display = 'none';
+          if (marker.leaderDotEl) marker.leaderDotEl.style.display = 'none';
+          continue;
+        }
+
+        const sx = (projVec.x * 0.5 + 0.5) * cw;
+        const sy = (-projVec.y * 0.5 + 0.5) * ch;
+
+        if (marker.calloutEl) {
+          marker.calloutEl.style.display = 'block';
+          const cardW = marker.calloutEl.offsetWidth || 185;
+          const cardH = marker.calloutEl.offsetHeight || 96;
+
+          let cx = sx + marker.calloutOffset.x;
+          let cy = sy + marker.calloutOffset.y;
+
+          // Keep Callout clamped inside viewport bounds
+          cx = Math.max(8, Math.min(cw - cardW - 8, cx));
+          cy = Math.max(8, Math.min(ch - cardH - 8, cy));
+
+          marker.calloutEl.style.transform = `translate3d(${Math.round(cx)}px, ${Math.round(cy)}px, 0)`;
+
+          // Connect SVG elbow leader line from (sx, sy) to nearest vertical edge of callout card
+          if (marker.leaderLineEl && marker.leaderDotEl) {
+            marker.leaderLineEl.style.display = 'block';
+            marker.leaderDotEl.style.display = 'block';
+
+            const anchorX = (cx + cardW * 0.5 >= sx) ? cx : (cx + cardW);
+            const anchorY = cy + 16;
+            const elbowX = anchorX + ((cx + cardW * 0.5 >= sx) ? -12 : 12);
+            const elbowY = anchorY;
+
+            marker.leaderLineEl.setAttribute('points', `${sx.toFixed(1)},${sy.toFixed(1)} ${elbowX.toFixed(1)},${elbowY.toFixed(1)} ${anchorX.toFixed(1)},${anchorY.toFixed(1)}`);
+            marker.leaderDotEl.setAttribute('cx', sx.toFixed(1));
+            marker.leaderDotEl.setAttribute('cy', sy.toFixed(1));
+          }
+        }
+      }
+    }
+
+    // Update placed Radius Measurements (scale, projection & Liang-Barsky edge clamping)
+    if (hasRadiusMarkers) {
+      for (const radRec of this.radiusMeasurements) {
+        if (!radRec || !radRec.group) continue;
+
+        // 1. Center indicator scale
+        let cDist = 1;
+        if (!isOrtho) cDist = this.camera.position.distanceTo(radRec.target.center);
+        const cWorldPerPix = isOrtho ? ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) / ch : (2 * cDist * tanHalfFov) / ch;
+        const cScale = Math.max(1e-5, cWorldPerPix * 10);
+        if (radRec.centerGroup) {
+          radRec.centerGroup.scale.set(cScale, cScale, cScale);
+          radRec.centerGroup.quaternion.copy(this.camera.quaternion);
+        }
+
+        // 2. Cone scale
+        let pDist = 1;
+        if (!isOrtho) pDist = this.camera.position.distanceTo(radRec.target.targetPoint);
+        const pWorldPerPix = isOrtho ? ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) / ch : (2 * pDist * tanHalfFov) / ch;
+        const coneScale = Math.max(1e-5, pWorldPerPix * 10);
+        if (radRec.cone) {
+          radRec.cone.scale.set(coneScale, coneScale, coneScale);
+        }
+
+        // 3. Project arrow endpoints to screen with Liang-Barsky clamping
+        if (radRec.calloutEl) {
+          const p0 = radRec.arrowStart;
+          const p1 = radRec.arrowEnd;
+
+          projVec.copy(p0).project(this.camera);
+          const p0Behind = (projVec.z > 1.0 || projVec.z < -1.0);
+          const s0x = (projVec.x * 0.5 + 0.5) * cw;
+          const s0y = (-projVec.y * 0.5 + 0.5) * ch;
+
+          projVec.copy(p1).project(this.camera);
+          const p1Behind = (projVec.z > 1.0 || projVec.z < -1.0);
+          const s1x = (projVec.x * 0.5 + 0.5) * cw;
+          const s1y = (-projVec.y * 0.5 + 0.5) * ch;
+
+          if (p0Behind && p1Behind) {
+            radRec.calloutEl.style.display = 'none';
+            continue;
+          }
+
+          const safeMargin = 16;
+
+          const clipRes = this.clipSegmentToScreen(s0x, s0y, s1x, s1y, safeMargin, cw - safeMargin, safeMargin, ch - safeMargin);
+          if (!clipRes) {
+            radRec.calloutEl.style.display = 'none';
+          } else {
+            const t = Math.max(clipRes.t0, Math.min(clipRes.t1, 0.5));
+            const bx = s0x + t * (s1x - s0x);
+            const by = s0y + t * (s1y - s0y);
+
+            radRec.calloutEl.style.display = 'block';
+            radRec.calloutEl.style.transform = `translate3d(${Math.round(bx)}px, ${Math.round(by)}px, 0) translate(-50%, -50%)`;
+          }
+        }
+      }
+    }
+  }
+
+  refreshPointMeasureUI() {
+    if (this.measureMarkers && this.measureMarkers.length > 0) {
+      this.measureMarkers.forEach(m => this.createOrUpdateMeasureCalloutDOM(m));
+      this.updateMeasureMarkersAndCallouts();
+    }
+    this.renderMeasurementResults();
+  }
+
+  handleMeasureClick(hitOrPoint, event = null) {
+    const isHitObj = hitOrPoint && hitOrPoint.point;
+    let point = isHitObj ? hitOrPoint.point : hitOrPoint;
+    let effectiveHit = hitOrPoint;
+
+    if (this.snapEngine && this.snapEngine.currentSnap && isHitObj) {
+      const snap = this.snapEngine.currentSnap;
+      point = snap.point;
+      effectiveHit = {
+        ...hitOrPoint,
+        point: snap.point,
+        face: { ...(hitOrPoint.face || {}), normal: snap.normal }
+      };
+    }
+
+    if (this.measureMode === 'radius') {
+      const radTarget = this.currentRadiusTarget || (isHitObj ? this.detectRadiusTarget(effectiveHit, event ? event.clientX : 0, event ? event.clientY : 0) : null);
+      if (radTarget) {
+        this.createOrUpdateRadiusMeasurement(radTarget, event);
+      } else {
+        showToast(I18N.t('measureRadiusHint'), 'info');
+      }
+      return;
+    }
+
+    if (this.measureMode === 'point') {
+      if (!isHitObj) return;
+      const isCtrl = Boolean(event && (event.ctrlKey || event.metaKey));
+      const isShift = Boolean(event && event.shiftKey);
+
+      if (isShift) {
+        // Shift+Click on empty surface does not create or move points
+        return;
+      }
+
+      const activeMarker = this.getActiveMeasurePoint();
+      if (isCtrl || !activeMarker) {
+        // Ctrl+Click (or first click when no point exists): create a new point measurement marker
+        this.createMeasurePoint(effectiveHit, { mode: 'point' });
+      } else {
+        // Normal Left-Click: move active measurement point and callout to the new position
+        this.updateMeasurePointFromHit(activeMarker, effectiveHit);
+      }
+      return;
+    }
+
     if (this.measureMode !== 'distance') {
       showToast(I18N.t('measurePendingNotice'), 'info');
       return;
@@ -8694,7 +11395,7 @@ class BIMViewerApp {
     if (this.measurePoints.length === 1) {
       const p1 = this.measurePoints[0];
       const p1El = document.getElementById('measure-res-p1');
-      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)}, ${(p1.z * scale).toFixed(2)})`;
+      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
       const p2El = document.getElementById('measure-res-p2');
       if (p2El) p2El.textContent = '--';
       const hintEl = document.getElementById('measure-mode-hint');
@@ -8705,14 +11406,18 @@ class BIMViewerApp {
       const p2 = this.measurePoints[1];
       const dist = p1.distanceTo(p2);
       const dx = Math.abs(p2.x - p1.x);
-      const dy = Math.abs(p2.y - p1.y);
-      const dz = Math.abs(p2.z - p1.z);
+      const dy = Math.abs((-p2.z) - (-p1.z));
+      const dz = Math.abs(p2.y - p1.y);
       
       this.lastMeasurementData = { p1, p2, dist, dx, dy, dz };
       this.renderMeasurementResults();
 
       // Draw 3D Line
-      if (this.measureLine) this.scene.remove(this.measureLine);
+      if (this.measureLine) {
+        if (this.measureLine.geometry) this.measureLine.geometry.dispose();
+        if (this.measureLine.material) this.measureLine.material.dispose();
+        this.scene.remove(this.measureLine);
+      }
       const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
       this.measureLine = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3 }));
       this.scene.add(this.measureLine);
@@ -8728,6 +11433,64 @@ class BIMViewerApp {
   }
 
   renderMeasurementResults() {
+    const ptView = document.getElementById('measure-result-point-view');
+    const distView = document.getElementById('measure-result-dist-view');
+    const radView = document.getElementById('measure-result-radius-view');
+    if (ptView && distView) {
+      const showPt = this.measureMode === 'point';
+      const showRad = this.measureMode === 'radius';
+      ptView.style.display = showPt ? 'block' : 'none';
+      distView.style.display = (!showPt && !showRad) ? 'block' : 'none';
+      if (radView) radView.style.display = showRad ? 'block' : 'none';
+    }
+
+    // 1. Update Point Measurement Panel Card
+    const activePt = this.getActiveMeasurePoint();
+    const elevEl = document.getElementById('measure-res-pt-elev');
+    const ptXEl = document.getElementById('measure-res-pt-x');
+    const ptYEl = document.getElementById('measure-res-pt-y');
+    const ptZEl = document.getElementById('measure-res-pt-z');
+    const ptSlopeEl = document.getElementById('measure-res-pt-slope');
+
+    if (activePt) {
+      const c = this.formatMeasurePointCoords(activePt.point);
+      const s = this.formatSlopeString(activePt.slopeData);
+      if (elevEl) elevEl.textContent = c.zStr;
+      if (ptXEl) ptXEl.textContent = c.xStr;
+      if (ptYEl) ptYEl.textContent = c.yStr;
+      if (ptZEl) ptZEl.textContent = c.zStr;
+      if (ptSlopeEl) ptSlopeEl.textContent = s;
+    } else {
+      if (elevEl) elevEl.textContent = '--';
+      if (ptXEl) ptXEl.textContent = '--';
+      if (ptYEl) ptYEl.textContent = '--';
+      if (ptZEl) ptZEl.textContent = '--';
+      if (ptSlopeEl) ptSlopeEl.textContent = '--';
+    }
+
+    // Refresh all point callouts when unit changes
+    if (this.measureMarkers && this.measureMarkers.length > 0) {
+      this.measureMarkers.forEach(m => this.createOrUpdateMeasureCalloutDOM(m));
+      this.updateMeasureMarkersAndCallouts();
+    }
+
+    // Refresh all radius callouts when unit changes
+    if (this.radiusMeasurements && this.radiusMeasurements.length > 0) {
+      const unit = this.measureUnit || 'm';
+      const scale = unit === 'mm' ? 1000 : 1;
+      this.radiusMeasurements.forEach(rad => {
+        if (rad.calloutEl) {
+          const rFormatted = (rad.target.radius * scale).toFixed(unit === 'mm' ? 0 : 3);
+          const dFormatted = (rad.target.radius * 2 * scale).toFixed(unit === 'mm' ? 0 : 3);
+          const geomLabel = rad.target.geomType === 'circle' ? I18N.t('measureGeomCircle') : (rad.target.geomType === 'arc' ? I18N.t('measureGeomArc') : I18N.t('measureGeomSphere'));
+          rad.calloutEl.textContent = `R ${rFormatted} ${unit}`;
+          rad.calloutEl.title = `Radius (R): ${rFormatted} ${unit}\nDiameter (Ø): ${dFormatted} ${unit} | ${geomLabel}\nClick to copy, Shift+Click to delete`;
+        }
+      });
+      this.updateMeasureMarkersAndCallouts();
+    }
+
+    // 2. Update Distance Measurement Panel Card
     if (!this.lastMeasurementData) return;
     const { p1, p2, dist, dx, dy, dz } = this.lastMeasurementData;
     const unit = this.measureUnit || 'm';
@@ -8743,18 +11506,67 @@ class BIMViewerApp {
     const dzEl = document.getElementById('measure-res-dz');
     if (dzEl) dzEl.textContent = `${(dz * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
     const p1El = document.getElementById('measure-res-p1');
-    if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)}, ${(p1.z * scale).toFixed(2)})`;
+    if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
     const p2El = document.getElementById('measure-res-p2');
-    if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)}, ${(p2.z * scale).toFixed(2)})`;
+    if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(-p2.z * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)})`;
+
+    // 3. Update Radius Measurement Panel Card
+    const radValEl = document.getElementById('measure-res-radius');
+    const diaValEl = document.getElementById('measure-res-diameter');
+    const typeValEl = document.getElementById('measure-res-geom-type');
+    const centerValEl = document.getElementById('measure-res-center');
+    const targetValEl = document.getElementById('measure-res-target-pt');
+
+    const activeRad = (this.radiusMeasurements && this.radiusMeasurements.length > 0)
+      ? (this.radiusMeasurements.find(r => r.id === this.activeRadiusMeasurementId) || this.radiusMeasurements[this.radiusMeasurements.length - 1])
+      : null;
+
+    if (activeRad && activeRad.target) {
+      const t = activeRad.target;
+      const rFormatted = (t.radius * scale).toFixed(unit === 'mm' ? 0 : 3);
+      const dFormatted = (t.radius * 2 * scale).toFixed(unit === 'mm' ? 0 : 3);
+      const geomLabel = t.geomType === 'circle' ? I18N.t('measureGeomCircle') : (t.geomType === 'arc' ? I18N.t('measureGeomArc') : I18N.t('measureGeomSphere'));
+
+      if (radValEl) radValEl.textContent = `${rFormatted} ${unitStr}`;
+      if (diaValEl) diaValEl.textContent = `${dFormatted} ${unitStr}`;
+      if (typeValEl) typeValEl.textContent = geomLabel;
+      if (centerValEl) centerValEl.textContent = `(${(t.center.x * scale).toFixed(2)}, ${(-t.center.z * scale).toFixed(2)}, ${(t.center.y * scale).toFixed(2)})`;
+      if (targetValEl) targetValEl.textContent = `(${(t.targetPoint.x * scale).toFixed(2)}, ${(-t.targetPoint.z * scale).toFixed(2)}, ${(t.targetPoint.y * scale).toFixed(2)})`;
+    } else {
+      if (radValEl) radValEl.textContent = '--';
+      if (diaValEl) diaValEl.textContent = '--';
+      if (typeValEl) typeValEl.textContent = '--';
+      if (centerValEl) centerValEl.textContent = '--';
+      if (targetValEl) targetValEl.textContent = '--';
+    }
   }
 
   clearMeasurement() {
     this.measurePoints = [];
     this.lastMeasurementData = null;
     if (this.measureLine) {
+      if (this.measureLine.geometry) this.measureLine.geometry.dispose();
+      if (this.measureLine.material) this.measureLine.material.dispose();
       this.scene.remove(this.measureLine);
       this.measureLine = null;
     }
+
+    if (this.measureMarkers && this.measureMarkers.length > 0) {
+      const ids = this.measureMarkers.map(m => m.id);
+      ids.forEach(id => this.deleteMeasurePoint(id));
+    }
+    this.measurePointCounter = 0;
+    this.activeMeasurePointId = null;
+
+    if (this.radiusMeasurements && this.radiusMeasurements.length > 0) {
+      const radIds = this.radiusMeasurements.map(m => m.id);
+      radIds.forEach(id => this.deleteRadiusMeasurement(id));
+    }
+    this.radiusMeasurements = [];
+    this.radiusMeasurementCounter = 0;
+    this.activeRadiusMeasurementId = null;
+    this.hideRadiusPreview();
+
     const resDistEl = document.getElementById('measure-res-distance');
     if (resDistEl) resDistEl.textContent = '--';
     const dxEl = document.getElementById('measure-res-dx');
@@ -8767,8 +11579,27 @@ class BIMViewerApp {
     if (p1El) p1El.textContent = '--';
     const p2El = document.getElementById('measure-res-p2');
     if (p2El) p2El.textContent = '--';
+
+    const radValEl = document.getElementById('measure-res-radius');
+    if (radValEl) radValEl.textContent = '--';
+    const diaValEl = document.getElementById('measure-res-diameter');
+    if (diaValEl) diaValEl.textContent = '--';
+    const typeValEl = document.getElementById('measure-res-geom-type');
+    if (typeValEl) typeValEl.textContent = '--';
+    const centerValEl = document.getElementById('measure-res-center');
+    if (centerValEl) centerValEl.textContent = '--';
+    const targetValEl = document.getElementById('measure-res-target-pt');
+    if (targetValEl) targetValEl.textContent = '--';
+
+    this.renderMeasurementResults();
+
     const hintEl = document.getElementById('measure-mode-hint');
-    if (hintEl) hintEl.textContent = I18N.t('measurePromptPickFirst');
+    if (hintEl) {
+      hintEl.textContent = this.measureMode === 'point'
+        ? I18N.t('measurePointHint')
+        : (this.measureMode === 'radius' ? I18N.t('measureRadiusHint') : (this.measureMode === 'distance' ? I18N.t('measurePromptPickFirst') : I18N.t('measurePendingNotice')));
+    }
+    this.requestRender(200);
   }
 
   initThemeSystem() {
@@ -8840,18 +11671,31 @@ class BIMViewerApp {
 
   updateViewportTheme(themeName) {
     if (!this.scene) return;
-    if (themeName === 'light') {
-      this.scene.background = new THREE.Color(0xf1f5f9);
-      if (this.scene.fog) this.scene.fog.color.set(0xf1f5f9);
-      if (this.grid && this.grid.material) {
-        this.grid.material.color.set(0x94a3b8);
-      }
-    } else {
-      this.scene.background = new THREE.Color(0x0c1017);
-      if (this.scene.fog) this.scene.fog.color.set(0x0c1017);
-      if (this.grid && this.grid.material) {
-        this.grid.material.color.set(0x131a28);
-      }
+    const isLight = themeName === 'light';
+    const bgHex = isLight ? 0xf1f5f9 : 0x0c1017;
+    this.scene.background = new THREE.Color(bgHex);
+    if (this.scene.fog) this.scene.fog.color.set(bgHex);
+    if (this.grid) {
+      const wasVisible = this.grid.visible;
+      const posY = this.grid.position.y;
+      if (this.grid.geometry) this.grid.geometry.dispose();
+      if (this.grid.material) this.grid.material.dispose();
+      this.scene.remove(this.grid);
+      this.grid = new THREE.GridHelper(
+        800,
+        80,
+        isLight ? 0x94a3b8 : 0x1f2e46,
+        isLight ? 0xcbd5e1 : 0x131a28
+      );
+      this.grid.position.y = posY;
+      this.grid.visible = wasVisible;
+      this.scene.add(this.grid);
+    }
+    if (this.compass3d && this.compass3d.setTheme) {
+      this.compass3d.setTheme(themeName);
+    }
+    if (this.requestRender) {
+      this.requestRender(250);
     }
   }
   
@@ -9874,6 +12718,9 @@ class BIMViewerApp {
     if (btnTools) btnTools.classList.remove('active');
     if (this.isMeasureMode) {
       this.isMeasureMode = false;
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
+      if (this.snapEngine) this.snapEngine.hideIndicator();
       if (this.canvas) this.canvas.style.cursor = 'default';
     }
   }
@@ -9895,18 +12742,14 @@ class BIMViewerApp {
     }
 
     if (tabContentId === 'tab-measure-content') {
-      if (this.measureMode === 'distance') {
-        this.isMeasureMode = true;
-        if (this.canvas) this.canvas.style.cursor = 'crosshair';
-      }
-      const hintEl = document.getElementById('measure-mode-hint');
-      if (hintEl && this.measurePoints.length === 0 && !this.lastMeasurementData) {
-        hintEl.textContent = this.measureMode === 'distance' ? I18N.t('measurePromptPickFirst') : I18N.t('measurePendingNotice');
-      }
+      this.setMeasureMode(this.measureMode || 'point');
     } else {
-      // If switched away from measure tab, pause measure mode cursor
+      // If switched away from measure tab, pause measure mode cursor (keep existing markers/callouts visible)
       if (this.isMeasureMode) {
         this.isMeasureMode = false;
+        this.hideMeasurePointPreview();
+        this.hideRadiusPreview();
+        if (this.snapEngine) this.snapEngine.hideIndicator();
         if (this.canvas) this.canvas.style.cursor = 'default';
       }
     }
@@ -9918,15 +12761,30 @@ class BIMViewerApp {
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
     const hintEl = document.getElementById('measure-mode-hint');
-    if (mode === 'distance') {
+    if (mode === 'point') {
+      if (hintEl) hintEl.textContent = I18N.t('measurePointHint');
+      this.isMeasureMode = true;
+      if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      this.hideRadiusPreview();
+    } else if (mode === 'distance') {
       if (hintEl) hintEl.textContent = this.measurePoints.length === 1 ? I18N.t('measurePromptPickSecond') : I18N.t('measurePromptPickFirst');
       this.isMeasureMode = true;
       if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
+    } else if (mode === 'radius') {
+      if (hintEl) hintEl.textContent = I18N.t('measureRadiusHint');
+      this.isMeasureMode = true;
+      if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      this.hideMeasurePointPreview();
     } else {
       if (hintEl) hintEl.textContent = I18N.t('measurePendingNotice');
       this.isMeasureMode = false;
       if (this.canvas) this.canvas.style.cursor = 'default';
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
     }
+    this.renderMeasurementResults();
   }
 
   switchLeftTab(tabContentId) {
@@ -10235,8 +13093,11 @@ class BIMViewerApp {
       this.cpuLoad = Math.min(100, Math.max(0, Math.round((this.activeFrameTimeTotal / intervalElapsed) * 100)));
       this.activeFrameTimeTotal = 0;
 
-      // Draw Calls from Three.js renderer info
-      this.drawCalls = (this.renderer && this.renderer.info && this.renderer.info.render) ? this.renderer.info.render.calls : 0;
+      // Draw Calls from Three.js renderer info (preserve last rendered draw call count when idle)
+      if (this._renderedInWindow && this.renderer && this.renderer.info && this.renderer.info.render) {
+        this.drawCalls = this.renderer.info.render.calls;
+      }
+      this._renderedInWindow = false;
 
       // RAM: JS Heap Memory in MB (Chromium browsers)
       if (typeof window !== 'undefined' && window.performance && window.performance.memory && window.performance.memory.usedJSHeapSize) {
@@ -10293,18 +13154,20 @@ class BIMViewerApp {
     if (this.solarEngine.isTimelapseRunning) {
       this.solarEngine.stepTimelapse();
       this.updateSolarUI();
-    }
-    if (this.solarEngine && this.solarEngine.setCamera) {
-      this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
+      this.needsRender = true;
     }
     
-    // True 3D Compass
+    // True 3D Compass (internally dirty-checked on camera orientation)
     if (this.compass3d) {
       this.compass3d.update();
     }
     
     // Dynamic Orbit Pivot Indicator
-    this.updatePivotIndicator();
+    const pivotActive = !!(this.pivotHelper && this.pivotHelper.visible);
+    if (pivotActive) {
+      this.updatePivotIndicator();
+      this.needsRender = true;
+    }
 
     // Animation Mixer update (for DAE, FBX & GLTF models with animations)
     if (this.animMixer && this.currentAnimAction) {
@@ -10315,6 +13178,7 @@ class BIMViewerApp {
           (this.currentAnimAction.time % (this.animDuration || 1)) : 
           Math.min(this.currentAnimAction.time, this.animDuration);
         this.updateAnimationScrubber(t);
+        this.needsRender = true;
 
         // Auto pause at end if not looping
         if (!this.isAnimLooping && this.currentAnimAction.time >= this.animDuration) {
@@ -10324,30 +13188,11 @@ class BIMViewerApp {
           if (playIcon) playIcon.style.display = 'block';
           if (pauseIcon) pauseIcon.style.display = 'none';
         }
+      } else if (this.isAnimScrubbing) {
+        this.needsRender = true;
       }
     }
 
-    // Live Camera State Readout (updated when Camera tab is visible, cached DOM elements)
-    if (!this.cachedCamEls) {
-      this.cachedCamEls = {
-        tab: document.getElementById('tab-camera-content'),
-        pos: document.getElementById('cam-pos-readout'),
-        piv: document.getElementById('cam-pivot-readout'),
-        dist: document.getElementById('cam-dist-readout'),
-        fps: document.getElementById('stat-fps-val')
-      };
-    }
-    const camTab = this.cachedCamEls.tab;
-    if (this.camera && camTab && camTab.classList.contains('active')) {
-      const pos = this.camera.position;
-      if (this.cachedCamEls.pos) this.cachedCamEls.pos.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
-
-      const piv = this.pivotPoint || (this.controls ? this.controls.target : null);
-      if (this.cachedCamEls.piv && piv) this.cachedCamEls.piv.textContent = `${piv.x.toFixed(1)}, ${piv.y.toFixed(1)}, ${piv.z.toFixed(1)}`;
-
-      if (this.cachedCamEls.dist && piv) this.cachedCamEls.dist.textContent = `${pos.distanceTo(piv).toFixed(1)} m`;
-    }
-    
     // Continuously keep viewport canvas buffer and camera aspect in sync with container without flicker
     const cw = this.container.clientWidth;
     const ch = this.container.clientHeight;
@@ -10370,16 +13215,94 @@ class BIMViewerApp {
           this.orthographicCamera.updateProjectionMatrix();
         }
         this.renderer.setSize(cw, ch);
+        this.needsRender = true;
+        if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+          this.updateMeasureMarkersAndCallouts();
+        }
+
+        if (this.snapEngine && this.snapEngine.indicatorGroup && this.snapEngine.indicatorGroup.visible) {
+          this.snapEngine.updateIndicatorScale(this.camera, this.container);
+        }
       }
     }
 
-    // Render Scene
-    this.renderer.render(this.scene, this.camera);
+    // Detect camera or model changes automatically
+    if (this.camera) {
+      const camZoom = this.camera.zoom || 1;
+      const orthoH = this.camera.isOrthographicCamera ? (this.camera.top - this.camera.bottom) : 0;
+      const camChanged =
+        isNaN(this._lastCamPos.x) ||
+        this.camera.position.distanceToSquared(this._lastCamPos) > 1e-8 ||
+        (1 - Math.abs(this.camera.quaternion.dot(this._lastCamQuat))) > 1e-8 ||
+        Math.abs(camZoom - this._lastCamZoom) > 1e-6 ||
+        Math.abs(orthoH - (this._lastOrthoH || 0)) > 1e-6 ||
+        this._lastCameraObj !== this.camera ||
+        this._lastActiveModel !== this.activeModel;
 
-    // Initial draw call readout on first frame
-    if (this.cachedPerfEls && this.cachedPerfEls.draw && (this.cachedPerfEls.draw.textContent === '0' || !this.cachedPerfEls.draw.textContent)) {
-      const initialCalls = (this.renderer && this.renderer.info && this.renderer.info.render) ? this.renderer.info.render.calls : 0;
-      if (initialCalls > 0) this.cachedPerfEls.draw.textContent = initialCalls;
+      if (camChanged) {
+        this._lastCamPos.copy(this.camera.position);
+        this._lastCamQuat.copy(this.camera.quaternion);
+        this._lastCamZoom = camZoom;
+        this._lastOrthoH = orthoH;
+        this._lastCameraObj = this.camera;
+        this._lastActiveModel = this.activeModel;
+        this.needsRender = true;
+
+        if (this.solarEngine && this.solarEngine.setCamera) {
+          this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
+        }
+
+        if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+          this.updateMeasureMarkersAndCallouts();
+        }
+
+        if (this.snapEngine && this.snapEngine.indicatorGroup && this.snapEngine.indicatorGroup.visible) {
+          this.snapEngine.updateIndicatorScale(this.camera, this.container);
+        }
+
+        // Live Camera State Readout (updated when Camera tab is visible, cached DOM elements)
+        if (!this.cachedCamEls) {
+          this.cachedCamEls = {
+            tab: document.getElementById('tab-camera-content'),
+            pos: document.getElementById('cam-pos-readout'),
+            piv: document.getElementById('cam-pivot-readout'),
+            dist: document.getElementById('cam-dist-readout'),
+            fps: document.getElementById('stat-fps-val')
+          };
+        }
+        const camTab = this.cachedCamEls.tab;
+        if (camTab && camTab.classList.contains('active')) {
+          const pos = this.camera.position;
+          if (this.cachedCamEls.pos) this.cachedCamEls.pos.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+          const piv = this.pivotPoint || (this.controls ? this.controls.target : null);
+          if (this.cachedCamEls.piv && piv) this.cachedCamEls.piv.textContent = `${piv.x.toFixed(1)}, ${piv.y.toFixed(1)}, ${piv.z.toFixed(1)}`;
+          if (this.cachedCamEls.dist && piv) this.cachedCamEls.dist.textContent = `${pos.distanceTo(piv).toFixed(1)} m`;
+        }
+      }
+    }
+
+    const shouldRender =
+      this.needsRender ||
+      frameStart < (this._activeRenderUntil || 0) ||
+      this.cameraTweenRaf !== null ||
+      this.isOrbiting ||
+      this.isPanning ||
+      this.isRightDragging ||
+      this.isGizmoDragging ||
+      this.isDraggingMeasurePoint;
+
+    if (shouldRender) {
+      this.needsRender = false;
+      this.renderer.render(this.scene, this.camera);
+      this._renderedInWindow = true;
+      if (this.renderer && this.renderer.info && this.renderer.info.render) {
+        this.drawCalls = this.renderer.info.render.calls;
+      }
+
+      // Initial draw call readout on first frame
+      if (this.cachedPerfEls && this.cachedPerfEls.draw && (this.cachedPerfEls.draw.textContent === '0' || !this.cachedPerfEls.draw.textContent)) {
+        if (this.drawCalls > 0) this.cachedPerfEls.draw.textContent = this.drawCalls;
+      }
     }
 
     // Track active execution duration for CPU load calculation

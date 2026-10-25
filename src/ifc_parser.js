@@ -520,8 +520,8 @@ class IFCParser {
     let match;
     let count = 0;
     
-    // Clean comments first
-    const cleanText = text.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Clean comments only if block comments actually exist (avoids full string copy on >99% of IFC files)
+    const cleanText = text.indexOf('/*') !== -1 ? text.replace(/\/\*[\s\S]*?\*\//g, '') : text;
     
     while ((match = regex.exec(cleanText)) !== null) {
       const id = parseInt(match[1], 10);
@@ -603,6 +603,110 @@ class IFCParser {
       }
     }
     
+    if (onProgress) onProgress(1.0, "IFC model ready");
+    return rootGroup;
+  }
+
+  async parseTextAsync(text, onProgress) {
+    const yieldFrame = () => new Promise(resolve => setTimeout(resolve, 0));
+    if (onProgress) onProgress(0.1, "Tokenizing STEP records...");
+    await yieldFrame();
+
+    this.entities.clear();
+    this.elements = [];
+    this.styleMap.clear();
+    this.materialStyleMap.clear();
+    this.propertiesMap.clear();
+    this.quantitiesMap.clear();
+    this.typesMap.clear();
+    this.materialsMap.clear();
+
+    // 1. Detect Schema & Header Metadata
+    this.parseHeaderMetadata(text);
+
+    // 2. Tokenize STEP lines
+    const regex = /#(\d+)\s*=\s*([A-Z0-9_]+)\s*\(([\s\S]*?)\);(?=\s*#|\s*ENDSEC)/g;
+    let match;
+    let count = 0;
+    const cleanText = text.indexOf('/*') !== -1 ? text.replace(/\/\*[\s\S]*?\*\//g, '') : text;
+
+    let lastYieldTime = performance.now();
+    while ((match = regex.exec(cleanText)) !== null) {
+      const id = parseInt(match[1], 10);
+      const type = match[2].toUpperCase();
+      const rawArgs = match[3];
+
+      this.entities.set(id, {
+        id: id,
+        type: type,
+        rawArgs: rawArgs,
+        parsedArgs: null
+      });
+      count++;
+      if (count % 5000 === 0 && performance.now() - lastYieldTime > 24) {
+        if (onProgress) onProgress(Math.min(0.32, 0.1 + (match.index / Math.max(1, cleanText.length)) * 0.22), `Tokenizing STEP records (${count.toLocaleString()})...`);
+        await yieldFrame();
+        lastYieldTime = performance.now();
+      }
+    }
+
+    this.resolveModelMetadata();
+    if (onProgress) onProgress(0.35, `Indexed ${count.toLocaleString()} IFC entities. Resolving styles and spatial hierarchy...`);
+    await yieldFrame();
+
+    this.detectUnits();
+    this.buildStyleMap();
+    this.buildHierarchy();
+    this.buildVoidsMap();
+    this.buildPropertiesMap();
+    this.buildTypesMap();
+    this.buildMaterialsMap();
+
+    if (onProgress) onProgress(0.5, "Reconstructing 3D geometries...");
+    await yieldFrame();
+
+    const rootGroup = new THREE.Group();
+    rootGroup.name = "IFC_Model";
+
+    const products = [];
+    for (const [id, ent] of this.entities.entries()) {
+      if (this.isProductType(ent.type)) {
+        products.push(ent);
+      } else if (ent.type.startsWith('IFC')) {
+        const args = this.parseArgs(ent.rawArgs);
+        if (args.length >= 7 && args[5] && args[5].startsWith('#') && args[6] && args[6].startsWith('#')) {
+          if (!this.isSpatialType(ent.type)) {
+            products.push(ent);
+          }
+        }
+      }
+    }
+
+    let processed = 0;
+    const totalProducts = products.length;
+    lastYieldTime = performance.now();
+
+    for (const prod of products) {
+      try {
+        const mesh = this.buildProductMesh(prod);
+        if (mesh) {
+          rootGroup.add(mesh);
+        }
+      } catch (err) {
+        console.warn(`Error building IFC mesh #${prod.id} (${prod.type}):`, err);
+      }
+      processed++;
+      if (processed % 40 === 0) {
+        if (onProgress) {
+          onProgress(0.5 + 0.48 * (processed / Math.max(1, totalProducts)), `Built ${processed}/${totalProducts} elements...`);
+        }
+        if (performance.now() - lastYieldTime > 20) {
+          await yieldFrame();
+          lastYieldTime = performance.now();
+        }
+      }
+    }
+
     if (onProgress) onProgress(1.0, "IFC model ready");
     return rootGroup;
   }

@@ -210,6 +210,12 @@ class ClippingEngine {
     // ====================================================
     // 3. DYNAMIC SECTION CAPPING & BOLD CUT CONTOURS
     // ====================================================
+    this.stencilRoot = new THREE.Group();
+    this.stencilRoot.visible = false;
+    this.stencilRoot.userData = { isStencilGroup: true, isGizmo: true };
+    this.stencilRoot.raycast = () => {};
+    this.scene.add(this.stencilRoot);
+
     this.cappingGroup = new THREE.Group();
     this.cappingGroup.visible = false;
     this.scene.add(this.cappingGroup);
@@ -685,31 +691,52 @@ class ClippingEngine {
     return true;
   }
 
+  isMeshVisibleInHierarchy(mesh) {
+    let curr = mesh;
+    while (curr) {
+      if (!curr.visible) return false;
+      curr = curr.parent;
+    }
+    return Boolean(mesh && mesh.parent);
+  }
+
   setModel(model) {
     this.clearModel();
     this.activeModel = model;
     if (!model) return;
 
+    if (model.updateMatrixWorld) model.updateMatrixWorld(true);
+
     const solidMeshes = [];
     model.traverse(obj => {
       if (obj.isMesh && obj.geometry && this.isSolidMesh(obj)) {
+        obj.userData = obj.userData || {};
+        obj.userData._cachedWorldBox = new THREE.Box3().setFromObject(obj);
         solidMeshes.push(obj);
       }
     });
     this.solidMeshes = solidMeshes;
 
-    this.setupStencilGroups();
+    // Lazy creation: only build stencil helper meshes when sectioning is enabled
+    if (this.enabled) {
+      this.ensureStencilGroups(this.mode);
+    }
     this.update();
   }
 
   clearModel() {
     if (this.stencilGroups) {
       this.stencilGroups.forEach(entry => {
-        if (entry.parentMesh && entry.sGroup) {
-          entry.parentMesh.remove(entry.sGroup);
+        if (entry.sGroup) {
+          if (entry.sGroup.parent) entry.sGroup.parent.remove(entry.sGroup);
+          else if (entry.parentMesh) entry.parentMesh.remove(entry.sGroup);
         }
       });
       this.stencilGroups = [];
+    }
+    if (this.stencilRoot) {
+      this.stencilRoot.clear();
+      this.stencilRoot.visible = false;
     }
     if (this.solidMeshes) {
       this.solidMeshes.forEach(mesh => {
@@ -726,53 +753,94 @@ class ClippingEngine {
   }
 
   setupStencilGroups() {
-    if (!this.solidMeshes) return;
-    this.stencilGroups = [];
+    this.ensureStencilGroups(this.mode);
+  }
 
-    this.solidMeshes.forEach(mesh => {
-      const sGroup = new THREE.Group();
-      sGroup.userData = { isStencilGroup: true, isGizmo: true };
-      sGroup.raycast = () => {};
+  ensureStencilGroups(targetMode = this.mode) {
+    if (!this.solidMeshes || this.solidMeshes.length === 0) return;
+    if (!this.stencilGroups || this.stencilGroups.length !== this.solidMeshes.length) {
+      this.stencilGroups = [];
+      if (this.stencilRoot) this.stencilRoot.clear();
 
-      // 1. Single Plane pair
-      const pBack = new THREE.Mesh(mesh.geometry, this.planeStencilMatBack);
-      pBack.renderOrder = 1;
-      pBack.raycast = () => {};
-      pBack.userData = { isGizmo: true, isStencilHelper: true };
+      this.solidMeshes.forEach(mesh => {
+        const sGroup = new THREE.Group();
+        sGroup.userData = { isStencilGroup: true, isGizmo: true };
+        sGroup.raycast = () => {};
+        sGroup.matrixAutoUpdate = false;
+        sGroup.matrix.copy(mesh.matrixWorld);
+        sGroup.matrixWorld.copy(mesh.matrixWorld);
 
-      const pFront = new THREE.Mesh(mesh.geometry, this.planeStencilMatFront);
-      pFront.renderOrder = 1;
-      pFront.raycast = () => {};
-      pFront.userData = { isGizmo: true, isStencilHelper: true };
+        if (this.stencilRoot) {
+          this.stencilRoot.add(sGroup);
+        } else {
+          mesh.add(sGroup);
+        }
+        this.stencilGroups.push({ sGroup, planePair: null, boxPairs: null, parentMesh: mesh });
+      });
+    }
 
-      const planePair = new THREE.Group();
-      planePair.add(pBack);
-      planePair.add(pFront);
-      sGroup.add(planePair);
+    const needPlane = (targetMode === 'plane');
+    const needBox = (targetMode === 'box');
 
-      // 2. Box pairs (6 faces)
-      const boxPairs = [];
-      for (let k = 0; k < 6; k++) {
-        const bBack = new THREE.Mesh(mesh.geometry, this.boxStencilMatsBack[k]);
-        bBack.renderOrder = (k + 1) * 2 - 1; // 1, 3, 5, 7, 9, 11
-        bBack.raycast = () => {};
-        bBack.userData = { isGizmo: true, isStencilHelper: true };
+    for (let i = 0; i < this.stencilGroups.length; i++) {
+      const entry = this.stencilGroups[i];
+      const mesh = entry.parentMesh;
+      if (!mesh || !mesh.geometry) continue;
 
-        const bFront = new THREE.Mesh(mesh.geometry, this.boxStencilMatsFront[k]);
-        bFront.renderOrder = (k + 1) * 2 - 1;
-        bFront.raycast = () => {};
-        bFront.userData = { isGizmo: true, isStencilHelper: true };
+      // Sync world matrix in case model transform was updated
+      entry.sGroup.matrix.copy(mesh.matrixWorld);
+      entry.sGroup.matrixWorld.copy(mesh.matrixWorld);
 
-        const bPair = new THREE.Group();
-        bPair.add(bBack);
-        bPair.add(bFront);
-        sGroup.add(bPair);
-        boxPairs.push(bPair);
+      if (needPlane && !entry.planePair) {
+        const pBack = new THREE.Mesh(mesh.geometry, this.planeStencilMatBack);
+        pBack.renderOrder = 1;
+        pBack.raycast = () => {};
+        pBack.userData = { isGizmo: true, isStencilHelper: true };
+
+        const pFront = new THREE.Mesh(mesh.geometry, this.planeStencilMatFront);
+        pFront.renderOrder = 1;
+        pFront.raycast = () => {};
+        pFront.userData = { isGizmo: true, isStencilHelper: true };
+
+        const planePair = new THREE.Group();
+        planePair.add(pBack);
+        planePair.add(pFront);
+        entry.sGroup.add(planePair);
+        entry.planePair = planePair;
       }
 
-      mesh.add(sGroup);
-      this.stencilGroups.push({ sGroup, planePair, boxPairs, parentMesh: mesh });
-    });
+      if (needBox && !entry.boxPairs) {
+        const boxPairs = [];
+        for (let k = 0; k < 6; k++) {
+          const bBack = new THREE.Mesh(mesh.geometry, this.boxStencilMatsBack[k]);
+          bBack.renderOrder = (k + 1) * 2 - 1; // 1, 3, 5, 7, 9, 11
+          bBack.raycast = () => {};
+          bBack.userData = { isGizmo: true, isStencilHelper: true };
+
+          const bFront = new THREE.Mesh(mesh.geometry, this.boxStencilMatsFront[k]);
+          bFront.renderOrder = (k + 1) * 2 - 1;
+          bFront.raycast = () => {};
+          bFront.userData = { isGizmo: true, isStencilHelper: true };
+
+          const bPair = new THREE.Group();
+          bPair.add(bBack);
+          bPair.add(bFront);
+          entry.sGroup.add(bPair);
+          boxPairs.push(bPair);
+        }
+        entry.boxPairs = boxPairs;
+      }
+    }
+  }
+
+  syncStencilVisibility() {
+    if (!this.enabled || !this.stencilGroups || this.stencilGroups.length === 0) return;
+    for (let i = 0; i < this.stencilGroups.length; i++) {
+      const entry = this.stencilGroups[i];
+      if (entry.sGroup && entry.parentMesh) {
+        entry.sGroup.visible = this.isMeshVisibleInHierarchy(entry.parentMesh);
+      }
+    }
   }
 
   clearCutContours() {
@@ -793,6 +861,7 @@ class ClippingEngine {
       this.clearCutContours();
       return;
     }
+    this.syncStencilVisibility();
 
     const ribbonPositions = [];
     const linePositions = [];
@@ -807,7 +876,6 @@ class ClippingEngine {
     // Ribbon half width: half of previous thickness (refined architectural line weight)
     const halfWidth = Math.max(0.0075, Math.min(0.03, boundsMaxDim * 0.00045));
 
-    const meshBox = new THREE.Box3();
     const invMatrix = new THREE.Matrix4();
     const localPlane = new THREE.Plane();
     const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
@@ -868,9 +936,13 @@ class ClippingEngine {
 
       for (let mi = 0; mi < this.solidMeshes.length; mi++) {
         const mesh = this.solidMeshes[mi];
-        if (!mesh.visible || !mesh.parent) continue;
+        if (!this.isMeshVisibleInHierarchy(mesh)) continue;
 
-        meshBox.setFromObject(mesh);
+        let meshBox = mesh.userData && mesh.userData._cachedWorldBox;
+        if (!meshBox) {
+          meshBox = new THREE.Box3().setFromObject(mesh);
+          if (mesh.userData) mesh.userData._cachedWorldBox = meshBox;
+        }
         if (meshBox.isEmpty() || !meshBox.intersectsPlane(cutPlane)) continue;
 
         const geom = mesh.geometry;
@@ -1948,6 +2020,7 @@ class ClippingEngine {
       this.clearPlanesFromMaterials();
       this.planeGroup.visible = false;
       this.boxGroup.visible = false;
+      if (this.stencilRoot) this.stencilRoot.visible = false;
       if (this.cappingGroup) this.cappingGroup.visible = false;
       if (this.cutContourGroup) this.cutContourGroup.visible = false;
       if (this.stencilGroups) {
@@ -1967,7 +2040,10 @@ class ClippingEngine {
       this.clearCutContours();
       return;
     }
-    
+
+    // Lazily build stencil helper meshes for the current mode if not yet created
+    this.ensureStencilGroups(this.mode);
+    if (this.stencilRoot) this.stencilRoot.visible = true;
     if (this.cappingGroup) this.cappingGroup.visible = true;
     if (this.cutContourGroup) this.cutContourGroup.visible = true;
 
@@ -1992,7 +2068,7 @@ class ClippingEngine {
 
       if (this.stencilGroups) {
         this.stencilGroups.forEach(e => {
-          if (e.sGroup) e.sGroup.visible = true;
+          if (e.sGroup) e.sGroup.visible = this.isMeshVisibleInHierarchy(e.parentMesh);
           if (e.planePair) e.planePair.visible = true;
           if (e.boxPairs) e.boxPairs.forEach(bp => bp.visible = false);
         });
@@ -2007,7 +2083,7 @@ class ClippingEngine {
 
       if (this.stencilGroups) {
         this.stencilGroups.forEach(e => {
-          if (e.sGroup) e.sGroup.visible = true;
+          if (e.sGroup) e.sGroup.visible = this.isMeshVisibleInHierarchy(e.parentMesh);
           if (e.planePair) e.planePair.visible = false;
           if (e.boxPairs) e.boxPairs.forEach(bp => bp.visible = true);
         });

@@ -1,6 +1,8 @@
 # BIMScope 🏗️
 
 > 🌐 **在线即刻体验 / Live Web App (GitHub Pages)**: [https://wwbim.github.io/BIM-Scope/](https://wwbim.github.io/BIM-Scope/)  
+> 推荐安装为PWA应用，界面更简洁，依然无需互联网工作
+> Recommend to install it as an PWA application, simpler UI, no internet required still
 > 📦 **单文件直接访问 / Direct Single-File Access**: [https://wwbim.github.io/BIM-Scope/BIMScope.html](https://wwbim.github.io/BIM-Scope/BIMScope.html)  
 
 > **纯前端、100% 离线单文件 Web BIM 与三维建筑工程查看器**  
@@ -69,8 +71,12 @@
   **Interactive Sectioning & Stencil Capping**: Section Plane and 6-sided Section Box with 5° angle snapping gizmos; WebGL Stencil Buffer real-time solid capping with 45° golden architectural hatching and dark perimeter contours.
 - **真太阳时日照模拟**：根据经纬度与时序实时计算太阳高度角与方位角，24 小时光影滑块互动。  
   **Dynamic Solar Daylight Simulation**: Real-time astronomical solar azimuth and elevation angle calculations with interactive 24-hour daylight time slider.
-- **三维精准空间测量**：顶点与表面吸附捕捉，实时输出欧氏直线距离与 $\Delta X, \Delta Y, \Delta Z$ 正交投影。  
-  **Precision 3D Measurement**: Raycast snapping to 3D vertices and planar surfaces, reporting Euclidean distance and orthogonal $\Delta X, \Delta Y, \Delta Z$ offsets.
+- **三维精准空间测量与 CAD 级尺寸标注矩阵**：支持多维度专业工程空间测量：①「两点测距」实时输出三维空间真实欧氏距离与 $\Delta X, \Delta Y, \Delta Z$ 正交投影差值；②「单点坐标测量」在构件表面生成带动态 SVG 折角引出线（Elbow Leader Line）的 3D 标徽，实时呈现绝对世界坐标 $(X, Y, Z)$ 与标高，支持自由拖拽调位；③「表面最大坡度分析」自动解算平面法向并投射黄色最大下坡箭头（Steepest Descent Arrow），汇报工程坡度比（$1:X$）与坡度百分比；④「智能半径/圆弧/球面测量」自动捕获网格闭合圆弧环（arcLoops）或最小二乘曲率拟合球面，凸凹曲面视线感知，自适应屏幕像素尺寸（10px 级紧凑精细标徽），CAD 十字圆心准星（⨁），箭头线上悬浮极简单数值标签（如 `R 75 mm` / `R 0.075 m`，随单位即时联动），单击一键复制，Shift+单击删除。  
+  **Precision 3D Measurement & CAD-Grade Dimensioning Matrix**: Comprehensive architectural measurement tools: ① "Two-Point Distance" computing 3D Euclidean distance and orthogonal $\Delta X, \Delta Y, \Delta Z$ offsets; ② "Single-Point Coordinate Measurement" placing 3D markers with dynamic SVG elbow leader lines reporting absolute $(X, Y, Z)$ coordinates and elevation with draggable repositioning; ③ "Planar Slope & Grade Analysis" projecting yellow steepest descent arrows and reporting slope ratios ($1:X$) and grade percentages; ④ "Smart Radius, Arc & Sphere Measurement" automatically detecting arc boundary loops (arcLoops) or fitting sphere curvature via local least-squares topology, convex/concave camera awareness, screen-space 10px constant pixel scaling, CAD-standard center marks (⨁), and sleek single-number value badges on dimension arrows (e.g., `R 75 mm` / `R 0.075 m`), with one-click copy and Shift+click delete.
+- **AutoCAD 级几何特征智能捕捉引擎**：全量测量工具标配高精度底层特征捕捉，鼠标悬停时自动吸附几何端点（Endpoint）、边线中点（Midpoint）、圆/弧圆心（Center ⨁）以及边线上最近点（Nearest ⧗），并动态呈现与 AutoCAD 一致的专属矢量符号标徽。  
+  **CAD-Grade Geometric Snapping Engine**: High-precision geometric snapping across all measurement tools, automatically snapping to vertices (Endpoint), edge midpoints (Midpoint), circle centers (Center ⨁), and nearest edge lines (Nearest ⧗) with standard CAD graphical glyphs.
+- **PWA 渐进式脱网独立应用安装**：配备 Web App Manifest 与 Service Worker 离线缓存机制，支持在 Chrome、Edge、Safari 等现代浏览器中一键安装为独立桌面/移动端应用窗口，完全摆脱网络依赖，提供原生桌面级流畅体验。  
+  **Progressive Web App (PWA) Offline Launch**: Integrated Web App Manifest and Service Worker offline caching, allowing one-click installation as a standalone desktop/mobile window app with full offline execution and native desktop fluidity.
 - **通用三维动画播放器**：视口底部悬浮胶囊播放条（支持 DAE/FBX/GLTF），支持毫秒级时间拖拽、倍速调节与动作片段切换。  
   **Universal 3D Animation Player Bar**: Floating capsule player for DAE, FBX, and GLTF with millisecond scrubbing, 0.5x-2.0x playback speeds, and multi-clip switching.
 - **原地折叠侧栏与底部渐变阴影**：侧栏原地平滑收缩，构件类型栏横向滚轮滚动与防遮挡内阴影。  
