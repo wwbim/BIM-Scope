@@ -2021,12 +2021,12 @@ class BIMViewerApp {
     const height = this.container.clientHeight || window.innerHeight;
     const aspect = width / (height || 1);
 
-    this.perspectiveCamera = new THREE.PerspectiveCamera(45, aspect, 0.5, this.visibleDistance);
+    this.perspectiveCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, this.visibleDistance);
     this.perspectiveCamera.position.set(220, 180, 260);
 
     const initH = 200;
     const initW = initH * aspect;
-    this.orthographicCamera = new THREE.OrthographicCamera(-initW / 2, initW / 2, initH / 2, -initH / 2, 0.5, this.visibleDistance);
+    this.orthographicCamera = new THREE.OrthographicCamera(-initW / 2, initW / 2, initH / 2, -initH / 2, 0.1, this.visibleDistance);
     this.orthographicCamera.position.set(220, 180, 260);
 
     this.camera = this.perspectiveCamera;
@@ -2117,6 +2117,21 @@ class BIMViewerApp {
     this.measurePoints = [];
     this.measureLine = null;
     this.lastMeasurementData = null;
+    this.distanceMeasurements = [];
+    this.distanceMeasurementCounter = 0;
+    this.activeDistanceMeasurementId = null;
+    this.pendingDistanceStart = null;
+    this.angleMeasurements = [];
+    this.angleMeasurementCounter = 0;
+    this.activeAngleMeasurementId = null;
+    this.activeAngleMode = 'horizontal'; // 'horizontal' | 'spatial3d'
+    this.pendingAngleState = null;
+    this.anglePreviewLine = null;
+    this.anglePreviewProjGroup = null;
+    this.anglePreviewArcLine = null;
+    this.anglePreviewCalloutEl = null;
+    this.distancePreviewLine = null;
+    this.distancePreviewBadgeEl = null;
     this.measureMarkers = [];
     this.measurePointCounter = 0;
     this.activeMeasurePointId = null;
@@ -3490,7 +3505,7 @@ class BIMViewerApp {
       this.orthographicCamera.right = targetWidth / 2.0;
       this.orthographicCamera.top = targetHeight / 2.0;
       this.orthographicCamera.bottom = -targetHeight / 2.0;
-      this.orthographicCamera.near = 0.5;
+      this.orthographicCamera.near = 0.1;
       this.orthographicCamera.far = this.visibleDistance;
       this.orthographicCamera.zoom = 1.0;
 
@@ -3513,7 +3528,7 @@ class BIMViewerApp {
       const newPos = target.clone().addScaledVector(viewDir, neededDist);
 
       this.perspectiveCamera.aspect = aspect;
-      this.perspectiveCamera.near = 0.5;
+      this.perspectiveCamera.near = 0.1;
       this.perspectiveCamera.far = this.visibleDistance;
       this.perspectiveCamera.position.copy(newPos);
       this.perspectiveCamera.quaternion.copy(quat);
@@ -8388,10 +8403,20 @@ class BIMViewerApp {
               } else {
                 this.hideRadiusPreview();
               }
+            } else if (this.measureMode === 'distance') {
+              if (this.pendingDistanceStart) {
+                this.updateDistancePreview(effectiveHit);
+              }
+            } else if (this.measureMode === 'angle') {
+              if (this.pendingAngleState) {
+                this.updateAnglePreview(effectiveHit);
+              }
             }
           } else {
             this.hideMeasurePointPreview();
             this.hideRadiusPreview();
+            this.hideDistancePreview();
+            this.hideAnglePreview();
           }
           return;
         }
@@ -8449,6 +8474,7 @@ class BIMViewerApp {
       }
       this.hideMeasurePointPreview();
       this.hideRadiusPreview();
+      this.hideDistancePreview();
       this.clearHoverOverlay();
       this.canvas.style.cursor = 'default';
     });
@@ -8485,10 +8511,31 @@ class BIMViewerApp {
           if (markerHits.length > 0) {
             const hitMarker = markerHits[0].marker;
             if (e.shiftKey) {
-              this.deleteMeasurePoint(hitMarker.id);
+              if (hitMarker.mode === 'distance') {
+                this.deleteDistanceMeasurement(hitMarker.distanceMeasurementId);
+              } else if (hitMarker.mode === 'angle') {
+                this.deleteAngleMeasurement(hitMarker.angleMeasurementId);
+              } else {
+                this.deleteMeasurePoint(hitMarker.id);
+              }
               return;
             }
             this.setActiveMeasurePoint(hitMarker.id);
+            if (hitMarker.mode === 'distance') {
+              this.activeDistanceMeasurementId = hitMarker.distanceMeasurementId;
+              const distRec = this.distanceMeasurements.find(d => d.id === hitMarker.distanceMeasurementId);
+              if (distRec) {
+                this.lastMeasurementData = distRec.data;
+                this.renderMeasurementResults();
+              }
+            } else if (hitMarker.mode === 'angle') {
+              this.activeAngleMeasurementId = hitMarker.angleMeasurementId;
+              const angleRec = this.angleMeasurements.find(a => a.id === hitMarker.angleMeasurementId);
+              if (angleRec) {
+                this.lastMeasurementData = angleRec.data;
+                this.renderMeasurementResults();
+              }
+            }
             this.isDraggingMeasurePoint = true;
             this.draggingMeasureMarker = hitMarker;
             this.setMeasureMarkerDragging(hitMarker, true);
@@ -8569,7 +8616,13 @@ class BIMViewerApp {
           }
         }
         if (effectiveHit) {
-          this.updateMeasurePointFromHit(this.draggingMeasureMarker, effectiveHit);
+          if (this.draggingMeasureMarker.mode === 'distance') {
+            this.updateDistanceEndpointFromHit(this.draggingMeasureMarker, effectiveHit);
+          } else if (this.draggingMeasureMarker.mode === 'angle') {
+            this.updateAnglePointFromHit(this.draggingMeasureMarker, effectiveHit);
+          } else {
+            this.updateMeasurePointFromHit(this.draggingMeasureMarker, effectiveHit);
+          }
         }
         return;
       }
@@ -9012,6 +9065,9 @@ class BIMViewerApp {
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.hideContextMenu();
+        if (this.pendingDistanceStart) {
+          this.cancelPendingDistanceStart();
+        }
         if (this.compareEngine && this.compareEngine.isModalOpen()) {
           this.compareEngine.closeSetupModal();
           return;
@@ -9681,7 +9737,7 @@ class BIMViewerApp {
         this.compass3d.update();
       }
       this.camera.updateMatrixWorld();
-      if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+      if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
         this.updateMeasureMarkersAndCallouts();
       }
       return;
@@ -9710,7 +9766,7 @@ class BIMViewerApp {
       this.compass3d.update();
     }
     this.camera.updateMatrixWorld();
-    if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+    if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
       this.updateMeasureMarkersAndCallouts();
     }
   }
@@ -9741,6 +9797,12 @@ class BIMViewerApp {
     this.activeRadiusMeasurementId = null;
     this.currentRadiusTarget = null;
     this.initRadiusPreview();
+
+    this.distanceMeasurements = [];
+    this.distanceMeasurementCounter = 0;
+    this.activeDistanceMeasurementId = null;
+    this.pendingDistanceStart = null;
+    this.initDistancePreview();
   }
 
   initMeasurePointPreview() {
@@ -10359,6 +10421,1012 @@ class BIMViewerApp {
     this.requestRender(100);
   }
 
+  // =========================================================================
+  // TWO-POINT DISTANCE MEASUREMENT & RUBBERBAND PREVIEW ENGINE
+  // =========================================================================
+  computeDistanceSlope(p1, p2) {
+    if (!p1 || !p2) return null;
+    const dx = Math.abs(p2.x - p1.x);
+    const dy = Math.abs((-p2.z) - (-p1.z));
+    const dz = Math.abs(p2.y - p1.y);
+    const dHoriz = Math.hypot(dx, dy);
+
+    if (dHoriz < 1e-5 && dz < 1e-5) {
+      return { isFlat: true, isVertical: false, angleDeg: 0, percent: 0, ratioX: Infinity };
+    }
+    if (dHoriz < 1e-5) {
+      return { isFlat: false, isVertical: true, angleDeg: 90, percent: Infinity, ratioX: 0 };
+    }
+    if (dz < 1e-5) {
+      return { isFlat: true, isVertical: false, angleDeg: 0, percent: 0, ratioX: Infinity };
+    }
+
+    const angleRad = Math.atan2(dz, dHoriz);
+    const angleDeg = (angleRad * 180) / Math.PI;
+    const percent = (dz / dHoriz) * 100;
+    const ratioX = dHoriz / dz;
+
+    return {
+      isFlat: false,
+      isVertical: false,
+      angleDeg,
+      percent,
+      ratioX
+    };
+  }
+
+  formatSlopeExpressions(slopeData) {
+    if (!slopeData) return { ratio: '--', pct: '--', deg: '--', full: '--' };
+    if (slopeData.isFlat) {
+      const flatLabel = I18N.t('measureSlopeFlat') || 'Flat';
+      return { ratio: '1:∞', pct: '0.0%', deg: '0.0°', full: flatLabel };
+    }
+    if (slopeData.isVertical) {
+      const vertLabel = I18N.t('measureSlopeVertical') || 'Vertical';
+      return { ratio: '1:0', pct: '∞%', deg: '90.0°', full: vertLabel };
+    }
+    const ratio = slopeData.ratioX >= 100
+      ? `1:${Math.round(slopeData.ratioX)}`
+      : `1:${slopeData.ratioX.toFixed(1)}`;
+    const pct = `${slopeData.percent.toFixed(1)}%`;
+    const deg = `${slopeData.angleDeg.toFixed(1)}°`;
+    return {
+      ratio,
+      pct,
+      deg,
+      full: `${ratio} · ${pct} · ${deg}`
+    };
+  }
+
+  createXYZDecompGroup(p1, p2) {
+    const group = new THREE.Group();
+    group.renderOrder = 1204;
+
+    const makeLine = (colorHex) => {
+      const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const mat = new THREE.LineDashedMaterial({
+        color: colorHex,
+        dashSize: 0.25,
+        gapSize: 0.08,
+        depthTest: false,
+        depthWrite: false
+      });
+      const line = new THREE.Line(geom, mat);
+      line.renderOrder = 1204;
+      line.visible = false;
+      group.add(line);
+      return line;
+    };
+
+    const xLine = makeLine(0xff3b30); // High-contrast Scarlet Red: Easting ΔX
+    const yLine = makeLine(0x00e676); // High-contrast Vivid Spring Green: Northing ΔY
+    const zLine = makeLine(0x0050ff); // Pure Blue (#0050ff): Elevation ΔZ
+
+    group.userData = { xLine, yLine, zLine };
+    if (p1 && p2) {
+      this.updateXYZDecompGroup(group, p1, p2);
+    }
+    return group;
+  }
+
+  updateXYZDecompGroup(group, p1, p2) {
+    if (!group || !group.userData || !p1 || !p2) return;
+    const { xLine, yLine, zLine } = group.userData;
+
+    // Corner 1: Easting delta along X
+    const c1 = new THREE.Vector3(p2.x, p1.y, p1.z);
+    // Corner 2: Northing delta along Three.js Z
+    const c2 = new THREE.Vector3(p2.x, p1.y, p2.z);
+
+    const updateSeg = (line, start, end) => {
+      const len = start.distanceTo(end);
+      if (len < 1e-4) {
+        line.visible = false;
+      } else {
+        const pos = line.geometry.attributes.position;
+        pos.setXYZ(0, start.x, start.y, start.z);
+        pos.setXYZ(1, end.x, end.y, end.z);
+        pos.needsUpdate = true;
+        line.computeLineDistances();
+        line.visible = true;
+      }
+    };
+
+    updateSeg(xLine, p1, c1);
+    updateSeg(yLine, c1, c2);
+    updateSeg(zLine, c2, p2);
+  }
+
+  initDistancePreview() {
+    const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    this.distancePreviewLine = new THREE.Line(lineGeom, new THREE.LineDashedMaterial({
+      color: 0xf59e0b,
+      dashSize: 0.20,
+      gapSize: 0.12,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.distancePreviewLine.computeLineDistances();
+    this.distancePreviewLine.visible = false;
+    this.distancePreviewLine.renderOrder = 2300;
+    this.scene.add(this.distancePreviewLine);
+
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (listEl) {
+      this.distancePreviewBadgeEl = document.createElement('div');
+      this.distancePreviewBadgeEl.className = 'measure-distance-callout preview';
+      this.distancePreviewBadgeEl.style.display = 'none';
+      this.distancePreviewBadgeEl.style.pointerEvents = 'none';
+      this.distancePreviewBadgeEl.textContent = '--';
+      listEl.appendChild(this.distancePreviewBadgeEl);
+    }
+  }
+
+  updateDistancePreview(candidateHit) {
+    if (!this.pendingDistanceStart || !candidateHit || !candidateHit.point) {
+      this.hideDistancePreview();
+      return;
+    }
+    const p1 = this.pendingDistanceStart.point;
+    const p2 = candidateHit.point;
+    const dist = p1.distanceTo(p2);
+
+    if (!this.distancePreviewLine) this.initDistancePreview();
+
+    // 1. Update Dashed Line
+    if (this.distancePreviewLine) {
+      const positions = this.distancePreviewLine.geometry.attributes.position;
+      positions.setXYZ(0, p1.x, p1.y, p1.z);
+      positions.setXYZ(1, p2.x, p2.y, p2.z);
+      positions.needsUpdate = true;
+      if (this.distancePreviewLine.computeLineDistances) {
+        this.distancePreviewLine.computeLineDistances();
+      }
+      this.distancePreviewLine.visible = true;
+    }
+
+    // 2. Update Dynamic Distance Badge (Screen-clamped)
+    if (this.distancePreviewBadgeEl) {
+      const unit = this.measureUnit || 'm';
+      const scale = unit === 'mm' ? 1000 : 1;
+      const formattedDist = (dist * scale).toFixed(unit === 'mm' ? 0 : 3);
+      this.distancePreviewBadgeEl.textContent = `${formattedDist} ${unit}`;
+
+      const cw = this.container.clientWidth || 1;
+      const ch = this.container.clientHeight || 1;
+      const projVec = new THREE.Vector3();
+
+      projVec.copy(p1).project(this.camera);
+      const s0x = (projVec.x * 0.5 + 0.5) * cw;
+      const s0y = (-projVec.y * 0.5 + 0.5) * ch;
+
+      projVec.copy(p2).project(this.camera);
+      const s1x = (projVec.x * 0.5 + 0.5) * cw;
+      const s1y = (-projVec.y * 0.5 + 0.5) * ch;
+
+      const safeMargin = 16;
+      const clipRes = this.clipSegmentToScreen(s0x, s0y, s1x, s1y, safeMargin, cw - safeMargin, safeMargin, ch - safeMargin);
+      if (!clipRes) {
+        this.distancePreviewBadgeEl.style.display = 'none';
+      } else {
+        const t = Math.max(clipRes.t0, Math.min(clipRes.t1, 0.5));
+        const bx = s0x + t * (s1x - s0x);
+        const by = s0y + t * (s1y - s0y);
+
+        this.distancePreviewBadgeEl.style.display = 'block';
+        this.distancePreviewBadgeEl.style.transform = `translate3d(${Math.round(bx)}px, ${Math.round(by)}px, 0) translate(-50%, -50%)`;
+      }
+    }
+
+    // 3. Update XYZ Decomposition Preview Lines
+    if (!this.distancePreviewDecompGroup) {
+      this.distancePreviewDecompGroup = this.createXYZDecompGroup(p1, p2);
+      this.scene.add(this.distancePreviewDecompGroup);
+    } else {
+      this.updateXYZDecompGroup(this.distancePreviewDecompGroup, p1, p2);
+      this.distancePreviewDecompGroup.visible = true;
+    }
+
+    // 4. Live Side Panel Feedback for Deltas and Slope
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const p2El = document.getElementById('measure-res-p2');
+    if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(-p2.z * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)})`;
+    const distEl = document.getElementById('measure-res-distance');
+    if (distEl) distEl.textContent = `${(dist * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    const dxEl = document.getElementById('measure-res-dx');
+    if (dxEl) dxEl.textContent = `${(Math.abs(p2.x - p1.x) * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    const dyEl = document.getElementById('measure-res-dy');
+    if (dyEl) dyEl.textContent = `${(Math.abs((-p2.z) - (-p1.z)) * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    const dzEl = document.getElementById('measure-res-dz');
+    if (dzEl) dzEl.textContent = `${(Math.abs(p2.y - p1.y) * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    const slopeData = this.computeDistanceSlope(p1, p2);
+    const slopeExp = this.formatSlopeExpressions(slopeData);
+    const rEl = document.getElementById('measure-res-slope-ratio');
+    if (rEl) rEl.textContent = slopeExp.ratio;
+    const pEl = document.getElementById('measure-res-slope-pct');
+    if (pEl) pEl.textContent = slopeExp.pct;
+    const dEl = document.getElementById('measure-res-slope-deg');
+    if (dEl) dEl.textContent = slopeExp.deg;
+    const slopeEl = document.getElementById('measure-res-slope');
+    if (slopeEl) slopeEl.textContent = slopeExp.full;
+
+    this.requestRender(100);
+  }
+
+  hideDistancePreview() {
+    if (this.distancePreviewLine && this.distancePreviewLine.visible) {
+      this.distancePreviewLine.visible = false;
+    }
+    if (this.distancePreviewDecompGroup) {
+      this.distancePreviewDecompGroup.visible = false;
+    }
+    if (this.distancePreviewBadgeEl && this.distancePreviewBadgeEl.style.display !== 'none') {
+      this.distancePreviewBadgeEl.style.display = 'none';
+    }
+    this.requestRender(100);
+  }
+
+  cancelPendingDistanceStart() {
+    if (this.pendingDistanceStart) {
+      if (this.pendingDistanceStart.marker1) {
+        this.deleteMeasurePoint(this.pendingDistanceStart.marker1.id);
+      }
+      this.pendingDistanceStart = null;
+    }
+    if (this.distancePreviewDecompGroup) {
+      this.distancePreviewDecompGroup.visible = false;
+    }
+    this.hideDistancePreview();
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl && this.measureMode === 'distance') {
+      hintEl.textContent = I18N.t('measurePromptPickFirst');
+    }
+    this.requestRender(150);
+  }
+
+  createDistanceEndpointMarker(hit, role = 'p1', distId = null) {
+    if (!hit || !hit.point) return null;
+    if (!this.measureMarkersGroup) this.initMeasurementSystem();
+
+    const id = `dist-pt-${++this.measurePointCounter}`;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    const meshParts = this.createStandardMeasureMarkerMesh(id, {
+      showSlopeArrow: false,
+      themeColor: 0x00f0ff
+    });
+
+    const marker = {
+      id,
+      mode: 'distance',
+      endpointRole: role, // 'p1' | 'p2'
+      distanceMeasurementId: distId,
+      point: hit.point.clone(),
+      normal: slopeData.normal.clone(),
+      slopeData,
+      showSlopeArrow: false,
+      baseColor: 0x00f0ff,
+      calloutOffset: { x: 0, y: 0 },
+      calloutEl: null,
+      leaderLineEl: null,
+      leaderDotEl: null,
+      ...meshParts
+    };
+
+    this.measureMarkersGroup.add(marker.group);
+    this.measureMarkers.push(marker);
+
+    this.orientMeasureMarkerToSurface(marker);
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+    return marker;
+  }
+
+  updateDistanceEndpointFromHit(marker, hit) {
+    if (!marker || !hit || !hit.point) return;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    marker.point.copy(hit.point);
+    marker.normal.copy(slopeData.normal);
+    marker.slopeData = slopeData;
+    this.orientMeasureMarkerToSurface(marker);
+
+    const distRec = this.distanceMeasurements.find(d => d.id === marker.distanceMeasurementId);
+    if (distRec) {
+      const p1 = distRec.marker1.point;
+      const p2 = distRec.marker2.point;
+      const dist = p1.distanceTo(p2);
+      const dx = Math.abs(p2.x - p1.x);
+      const dy = Math.abs((-p2.z) - (-p1.z));
+      const dz = Math.abs(p2.y - p1.y);
+      distRec.data = { p1: p1.clone(), p2: p2.clone(), dist, dx, dy, dz };
+
+      // Update 3D connecting line
+      if (distRec.line) {
+        distRec.line.geometry.setFromPoints([p1, p2]);
+        distRec.line.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // Update 3D XYZ Decomposition Lines
+      if (distRec.decompGroup) {
+        this.updateXYZDecompGroup(distRec.decompGroup, p1, p2);
+      }
+
+      // Update 2D distance callout text & tooltip
+      this.updateDistanceCalloutDOM(distRec);
+
+      // If active, sync side panel
+      if (this.activeDistanceMeasurementId === distRec.id) {
+        this.lastMeasurementData = distRec.data;
+        this.renderMeasurementResults();
+      }
+    }
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  updateDistanceCalloutDOM(distRec) {
+    if (!distRec || !distRec.calloutEl || !distRec.data) return;
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decimals = unit === 'mm' ? 0 : 3;
+    const dVal = (distRec.data.dist * scale).toFixed(decimals);
+    const dxVal = (distRec.data.dx * scale).toFixed(decimals);
+    const dyVal = (distRec.data.dy * scale).toFixed(decimals);
+    const dzVal = (distRec.data.dz * scale).toFixed(decimals);
+
+    distRec.calloutEl.textContent = `${dVal} ${unit}`;
+    const slopeData = this.computeDistanceSlope(distRec.data.p1, distRec.data.p2);
+    const slopeStr = this.formatSlopeString(slopeData);
+    const slopeLabel = I18N.t('measureSlope') || 'Slope';
+    distRec.calloutEl.title = `${I18N.t('measureDist')}: ${dVal} ${unit}\nΔX: ${dxVal} ${unit}\nΔY: ${dyVal} ${unit}\nΔZ: ${dzVal} ${unit}\n${slopeLabel}: ${slopeStr}\nClick to copy, Shift+Click to delete`;
+  }
+
+  deleteDistanceMeasurement(id) {
+    if (!this.distanceMeasurements) return;
+    const idx = this.distanceMeasurements.findIndex(d => d.id === id);
+    if (idx < 0) return;
+    const distRec = this.distanceMeasurements[idx];
+
+    // Remove Endpoint 1 & 2
+    if (distRec.marker1) {
+      this.deleteMeasurePoint(distRec.marker1.id);
+    }
+    if (distRec.marker2) {
+      this.deleteMeasurePoint(distRec.marker2.id);
+    }
+
+    // Remove 3D connecting line
+    if (distRec.line) {
+      if (distRec.line.geometry) distRec.line.geometry.dispose();
+      if (distRec.line.material) distRec.line.material.dispose();
+      this.scene.remove(distRec.line);
+    }
+
+    // Remove 3D XYZ Decomposition lines
+    if (distRec.decompGroup) {
+      distRec.decompGroup.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
+      this.scene.remove(distRec.decompGroup);
+    }
+
+    // Remove 2D Callout
+    if (distRec.calloutEl && distRec.calloutEl.parentNode) {
+      distRec.calloutEl.parentNode.removeChild(distRec.calloutEl);
+    }
+
+    this.distanceMeasurements.splice(idx, 1);
+    if (this.activeDistanceMeasurementId === id) {
+      this.activeDistanceMeasurementId = this.distanceMeasurements.length > 0
+        ? this.distanceMeasurements[this.distanceMeasurements.length - 1].id
+        : null;
+      const curActive = this.distanceMeasurements.find(d => d.id === this.activeDistanceMeasurementId);
+      this.lastMeasurementData = curActive ? curActive.data : null;
+    }
+
+    this.renderMeasurementResults();
+    this.requestRender(200);
+  }
+
+
+  // ============================================================================
+  // ANGLE MEASUREMENT SYSTEM (Three-point Vertex-Arm1-Arm2 Engine)
+  // ============================================================================
+
+  createAngleEndpointMarker(hit, role = 'vertex', angleId = null) {
+    if (!hit || !hit.point) return null;
+    if (!this.measureMarkersGroup) this.initMeasurementSystem();
+
+    const id = `angle-pt-${++this.measurePointCounter}`;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    const meshParts = this.createStandardMeasureMarkerMesh(id, {
+      showSlopeArrow: false,
+      themeColor: 0x00f0ff
+    });
+
+    const marker = {
+      id,
+      mode: 'angle',
+      endpointRole: role, // 'vertex' | 'arm1' | 'arm2'
+      angleMeasurementId: angleId,
+      point: hit.point.clone(),
+      normal: slopeData.normal.clone(),
+      slopeData,
+      showSlopeArrow: false,
+      baseColor: 0x00f0ff,
+      calloutOffset: { x: 0, y: 0 },
+      calloutEl: null,
+      leaderLineEl: null,
+      leaderDotEl: null,
+      ...meshParts
+    };
+
+    this.measureMarkersGroup.add(marker.group);
+    this.measureMarkers.push(marker);
+
+    this.orientMeasureMarkerToSurface(marker);
+    return marker;
+  }
+
+  computeAngleMeasurementData(V, A, B) {
+    // Vectors in 3D: u = A - V, w = B - V
+    const u = new THREE.Vector3().subVectors(A, V);
+    const w = new THREE.Vector3().subVectors(B, V);
+    const L1 = u.length();
+    const L2 = w.length();
+
+    let angle3D = 0;
+    if (L1 >= 1e-6 && L2 >= 1e-6) {
+      const dot3D = Math.max(-1, Math.min(1, u.dot(w) / (L1 * L2)));
+      angle3D = Math.acos(dot3D) * (180 / Math.PI);
+    }
+
+    // Horizontal plane: benchmark elevation is V.y
+    const Aproj = new THREE.Vector3(A.x, V.y, A.z);
+    const Bproj = new THREE.Vector3(B.x, V.y, B.z);
+    const uh = new THREE.Vector3().subVectors(Aproj, V);
+    const wh = new THREE.Vector3().subVectors(Bproj, V);
+    const L1h = uh.length();
+    const L2h = wh.length();
+
+    let angleHoriz = 0;
+    if (L1h >= 1e-6 && L2h >= 1e-6) {
+      const dotH = Math.max(-1, Math.min(1, uh.dot(wh) / (L1h * L2h)));
+      angleHoriz = Math.acos(dotH) * (180 / Math.PI);
+    }
+
+    return {
+      V: V.clone(),
+      A: A.clone(),
+      B: B.clone(),
+      L1,
+      L2,
+      L1h,
+      L2h,
+      angle3D,
+      angleHoriz,
+      Aproj,
+      Bproj
+    };
+  }
+
+  formatAngleDMS(deg) {
+    if (deg == null || isNaN(deg)) return '--';
+    const d = Math.floor(deg);
+    const remM = (deg - d) * 60;
+    let m = Math.floor(remM);
+    let s = Math.round((remM - m) * 60);
+    if (s >= 60) {
+      s = 0;
+      m += 1;
+    }
+    if (m >= 60) {
+      m = 0;
+      d += 1;
+    }
+    const mStr = m < 10 ? '0' + m : '' + m;
+    const sStr = s < 10 ? '0' + s : '' + s;
+    return `${d}° ${mStr}' ${sStr}"`;
+  }
+
+  createAngleProjectionGroup(V, A, B, Aproj, Bproj) {
+    const group = new THREE.Group();
+    group.renderOrder = 1204;
+
+    const makeDashed = (color = 0x38bdf8) => {
+      const mat = new THREE.LineDashedMaterial({
+        color,
+        dashSize: 0.22,
+        gapSize: 0.08,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.85
+      });
+      const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const line = new THREE.Line(geom, mat);
+      line.renderOrder = 1204;
+      line.frustumCulled = false;
+      group.add(line);
+      return line;
+    };
+
+    const horiz1 = makeDashed(0x38bdf8); // V -> Aproj
+    const horiz2 = makeDashed(0x38bdf8); // V -> Bproj
+    const plumb1 = makeDashed(0x0050ff); // A -> Aproj (Vertical)
+    const plumb2 = makeDashed(0x0050ff); // B -> Bproj (Vertical)
+
+    group.userData = { horiz1, horiz2, plumb1, plumb2 };
+    this.updateAngleProjectionGroup(group, V, A, B, Aproj, Bproj);
+    return group;
+  }
+
+  updateAngleProjectionGroup(group, V, A, B, Aproj, Bproj) {
+    if (!group || !group.userData) return;
+    const { horiz1, horiz2, plumb1, plumb2 } = group.userData;
+
+    const updateLine = (line, p1, p2) => {
+      if (!line) return;
+      if (p1.distanceTo(p2) < 1e-4) {
+        line.visible = false;
+      } else {
+        line.visible = true;
+        line.geometry.setFromPoints([p1, p2]);
+        line.geometry.attributes.position.needsUpdate = true;
+        if (line.computeLineDistances) line.computeLineDistances();
+      }
+    };
+
+    updateLine(horiz1, V, Aproj);
+    updateLine(horiz2, V, Bproj);
+    updateLine(plumb1, A, Aproj);
+    updateLine(plumb2, B, Bproj);
+  }
+
+  createAngleArcMesh(V, A, B, isHorizontal, data) {
+    const P1 = isHorizontal ? data.Aproj : A;
+    const P2 = isHorizontal ? data.Bproj : B;
+    const len1 = V.distanceTo(P1);
+    const len2 = V.distanceTo(P2);
+
+    const geom = new THREE.BufferGeometry();
+    const mat = new THREE.LineBasicMaterial({
+      color: 0x38bdf8,
+      linewidth: 2,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.95
+    });
+    const line = new THREE.Line(geom, mat);
+    line.renderOrder = 1206;
+    line.frustumCulled = false;
+
+    if (len1 < 1e-4 || len2 < 1e-4) {
+      geom.setFromPoints([V, V]);
+      return { line, midPoint: V.clone() };
+    }
+
+    const midPoint = this.updateAngleArcMesh(line, V, A, B, isHorizontal, data);
+    return { line, midPoint };
+  }
+
+  updateAngleArcMesh(line, V, A, B, isHorizontal, data) {
+    if (!line || !line.geometry) return V.clone();
+    const P1 = isHorizontal ? data.Aproj : A;
+    const P2 = isHorizontal ? data.Bproj : B;
+    const len1 = V.distanceTo(P1);
+    const len2 = V.distanceTo(P2);
+
+    if (len1 < 1e-4 || len2 < 1e-4) {
+      line.visible = false;
+      return V.clone();
+    }
+
+    // Edge-constrained base radius (at most 25% of shorter arm)
+    const edgeR = 0.25 * Math.min(len1, len2);
+
+    // Camera distance-adaptive clamp:
+    // When the camera zooms in close to vertex V, adaptively shrink R so the arc
+    // stays visible inside the view frustum and in front of the camera near plane.
+    let camDist = 10;
+    if (this.camera) {
+      if (this.camera.isOrthographicCamera) {
+        camDist = ((this.camera.top - this.camera.bottom) / (this.camera.zoom || 1)) * 0.5;
+      } else {
+        camDist = this.camera.position.distanceTo(V);
+      }
+    }
+    const maxCamR = Math.max(0.04, camDist * 0.25);
+    const maxWorldR = 2.5;
+    const R = Math.max(0.02, Math.min(edgeR, maxCamR, maxWorldR));
+
+    const v1 = new THREE.Vector3().subVectors(P1, V).normalize();
+    const v2 = new THREE.Vector3().subVectors(P2, V).normalize();
+    const dot = Math.max(-1, Math.min(1, v1.dot(v2)));
+    const theta = Math.acos(dot);
+
+    let norm = new THREE.Vector3().crossVectors(v1, v2);
+    if (norm.lengthSq() < 1e-6) {
+      norm = isHorizontal ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 1, 0).cross(v1);
+      if (norm.lengthSq() < 1e-6) norm = new THREE.Vector3(1, 0, 0);
+    }
+    norm.normalize();
+    const vPerp = new THREE.Vector3().crossVectors(norm, v1).normalize();
+
+    const segments = 32;
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+      const t = (i / segments) * theta;
+      const pt = new THREE.Vector3().copy(V)
+        .addScaledVector(v1, R * Math.cos(t))
+        .addScaledVector(vPerp, R * Math.sin(t));
+      points.push(pt);
+    }
+
+    line.geometry.setFromPoints(points);
+    line.geometry.attributes.position.needsUpdate = true;
+    line.frustumCulled = false;
+    line.visible = true;
+
+    const midT = theta * 0.5;
+    const midPoint = new THREE.Vector3().copy(V)
+      .addScaledVector(v1, R * 1.25 * Math.cos(midT))
+      .addScaledVector(vPerp, R * 1.25 * Math.sin(midT));
+
+    return midPoint;
+  }
+
+  initAnglePreview() {
+    if (!this.anglePreviewLine) {
+      const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const mat = new THREE.LineDashedMaterial({
+        color: 0xf59e0b,
+        dashSize: 0.25,
+        gapSize: 0.1,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.95
+      });
+      this.anglePreviewLine = new THREE.Line(geom, mat);
+      this.anglePreviewLine.renderOrder = 1205;
+      this.scene.add(this.anglePreviewLine);
+    }
+
+    if (!this.anglePreviewCalloutEl) {
+      const listEl = document.getElementById('measure-callouts-layer') || this.container;
+      this.anglePreviewCalloutEl = document.createElement('div');
+      this.anglePreviewCalloutEl.className = 'measure-angle-callout preview';
+      this.anglePreviewCalloutEl.style.display = 'none';
+      if (listEl) listEl.appendChild(this.anglePreviewCalloutEl);
+    }
+  }
+
+  updateAnglePreview(candidateHit) {
+    if (!this.pendingAngleState || !candidateHit || !candidateHit.point) {
+      this.hideAnglePreview();
+      return;
+    }
+
+    this.initAnglePreview();
+    const curPt = candidateHit.point;
+    const V = this.pendingAngleState.V;
+
+    // Step 1: Arm 1 live preview from V to curPt
+    if (this.pendingAngleState.step === 1) {
+      if (this.anglePreviewLine) {
+        this.anglePreviewLine.visible = true;
+        this.anglePreviewLine.geometry.setFromPoints([V, curPt]);
+        this.anglePreviewLine.geometry.attributes.position.needsUpdate = true;
+        if (this.anglePreviewLine.computeLineDistances) this.anglePreviewLine.computeLineDistances();
+      }
+      if (this.anglePreviewProjGroup) this.anglePreviewProjGroup.visible = false;
+      if (this.anglePreviewArcLine) this.anglePreviewArcLine.visible = false;
+
+      if (this.anglePreviewCalloutEl) {
+        const unit = this.measureUnit || 'm';
+        const scale = unit === 'mm' ? 1000 : 1;
+        const d = (V.distanceTo(curPt) * scale).toFixed(unit === 'mm' ? 0 : 3);
+        this.anglePreviewCalloutEl.textContent = `L1: ${d} ${unit}`;
+
+        const cw = this.container.clientWidth || 1;
+        const ch = this.container.clientHeight || 1;
+        const midP = new THREE.Vector3().addVectors(V, curPt).multiplyScalar(0.5);
+        const projVec = new THREE.Vector3().copy(midP).project(this.camera);
+        if (projVec.z > 1.0 || projVec.z < -1.0) {
+          this.anglePreviewCalloutEl.style.display = 'none';
+        } else {
+          const sx = (projVec.x * 0.5 + 0.5) * cw;
+          const sy = (-projVec.y * 0.5 + 0.5) * ch;
+          this.anglePreviewCalloutEl.style.display = 'inline-flex';
+          this.anglePreviewCalloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+      this.updateMeasureMarkersAndCallouts();
+      this.requestRender(100);
+      return;
+    }
+
+    // Step 2: Arm 2 live preview from V to curPt + Angle Arc + Horizontal Projections
+    if (this.pendingAngleState.step === 2) {
+      const A = this.pendingAngleState.A;
+      const B = curPt;
+
+      if (this.anglePreviewLine) {
+        this.anglePreviewLine.visible = true;
+        this.anglePreviewLine.geometry.setFromPoints([V, B]);
+        this.anglePreviewLine.geometry.attributes.position.needsUpdate = true;
+        if (this.anglePreviewLine.computeLineDistances) this.anglePreviewLine.computeLineDistances();
+      }
+
+      const data = this.computeAngleMeasurementData(V, A, B);
+
+      // Projection lines preview
+      if (!this.anglePreviewProjGroup) {
+        this.anglePreviewProjGroup = this.createAngleProjectionGroup(V, A, B, data.Aproj, data.Bproj);
+        this.scene.add(this.anglePreviewProjGroup);
+      } else {
+        this.updateAngleProjectionGroup(this.anglePreviewProjGroup, V, A, B, data.Aproj, data.Bproj);
+        this.anglePreviewProjGroup.visible = true;
+      }
+
+      // Arc preview
+      if (!this.anglePreviewArcLine) {
+        const arcObj = this.createAngleArcMesh(V, A, B, this.activeAngleMode === 'horizontal', data);
+        this.anglePreviewArcLine = arcObj.line;
+        this.scene.add(this.anglePreviewArcLine);
+      } else {
+        this.updateAngleArcMesh(this.anglePreviewArcLine, V, A, B, this.activeAngleMode === 'horizontal', data);
+        this.anglePreviewArcLine.visible = true;
+      }
+
+      // Preview callout
+      if (this.anglePreviewCalloutEl) {
+        const isHoriz = this.activeAngleMode === 'horizontal';
+        const angleVal = isHoriz ? data.angleHoriz : data.angle3D;
+        const modeBadge = isHoriz ? '∠H' : '∠3D';
+        this.anglePreviewCalloutEl.innerHTML = `
+          <span style="opacity:0.75;font-weight:700;">${modeBadge}</span>
+          <span>${angleVal.toFixed(1)}°</span>
+        `;
+
+        const cw = this.container.clientWidth || 1;
+        const ch = this.container.clientHeight || 1;
+
+        // Position at arc midpoint
+        const P1 = isHoriz ? data.Aproj : A;
+        const P2 = isHoriz ? data.Bproj : B;
+        const len1 = V.distanceTo(P1);
+        const len2 = V.distanceTo(P2);
+        const R = Math.max(0.2, Math.min(2.5, 0.25 * Math.min(len1, len2)));
+        const v1 = new THREE.Vector3().subVectors(P1, V).normalize();
+        const v2 = new THREE.Vector3().subVectors(P2, V).normalize();
+        const dot = Math.max(-1, Math.min(1, v1.dot(v2)));
+        const theta = Math.acos(dot);
+        let norm = new THREE.Vector3().crossVectors(v1, v2);
+        if (norm.lengthSq() < 1e-6) norm = isHoriz ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+        norm.normalize();
+        const vPerp = new THREE.Vector3().crossVectors(norm, v1).normalize();
+        const midT = theta * 0.5;
+        const midP = new THREE.Vector3().copy(V)
+          .addScaledVector(v1, R * 1.35 * Math.cos(midT))
+          .addScaledVector(vPerp, R * 1.35 * Math.sin(midT));
+
+        const projVec = new THREE.Vector3().copy(midP).project(this.camera);
+        if (projVec.z > 1.0 || projVec.z < -1.0) {
+          this.anglePreviewCalloutEl.style.display = 'none';
+        } else {
+          const sx = (projVec.x * 0.5 + 0.5) * cw;
+          const sy = (-projVec.y * 0.5 + 0.5) * ch;
+          this.anglePreviewCalloutEl.style.display = 'inline-flex';
+          this.anglePreviewCalloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+
+      // Live panel preview
+      this.renderAngleMeasurementResults(data, this.activeAngleMode);
+      this.updateMeasureMarkersAndCallouts();
+      this.requestRender(100);
+    }
+  }
+
+  hideAnglePreview() {
+    if (this.anglePreviewLine) this.anglePreviewLine.visible = false;
+    if (this.anglePreviewProjGroup) this.anglePreviewProjGroup.visible = false;
+    if (this.anglePreviewArcLine) this.anglePreviewArcLine.visible = false;
+    if (this.anglePreviewCalloutEl) this.anglePreviewCalloutEl.style.display = 'none';
+  }
+
+  cancelPendingAngleStart() {
+    if (!this.pendingAngleState) return;
+    if (this.pendingAngleState.markerV) {
+      this.deleteMeasurePoint(this.pendingAngleState.markerV.id);
+    }
+    if (this.pendingAngleState.markerA) {
+      this.deleteMeasurePoint(this.pendingAngleState.markerA.id);
+    }
+    if (this.pendingAngleState.line1) {
+      this.scene.remove(this.pendingAngleState.line1);
+      if (this.pendingAngleState.line1.geometry) this.pendingAngleState.line1.geometry.dispose();
+      if (this.pendingAngleState.line1.material) this.pendingAngleState.line1.material.dispose();
+    }
+    this.pendingAngleState = null;
+    this.hideAnglePreview();
+    this.requestRender(150);
+  }
+
+  deleteAngleMeasurement(id) {
+    if (!this.angleMeasurements) return;
+    const idx = this.angleMeasurements.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const angleRec = this.angleMeasurements[idx];
+
+    if (angleRec.markerV) this.deleteMeasurePoint(angleRec.markerV.id);
+    if (angleRec.markerA) this.deleteMeasurePoint(angleRec.markerA.id);
+    if (angleRec.markerB) this.deleteMeasurePoint(angleRec.markerB.id);
+
+    if (angleRec.line1) {
+      this.scene.remove(angleRec.line1);
+      if (angleRec.line1.geometry) angleRec.line1.geometry.dispose();
+      if (angleRec.line1.material) angleRec.line1.material.dispose();
+    }
+    if (angleRec.line2) {
+      this.scene.remove(angleRec.line2);
+      if (angleRec.line2.geometry) angleRec.line2.geometry.dispose();
+      if (angleRec.line2.material) angleRec.line2.material.dispose();
+    }
+    if (angleRec.projGroup) {
+      this.scene.remove(angleRec.projGroup);
+      angleRec.projGroup.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
+    }
+    if (angleRec.arcLine) {
+      this.scene.remove(angleRec.arcLine);
+      if (angleRec.arcLine.geometry) angleRec.arcLine.geometry.dispose();
+      if (angleRec.arcLine.material) angleRec.arcLine.material.dispose();
+    }
+    if (angleRec.calloutEl && angleRec.calloutEl.parentNode) {
+      angleRec.calloutEl.parentNode.removeChild(angleRec.calloutEl);
+    }
+
+    this.angleMeasurements.splice(idx, 1);
+    if (this.activeAngleMeasurementId === id) {
+      this.activeAngleMeasurementId = this.angleMeasurements.length > 0
+        ? this.angleMeasurements[this.angleMeasurements.length - 1].id
+        : null;
+      const curActive = this.angleMeasurements.find(a => a.id === this.activeAngleMeasurementId);
+      this.lastMeasurementData = curActive ? curActive.data : null;
+    }
+
+    this.renderMeasurementResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  updateAnglePointFromHit(marker, hit) {
+    if (!marker || !hit || !hit.point) return;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    marker.point.copy(hit.point);
+    marker.normal.copy(slopeData.normal);
+    marker.slopeData = slopeData;
+    this.orientMeasureMarkerToSurface(marker);
+
+    const angleRec = this.angleMeasurements.find(a => a.id === marker.angleMeasurementId);
+    if (angleRec) {
+      const V = angleRec.markerV.point;
+      const A = angleRec.markerA.point;
+      const B = angleRec.markerB.point;
+      const data = this.computeAngleMeasurementData(V, A, B);
+      angleRec.data = data;
+
+      if (angleRec.line1) {
+        angleRec.line1.geometry.setFromPoints([V, A]);
+        angleRec.line1.geometry.attributes.position.needsUpdate = true;
+      }
+      if (angleRec.line2) {
+        angleRec.line2.geometry.setFromPoints([V, B]);
+        angleRec.line2.geometry.attributes.position.needsUpdate = true;
+      }
+      if (angleRec.projGroup) {
+        this.updateAngleProjectionGroup(angleRec.projGroup, V, A, B, data.Aproj, data.Bproj);
+      }
+      if (angleRec.arcLine) {
+        this.updateAngleArcMesh(angleRec.arcLine, V, A, B, angleRec.mode === 'horizontal', data);
+      }
+      this.updateAngleCalloutDOM(angleRec);
+
+      if (this.activeAngleMeasurementId === angleRec.id) {
+        this.lastMeasurementData = angleRec.data;
+        this.renderMeasurementResults();
+      }
+    }
+
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  updateAngleCalloutDOM(angleRec) {
+    if (!angleRec || !angleRec.calloutEl || !angleRec.data) return;
+    const isHoriz = angleRec.mode === 'horizontal';
+    const angleVal = isHoriz ? angleRec.data.angleHoriz : angleRec.data.angle3D;
+    const modeBadge = isHoriz ? '∠H' : '∠3D';
+    const modeTitle = isHoriz ? (I18N.t('measureAngleHoriz') || 'Horizontal Angle') : (I18N.t('measureAngle3D') || '3D True Angle');
+
+    angleRec.calloutEl.innerHTML = `
+      <button type="button" class="measure-angle-mode-toggle" title="${I18N.t('measureAngleToggleTip')}">${modeBadge}</button>
+      <span class="measure-angle-text">${angleVal.toFixed(1)}°</span>
+    `;
+    angleRec.calloutEl.title = `${modeTitle}: ${angleVal.toFixed(2)}° (Shift+Click to Delete)`;
+  }
+
+  toggleAngleMeasurementMode(measId = null) {
+    let targetRec = null;
+    if (measId) {
+      targetRec = this.angleMeasurements.find(a => a.id === measId);
+    } else if (this.activeAngleMeasurementId) {
+      targetRec = this.angleMeasurements.find(a => a.id === this.activeAngleMeasurementId);
+    } else if (this.angleMeasurements && this.angleMeasurements.length > 0) {
+      targetRec = this.angleMeasurements[this.angleMeasurements.length - 1];
+    }
+
+    const nextMode = (this.activeAngleMode === 'horizontal') ? 'spatial3d' : 'horizontal';
+    this.activeAngleMode = nextMode;
+
+    if (targetRec) {
+      targetRec.mode = nextMode;
+      const V = targetRec.markerV.point;
+      const A = targetRec.markerA.point;
+      const B = targetRec.markerB.point;
+      this.updateAngleArcMesh(targetRec.arcLine, V, A, B, nextMode === 'horizontal', targetRec.data);
+      this.updateAngleCalloutDOM(targetRec);
+      this.lastMeasurementData = targetRec.data;
+    }
+
+    this.renderMeasurementResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  renderAngleMeasurementResults(data, mode) {
+    if (!data) return;
+    const isHoriz = mode === 'horizontal';
+    const angleVal = isHoriz ? data.angleHoriz : data.angle3D;
+    const decVal = angleVal.toFixed(2) + '°';
+    const dmsVal = this.formatAngleDMS(angleVal);
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decDist = unit === 'mm' ? 0 : 3;
+    const l1Val = `${(data.L1 * scale).toFixed(decDist)} ${unit}`;
+    const l2Val = `${(data.L2 * scale).toFixed(decDist)} ${unit}`;
+
+    const labelEl = document.getElementById('measure-res-angle-label');
+    if (labelEl) {
+      labelEl.textContent = isHoriz ? I18N.t('measureAngleHoriz') : I18N.t('measureAngle3D');
+    }
+    const toggleBtn = document.getElementById('btn-measure-angle-toggle-panel');
+    if (toggleBtn) {
+      toggleBtn.textContent = isHoriz ? '∠H' : '∠3D';
+    }
+    const primEl = document.getElementById('measure-res-angle-primary');
+    if (primEl) primEl.textContent = `${angleVal.toFixed(1)}°`;
+
+    const decEl = document.getElementById('measure-res-angle-dec');
+    if (decEl) decEl.textContent = decVal;
+
+    const dmsEl = document.getElementById('measure-res-angle-dms');
+    if (dmsEl) dmsEl.textContent = dmsVal;
+
+    const l1El = document.getElementById('measure-res-angle-l1');
+    if (l1El) l1El.textContent = l1Val;
+
+    const l2El = document.getElementById('measure-res-angle-l2');
+    if (l2El) l2El.textContent = l2Val;
+  }
+
   createOrUpdateRadiusMeasurement(target, event = null) {
     if (!target) return;
     const isCtrl = Boolean(event && (event.ctrlKey || event.metaKey));
@@ -10646,7 +11714,7 @@ class BIMViewerApp {
    *  4. Steepest Descent Slope Arrow (`最大坡度方向箭头`) with a gap from the cursor ring
    */
   createStandardMeasureMarkerMesh(id, options = {}) {
-    const { showSlopeArrow = true } = options;
+    const { showSlopeArrow = true, themeColor = 0x00f0ff } = options;
     const group = new THREE.Group();
     group.userData = { isMeasureMarker: true, markerId: id };
 
@@ -10671,7 +11739,7 @@ class BIMViewerApp {
 
     const ringGeom = new THREE.RingGeometry(0.48, 0.66, 32);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
+      color: themeColor,
       transparent: true,
       opacity: 0.96,
       side: THREE.DoubleSide,
@@ -10706,7 +11774,7 @@ class BIMViewerApp {
     const crossGeom = new THREE.BufferGeometry();
     crossGeom.setAttribute('position', new THREE.BufferAttribute(crossVerts, 3));
     const crossMat = new THREE.LineBasicMaterial({
-      color: 0x00f0ff,
+      color: themeColor,
       transparent: true,
       opacity: 0.95,
       depthTest: false,
@@ -10726,7 +11794,7 @@ class BIMViewerApp {
 
     const patchFillGeom = new THREE.PlaneGeometry(2.8, 2.8);
     const patchFillMat = new THREE.MeshBasicMaterial({
-      color: 0x00f0ff,
+      color: themeColor,
       transparent: true,
       opacity: 0.20,
       side: THREE.DoubleSide,
@@ -10975,11 +12043,13 @@ class BIMViewerApp {
       this.measureMarkers.forEach(m => {
         const isActive = m.id === id;
         const isHovered = this.hoveredMeasureMarker === m;
+        const defaultColor = m.baseColor !== undefined ? m.baseColor : 0x38bdf8;
+        const activeColor = 0x00f0ff;
         if (m.ringMat) {
-          m.ringMat.color.setHex(isHovered ? 0xfbbf24 : (isActive ? 0x00f0ff : 0x38bdf8));
+          m.ringMat.color.setHex(isHovered ? 0xfbbf24 : (isActive ? activeColor : defaultColor));
         }
         if (m.crossMat) {
-          m.crossMat.color.setHex(isHovered ? 0xfbbf24 : (isActive ? 0x00f0ff : 0x38bdf8));
+          m.crossMat.color.setHex(isHovered ? 0xfbbf24 : (isActive ? activeColor : defaultColor));
         }
         if (m.calloutEl) {
           m.calloutEl.classList.toggle('active', isActive);
@@ -11001,14 +12071,15 @@ class BIMViewerApp {
 
   setMeasureMarkerDragging(marker, isDragging) {
     if (!marker) return;
+    const defaultColor = marker.baseColor !== undefined ? marker.baseColor : 0x00f0ff;
     if (marker.dragPatchGroup) {
       marker.dragPatchGroup.visible = Boolean(isDragging);
     }
     if (marker.ringMat) {
-      marker.ringMat.color.setHex(isDragging ? 0xfbbf24 : 0x00f0ff);
+      marker.ringMat.color.setHex(isDragging ? 0xfbbf24 : defaultColor);
     }
     if (marker.crossMat) {
-      marker.crossMat.color.setHex(isDragging ? 0xfbbf24 : 0x00f0ff);
+      marker.crossMat.color.setHex(isDragging ? 0xfbbf24 : defaultColor);
     }
     this.requestRender(200);
   }
@@ -11031,7 +12102,21 @@ class BIMViewerApp {
   }
 
   createOrUpdateMeasureCalloutDOM(marker) {
-    if (!marker) return;
+    if (!marker || marker.mode !== 'point') {
+      if (marker && marker.calloutEl && marker.calloutEl.parentNode) {
+        marker.calloutEl.parentNode.removeChild(marker.calloutEl);
+        marker.calloutEl = null;
+      }
+      if (marker && marker.leaderLineEl && marker.leaderLineEl.parentNode) {
+        marker.leaderLineEl.parentNode.removeChild(marker.leaderLineEl);
+        marker.leaderLineEl = null;
+      }
+      if (marker && marker.leaderDotEl && marker.leaderDotEl.parentNode) {
+        marker.leaderDotEl.parentNode.removeChild(marker.leaderDotEl);
+        marker.leaderDotEl = null;
+      }
+      return;
+    }
     const listEl = document.getElementById('measure-callouts-list');
     const svgEl = document.getElementById('measure-leader-svg');
     if (!listEl || !svgEl) return;
@@ -11192,7 +12277,8 @@ class BIMViewerApp {
     if (!this.camera || !this.container) return;
     const hasPointMarkers = Boolean(this.measureMarkers && this.measureMarkers.length > 0);
     const hasRadiusMarkers = Boolean(this.radiusMeasurements && this.radiusMeasurements.length > 0);
-    if (!hasPointMarkers && !hasRadiusMarkers) return;
+    const hasAngleMarkers = Boolean(this.angleMeasurements && this.angleMeasurements.length > 0);
+    if (!hasPointMarkers && !hasRadiusMarkers && !hasAngleMarkers) return;
 
     // Ensure camera world and inverse-world matrices reflect any immediate position/zoom changes (e.g. wheel zoom)
     this.camera.updateMatrixWorld();
@@ -11262,6 +12348,69 @@ class BIMViewerApp {
             marker.leaderDotEl.setAttribute('cx', sx.toFixed(1));
             marker.leaderDotEl.setAttribute('cy', sy.toFixed(1));
           }
+        }
+      }
+    }
+
+    // Update placed Distance Measurements (scale, projection & Liang-Barsky edge clamping)
+    const hasDistanceMeasurements = this.distanceMeasurements && this.distanceMeasurements.length > 0;
+    if (hasDistanceMeasurements) {
+      for (const distRec of this.distanceMeasurements) {
+        if (!distRec || !distRec.calloutEl || !distRec.marker1 || !distRec.marker2) continue;
+        const p0 = distRec.marker1.point;
+        const p1 = distRec.marker2.point;
+
+        projVec.copy(p0).project(this.camera);
+        const p0Behind = (projVec.z > 1.0 || projVec.z < -1.0);
+        const s0x = (projVec.x * 0.5 + 0.5) * cw;
+        const s0y = (-projVec.y * 0.5 + 0.5) * ch;
+
+        projVec.copy(p1).project(this.camera);
+        const p1Behind = (projVec.z > 1.0 || projVec.z < -1.0);
+        const s1x = (projVec.x * 0.5 + 0.5) * cw;
+        const s1y = (-projVec.y * 0.5 + 0.5) * ch;
+
+        if (p0Behind && p1Behind) {
+          distRec.calloutEl.style.display = 'none';
+          continue;
+        }
+
+        const safeMargin = 16;
+        const clipRes = this.clipSegmentToScreen(s0x, s0y, s1x, s1y, safeMargin, cw - safeMargin, safeMargin, ch - safeMargin);
+        if (!clipRes) {
+          distRec.calloutEl.style.display = 'none';
+        } else {
+          const t = Math.max(clipRes.t0, Math.min(clipRes.t1, 0.5));
+          const bx = s0x + t * (s1x - s0x);
+          const by = s0y + t * (s1y - s0y);
+
+          distRec.calloutEl.style.display = 'block';
+          distRec.calloutEl.style.transform = `translate3d(${Math.round(bx)}px, ${Math.round(by)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+    }
+
+    // Update placed Angle Measurements (screen projection of arc midpoint)
+    if (hasAngleMarkers) {
+      for (const angleRec of this.angleMeasurements) {
+        if (!angleRec || !angleRec.calloutEl || !angleRec.data) continue;
+        const V = angleRec.markerV.point;
+        const A = angleRec.markerA.point;
+        const B = angleRec.markerB.point;
+        const isHoriz = angleRec.mode === 'horizontal';
+
+        // Dynamically update arc geometry and retrieve screen-adaptive midPoint
+        const midPoint = this.updateAngleArcMesh(angleRec.arcLine, V, A, B, isHoriz, angleRec.data);
+
+        projVec.copy(midPoint).project(this.camera);
+        const isBehind = (projVec.z > 1.0 || projVec.z < -1.0);
+        if (isBehind) {
+          angleRec.calloutEl.style.display = 'none';
+        } else {
+          const sx = (projVec.x * 0.5 + 0.5) * cw;
+          const sy = (-projVec.y * 0.5 + 0.5) * ch;
+          angleRec.calloutEl.style.display = 'inline-flex';
+          angleRec.calloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
         }
       }
     }
@@ -11382,53 +12531,299 @@ class BIMViewerApp {
       return;
     }
 
-    if (this.measureMode !== 'distance') {
-      showToast(I18N.t('measurePendingNotice'), 'info');
-      return;
+    if (this.measureMode === 'distance') {
+      if (!isHitObj) return;
+      const isCtrl = Boolean(event && (event.ctrlKey || event.metaKey));
+      const isShift = Boolean(event && event.shiftKey);
+
+      if (isShift) return;
+
+      if (!this.pendingDistanceStart) {
+        // Step 1: Picking first point (p1)
+        if (!isCtrl && this.distanceMeasurements && this.distanceMeasurements.length > 0) {
+          const ids = this.distanceMeasurements.map(d => d.id);
+          ids.forEach(id => this.deleteDistanceMeasurement(id));
+        }
+
+        const marker1 = this.createDistanceEndpointMarker(effectiveHit, 'p1');
+        this.pendingDistanceStart = {
+          hit: effectiveHit,
+          point: effectiveHit.point.clone(),
+          marker1
+        };
+
+        const unit = this.measureUnit || 'm';
+        const scale = unit === 'mm' ? 1000 : 1;
+        const p1 = effectiveHit.point;
+        const p1El = document.getElementById('measure-res-p1');
+        if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
+        const p2El = document.getElementById('measure-res-p2');
+        if (p2El) p2El.textContent = '--';
+        const distEl = document.getElementById('measure-res-distance');
+        if (distEl) distEl.textContent = '--';
+        const dxEl = document.getElementById('measure-res-dx');
+        if (dxEl) dxEl.textContent = '--';
+        const dyEl = document.getElementById('measure-res-dy');
+        if (dyEl) dyEl.textContent = '--';
+        const dzEl = document.getElementById('measure-res-dz');
+        if (dzEl) dzEl.textContent = '--';
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measurePromptPickSecond');
+        showToast(I18N.t('measureEnd'), 'warning');
+        this.requestRender(200);
+        return;
+      } else {
+        // Step 2: Picking second point (p2) to finalize measurement
+        const start = this.pendingDistanceStart;
+        const marker1 = start.marker1;
+        const p1 = marker1.point;
+        const p2 = effectiveHit.point.clone();
+
+        const distId = `dist-meas-${++this.distanceMeasurementCounter}`;
+        marker1.distanceMeasurementId = distId;
+
+        const marker2 = this.createDistanceEndpointMarker(effectiveHit, 'p2', distId);
+
+        // Create 3D Solid line connecting marker1 and marker2
+        const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+        const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+          color: 0xf59e0b,
+          linewidth: 3,
+          depthTest: false,
+          depthWrite: false
+        }));
+        line.renderOrder = 1205;
+        line.userData = { isMeasureLine: true, distanceMeasurementId: distId };
+        this.scene.add(line);
+        this.measureLine = line;
+
+        // Create 3D XYZ Decomposition Lines (Red: ΔX, Green: ΔY, Blue: ΔZ)
+        const decompGroup = this.createXYZDecompGroup(p1, p2);
+        this.scene.add(decompGroup);
+
+        // Create 2D Callout badge
+        const listEl = document.getElementById('measure-callouts-layer') || this.container;
+        const calloutEl = document.createElement('div');
+        calloutEl.className = 'measure-distance-callout';
+
+        const dist = p1.distanceTo(p2);
+        const dx = Math.abs(p2.x - p1.x);
+        const dy = Math.abs((-p2.z) - (-p1.z));
+        const dz = Math.abs(p2.y - p1.y);
+
+        const distRec = {
+          id: distId,
+          index: this.distanceMeasurements.length + 1,
+          marker1,
+          marker2,
+          line,
+          decompGroup,
+          calloutEl,
+          data: { p1: p1.clone(), p2: p2.clone(), dist, dx, dy, dz }
+        };
+
+        calloutEl.onclick = (e) => {
+          e.stopPropagation();
+          if (e.shiftKey) {
+            this.deleteDistanceMeasurement(distRec.id);
+            return;
+          }
+          this.activeDistanceMeasurementId = distRec.id;
+          this.lastMeasurementData = distRec.data;
+          this.renderMeasurementResults();
+          const unit = this.measureUnit || 'm';
+          const scale = unit === 'mm' ? 1000 : 1;
+          const dVal = (distRec.data.dist * scale).toFixed(unit === 'mm' ? 0 : 3);
+          navigator.clipboard.writeText(`${dVal} ${unit}`).then(() => {
+            showToast(`${I18N.t('measureCopied') || 'Copied'}: ${dVal} ${unit}`, 'info');
+          }).catch(() => {});
+        };
+
+        if (listEl) listEl.appendChild(calloutEl);
+
+        this.distanceMeasurements.push(distRec);
+        this.activeDistanceMeasurementId = distId;
+        this.lastMeasurementData = distRec.data;
+
+        this.pendingDistanceStart = null;
+        this.hideDistancePreview();
+
+        this.updateDistanceCalloutDOM(distRec);
+        this.renderMeasurementResults();
+        this.updateMeasureMarkersAndCallouts();
+
+        const unit = this.measureUnit || 'm';
+        const scale = unit === 'mm' ? 1000 : 1;
+        const formattedDist = (dist * scale).toFixed(unit === 'mm' ? 0 : 3);
+        showToast(`${I18N.t('measureDist')}: ${formattedDist} ${unit}`, 'success');
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = `${I18N.t('measureDist')}: ${formattedDist} ${unit}. ${I18N.t('measurePromptPickFirst')}`;
+        this.requestRender(250);
+        return;
+      }
     }
 
-    this.measurePoints.push(point.clone());
-    const unit = this.measureUnit || 'm';
-    const scale = unit === 'mm' ? 1000 : 1;
-    const unitStr = unit;
+    if (this.measureMode === 'angle') {
+      const isCtrl = Boolean(event && (event.ctrlKey || event.metaKey));
+      const isShift = Boolean(event && event.shiftKey);
+      if (isShift) return;
 
-    if (this.measurePoints.length === 1) {
-      const p1 = this.measurePoints[0];
-      const p1El = document.getElementById('measure-res-p1');
-      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
-      const p2El = document.getElementById('measure-res-p2');
-      if (p2El) p2El.textContent = '--';
-      const hintEl = document.getElementById('measure-mode-hint');
-      if (hintEl) hintEl.textContent = I18N.t('measurePromptPickSecond');
-      showToast(I18N.t('measureEnd'), 'warning');
-    } else if (this.measurePoints.length === 2) {
-      const p1 = this.measurePoints[0];
-      const p2 = this.measurePoints[1];
-      const dist = p1.distanceTo(p2);
-      const dx = Math.abs(p2.x - p1.x);
-      const dy = Math.abs((-p2.z) - (-p1.z));
-      const dz = Math.abs(p2.y - p1.y);
-      
-      this.lastMeasurementData = { p1, p2, dist, dx, dy, dz };
-      this.renderMeasurementResults();
+      if (!this.pendingAngleState) {
+        // Step 1: Placing Angle Vertex (V)
+        if (!isCtrl && this.angleMeasurements && this.angleMeasurements.length > 0) {
+          const ids = this.angleMeasurements.map(a => a.id);
+          ids.forEach(id => this.deleteAngleMeasurement(id));
+        }
 
-      // Draw 3D Line
-      if (this.measureLine) {
-        if (this.measureLine.geometry) this.measureLine.geometry.dispose();
-        if (this.measureLine.material) this.measureLine.material.dispose();
-        this.scene.remove(this.measureLine);
+        const markerV = this.createAngleEndpointMarker(effectiveHit, 'vertex');
+        this.pendingAngleState = {
+          step: 1,
+          V: effectiveHit.point.clone(),
+          markerV
+        };
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measurePromptPickAngleArm1');
+        showToast(I18N.t('measurePromptPickAngleArm1'), 'info');
+        this.requestRender(200);
+        return;
+      } else if (this.pendingAngleState.step === 1) {
+        // Step 2: Placing Arm 1 Endpoint (A)
+        const V = this.pendingAngleState.V;
+        const A = effectiveHit.point.clone();
+        if (V.distanceTo(A) < 1e-3) {
+          showToast('Point too close to vertex', 'warning');
+          return;
+        }
+
+        const markerA = this.createAngleEndpointMarker(effectiveHit, 'arm1');
+
+        const geom1 = new THREE.BufferGeometry().setFromPoints([V, A]);
+        const line1 = new THREE.Line(geom1, new THREE.LineBasicMaterial({
+          color: 0xf59e0b,
+          linewidth: 3,
+          depthTest: false,
+          depthWrite: false
+        }));
+        line1.renderOrder = 1205;
+        this.scene.add(line1);
+
+        this.pendingAngleState.step = 2;
+        this.pendingAngleState.A = A;
+        this.pendingAngleState.markerA = markerA;
+        this.pendingAngleState.line1 = line1;
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measurePromptPickAngleArm2');
+        showToast(I18N.t('measurePromptPickAngleArm2'), 'info');
+        this.requestRender(200);
+        return;
+      } else if (this.pendingAngleState.step === 2) {
+        // Step 3: Placing Arm 2 Endpoint (B) - Finalize
+        const V = this.pendingAngleState.V;
+        const A = this.pendingAngleState.A;
+        const B = effectiveHit.point.clone();
+        if (V.distanceTo(B) < 1e-3) {
+          showToast('Point too close to vertex', 'warning');
+          return;
+        }
+
+        const angleId = `angle-meas-${++this.angleMeasurementCounter}`;
+        const markerV = this.pendingAngleState.markerV;
+        const markerA = this.pendingAngleState.markerA;
+        const markerB = this.createAngleEndpointMarker(effectiveHit, 'arm2', angleId);
+        markerV.angleMeasurementId = angleId;
+        markerA.angleMeasurementId = angleId;
+
+        const line1 = this.pendingAngleState.line1;
+        line1.userData = { isMeasureLine: true, angleMeasurementId: angleId };
+
+        const geom2 = new THREE.BufferGeometry().setFromPoints([V, B]);
+        const line2 = new THREE.Line(geom2, new THREE.LineBasicMaterial({
+          color: 0xf59e0b,
+          linewidth: 3,
+          depthTest: false,
+          depthWrite: false
+        }));
+        line2.renderOrder = 1205;
+        line2.userData = { isMeasureLine: true, angleMeasurementId: angleId };
+        this.scene.add(line2);
+
+        const data = this.computeAngleMeasurementData(V, A, B);
+
+        const projGroup = this.createAngleProjectionGroup(V, A, B, data.Aproj, data.Bproj);
+        this.scene.add(projGroup);
+
+        const arcObj = this.createAngleArcMesh(V, A, B, this.activeAngleMode === 'horizontal', data);
+        this.scene.add(arcObj.line);
+
+        const listEl = document.getElementById('measure-callouts-layer') || this.container;
+        const calloutEl = document.createElement('div');
+        calloutEl.className = 'measure-angle-callout';
+
+        const angleRec = {
+          id: angleId,
+          index: this.angleMeasurements.length + 1,
+          markerV,
+          markerA,
+          markerB,
+          line1,
+          line2,
+          projGroup,
+          arcLine: arcObj.line,
+          calloutEl,
+          data,
+          mode: this.activeAngleMode || 'horizontal'
+        };
+
+        calloutEl.onclick = (e) => {
+          e.stopPropagation();
+          if (e.target && e.target.classList.contains('measure-angle-mode-toggle')) {
+            this.toggleAngleMeasurementMode(angleRec.id);
+            return;
+          }
+          if (e.shiftKey) {
+            this.deleteAngleMeasurement(angleRec.id);
+            return;
+          }
+          this.activeAngleMeasurementId = angleRec.id;
+          this.lastMeasurementData = angleRec.data;
+          this.renderMeasurementResults();
+          const val = (angleRec.mode === 'horizontal' ? angleRec.data.angleHoriz : angleRec.data.angle3D).toFixed(1);
+          navigator.clipboard.writeText(`${val}°`).then(() => {
+            showToast(`${I18N.t('measureCopied') || 'Copied'}: ${val}°`, 'info');
+          }).catch(() => {});
+        };
+
+        if (listEl) listEl.appendChild(calloutEl);
+
+        this.angleMeasurements.push(angleRec);
+        this.activeAngleMeasurementId = angleId;
+        this.lastMeasurementData = angleRec.data;
+
+        this.hideAnglePreview();
+        this.pendingAngleState = null;
+
+        this.updateAngleCalloutDOM(angleRec);
+        this.renderMeasurementResults();
+        this.updateMeasureMarkersAndCallouts();
+
+        const displayVal = (this.activeAngleMode === 'horizontal' ? data.angleHoriz : data.angle3D).toFixed(1);
+        showToast(`${I18N.t('measureAngle')}: ${displayVal}°`, 'success');
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = `${I18N.t('measureAngle')}: ${displayVal}°. ${I18N.t('measurePromptPickAngleVertex')}`;
+        this.requestRender(250);
+        return;
       }
-      const geom = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-      this.measureLine = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3 }));
-      this.scene.add(this.measureLine);
-      
-      const formattedDist = (dist * scale).toFixed(unit === 'mm' ? 0 : 3);
-      showToast(`${I18N.t('measureDist')}: ${formattedDist} ${unitStr}`, 'success');
-      
-      const hintEl = document.getElementById('measure-mode-hint');
-      if (hintEl) hintEl.textContent = `${I18N.t('measureDist')}: ${formattedDist} ${unitStr}. ${I18N.t('measurePromptPickFirst')}`;
-      
-      this.measurePoints = [];
+    }
+
+
+    if (this.measureMode !== 'point' && this.measureMode !== 'radius' && this.measureMode !== 'distance' && this.measureMode !== 'angle') {
+      showToast(I18N.t('measurePendingNotice'), 'info');
+      return;
     }
   }
 
@@ -11436,12 +12831,15 @@ class BIMViewerApp {
     const ptView = document.getElementById('measure-result-point-view');
     const distView = document.getElementById('measure-result-dist-view');
     const radView = document.getElementById('measure-result-radius-view');
+    const angleView = document.getElementById('measure-result-angle-view');
     if (ptView && distView) {
       const showPt = this.measureMode === 'point';
       const showRad = this.measureMode === 'radius';
+      const showAngle = this.measureMode === 'angle';
       ptView.style.display = showPt ? 'block' : 'none';
-      distView.style.display = (!showPt && !showRad) ? 'block' : 'none';
+      distView.style.display = (this.measureMode === 'distance') ? 'block' : 'none';
       if (radView) radView.style.display = showRad ? 'block' : 'none';
+      if (angleView) angleView.style.display = showAngle ? 'block' : 'none';
     }
 
     // 1. Update Point Measurement Panel Card
@@ -11454,18 +12852,30 @@ class BIMViewerApp {
 
     if (activePt) {
       const c = this.formatMeasurePointCoords(activePt.point);
-      const s = this.formatSlopeString(activePt.slopeData);
+      const slopeExp = this.formatSlopeExpressions(activePt.slopeData);
       if (elevEl) elevEl.textContent = c.zStr;
       if (ptXEl) ptXEl.textContent = c.xStr;
       if (ptYEl) ptYEl.textContent = c.yStr;
       if (ptZEl) ptZEl.textContent = c.zStr;
-      if (ptSlopeEl) ptSlopeEl.textContent = s;
+      if (ptSlopeEl) ptSlopeEl.textContent = slopeExp.full;
+      const ptREl = document.getElementById('measure-res-pt-slope-ratio');
+      if (ptREl) ptREl.textContent = slopeExp.ratio;
+      const ptPEl = document.getElementById('measure-res-pt-slope-pct');
+      if (ptPEl) ptPEl.textContent = slopeExp.pct;
+      const ptDEl = document.getElementById('measure-res-pt-slope-deg');
+      if (ptDEl) ptDEl.textContent = slopeExp.deg;
     } else {
       if (elevEl) elevEl.textContent = '--';
       if (ptXEl) ptXEl.textContent = '--';
       if (ptYEl) ptYEl.textContent = '--';
       if (ptZEl) ptZEl.textContent = '--';
       if (ptSlopeEl) ptSlopeEl.textContent = '--';
+      const ptREl = document.getElementById('measure-res-pt-slope-ratio');
+      if (ptREl) ptREl.textContent = '--';
+      const ptPEl = document.getElementById('measure-res-pt-slope-pct');
+      if (ptPEl) ptPEl.textContent = '--';
+      const ptDEl = document.getElementById('measure-res-pt-slope-deg');
+      if (ptDEl) ptDEl.textContent = '--';
     }
 
     // Refresh all point callouts when unit changes
@@ -11475,6 +12885,7 @@ class BIMViewerApp {
     }
 
     // Refresh all radius callouts when unit changes
+
     if (this.radiusMeasurements && this.radiusMeasurements.length > 0) {
       const unit = this.measureUnit || 'm';
       const scale = unit === 'mm' ? 1000 : 1;
@@ -11490,25 +12901,100 @@ class BIMViewerApp {
       this.updateMeasureMarkersAndCallouts();
     }
 
-    // 2. Update Distance Measurement Panel Card
-    if (!this.lastMeasurementData) return;
-    const { p1, p2, dist, dx, dy, dz } = this.lastMeasurementData;
-    const unit = this.measureUnit || 'm';
-    const scale = unit === 'mm' ? 1000 : 1;
-    const unitStr = unit;
+    // Refresh all angle callouts & panel when unit changes
+    if (this.angleMeasurements && this.angleMeasurements.length > 0) {
+      this.angleMeasurements.forEach(a => this.updateAngleCalloutDOM(a));
+      this.updateMeasureMarkersAndCallouts();
+    }
 
+    // 4. Update Angle Measurement Panel Card
+    const activeAngle = (this.angleMeasurements && this.angleMeasurements.length > 0)
+      ? (this.angleMeasurements.find(a => a.id === this.activeAngleMeasurementId) || this.angleMeasurements[this.angleMeasurements.length - 1])
+      : null;
+
+    if (activeAngle && activeAngle.data) {
+      this.renderAngleMeasurementResults(activeAngle.data, activeAngle.mode || this.activeAngleMode);
+    } else if (this.lastMeasurementData && this.lastMeasurementData.angleHoriz !== undefined) {
+      this.renderAngleMeasurementResults(this.lastMeasurementData, this.activeAngleMode);
+    } else {
+      const primEl = document.getElementById('measure-res-angle-primary');
+      if (primEl) primEl.textContent = '--';
+      const decEl = document.getElementById('measure-res-angle-dec');
+      if (decEl) decEl.textContent = '--';
+      const dmsEl = document.getElementById('measure-res-angle-dms');
+      if (dmsEl) dmsEl.textContent = '--';
+      const l1El = document.getElementById('measure-res-angle-l1');
+      if (l1El) l1El.textContent = '--';
+      const l2El = document.getElementById('measure-res-angle-l2');
+      if (l2El) l2El.textContent = '--';
+    }
+
+    // Refresh all distance callouts when unit changes
+    if (this.distanceMeasurements && this.distanceMeasurements.length > 0) {
+      this.distanceMeasurements.forEach(d => this.updateDistanceCalloutDOM(d));
+      this.updateMeasureMarkersAndCallouts();
+    }
+
+    // 2. Update Distance Measurement Panel Card
     const resDistEl = document.getElementById('measure-res-distance');
-    if (resDistEl) resDistEl.textContent = `${(dist * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
     const dxEl = document.getElementById('measure-res-dx');
-    if (dxEl) dxEl.textContent = `${(dx * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
     const dyEl = document.getElementById('measure-res-dy');
-    if (dyEl) dyEl.textContent = `${(dy * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
     const dzEl = document.getElementById('measure-res-dz');
-    if (dzEl) dzEl.textContent = `${(dz * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
     const p1El = document.getElementById('measure-res-p1');
-    if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
     const p2El = document.getElementById('measure-res-p2');
-    if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(-p2.z * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)})`;
+
+    const activeDist = (this.distanceMeasurements && this.distanceMeasurements.length > 0)
+      ? (this.distanceMeasurements.find(d => d.id === this.activeDistanceMeasurementId) || this.distanceMeasurements[this.distanceMeasurements.length - 1])
+      : null;
+
+    if (activeDist && activeDist.data) {
+      const { p1, p2, dist, dx, dy, dz } = activeDist.data;
+      const unit = this.measureUnit || 'm';
+      const scale = unit === 'mm' ? 1000 : 1;
+      const unitStr = unit;
+
+      if (resDistEl) resDistEl.textContent = `${(dist * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+      if (dxEl) dxEl.textContent = `${(dx * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+      if (dyEl) dyEl.textContent = `${(dy * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+      if (dzEl) dzEl.textContent = `${(dz * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unitStr}`;
+      const slopeData = this.computeDistanceSlope(p1, p2);
+      const slopeExp = this.formatSlopeExpressions(slopeData);
+      const rEl = document.getElementById('measure-res-slope-ratio');
+      if (rEl) rEl.textContent = slopeExp.ratio;
+      const pEl = document.getElementById('measure-res-slope-pct');
+      if (pEl) pEl.textContent = slopeExp.pct;
+      const dEl = document.getElementById('measure-res-slope-deg');
+      if (dEl) dEl.textContent = slopeExp.deg;
+      const slopeEl = document.getElementById('measure-res-slope');
+      if (slopeEl) slopeEl.textContent = slopeExp.full;
+      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
+      if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(-p2.z * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)})`;
+    } else if (this.pendingDistanceStart) {
+      const p1 = this.pendingDistanceStart.point;
+      const unit = this.measureUnit || 'm';
+      const scale = unit === 'mm' ? 1000 : 1;
+      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
+      if (p2El) p2El.textContent = '--';
+      if (resDistEl) resDistEl.textContent = '--';
+      if (dxEl) dxEl.textContent = '--';
+      if (dyEl) dyEl.textContent = '--';
+      if (dzEl) dzEl.textContent = '--';
+    } else {
+      if (resDistEl) resDistEl.textContent = '--';
+      if (dxEl) dxEl.textContent = '--';
+      if (dyEl) dyEl.textContent = '--';
+      if (dzEl) dzEl.textContent = '--';
+      const rEl = document.getElementById('measure-res-slope-ratio');
+      if (rEl) rEl.textContent = '--';
+      const pEl = document.getElementById('measure-res-slope-pct');
+      if (pEl) pEl.textContent = '--';
+      const dEl = document.getElementById('measure-res-slope-deg');
+      if (dEl) dEl.textContent = '--';
+      const slopeEl = document.getElementById('measure-res-slope');
+      if (slopeEl) slopeEl.textContent = '--';
+      if (p1El) p1El.textContent = '--';
+      if (p2El) p2El.textContent = '--';
+    }
 
     // 3. Update Radius Measurement Panel Card
     const radValEl = document.getElementById('measure-res-radius');
@@ -11544,20 +13030,30 @@ class BIMViewerApp {
   clearMeasurement() {
     this.measurePoints = [];
     this.lastMeasurementData = null;
-    if (this.measureLine) {
-      if (this.measureLine.geometry) this.measureLine.geometry.dispose();
-      if (this.measureLine.material) this.measureLine.material.dispose();
-      this.scene.remove(this.measureLine);
-      this.measureLine = null;
-    }
 
-    if (this.measureMarkers && this.measureMarkers.length > 0) {
-      const ids = this.measureMarkers.map(m => m.id);
-      ids.forEach(id => this.deleteMeasurePoint(id));
+    // 1. Clear Angle Measurements (arms, arc lines, proj groups, endpoints, callouts)
+    if (this.angleMeasurements && this.angleMeasurements.length > 0) {
+      const angleIds = this.angleMeasurements.map(a => a.id);
+      angleIds.forEach(id => this.deleteAngleMeasurement(id));
     }
-    this.measurePointCounter = 0;
-    this.activeMeasurePointId = null;
+    this.angleMeasurements = [];
+    this.angleMeasurementCounter = 0;
+    this.activeAngleMeasurementId = null;
+    this.cancelPendingAngleStart();
+    this.hideAnglePreview();
 
+    // 2. Clear Distance Measurements (lines, decomp lines, endpoints, callouts)
+    if (this.distanceMeasurements && this.distanceMeasurements.length > 0) {
+      const distIds = this.distanceMeasurements.map(d => d.id);
+      distIds.forEach(id => this.deleteDistanceMeasurement(id));
+    }
+    this.distanceMeasurements = [];
+    this.distanceMeasurementCounter = 0;
+    this.activeDistanceMeasurementId = null;
+    this.cancelPendingDistanceStart();
+    this.hideDistancePreview();
+
+    // 3. Clear Radius Measurements (loops, centers, callouts)
     if (this.radiusMeasurements && this.radiusMeasurements.length > 0) {
       const radIds = this.radiusMeasurements.map(m => m.id);
       radIds.forEach(id => this.deleteRadiusMeasurement(id));
@@ -11567,29 +13063,75 @@ class BIMViewerApp {
     this.activeRadiusMeasurementId = null;
     this.hideRadiusPreview();
 
-    const resDistEl = document.getElementById('measure-res-distance');
-    if (resDistEl) resDistEl.textContent = '--';
-    const dxEl = document.getElementById('measure-res-dx');
-    if (dxEl) dxEl.textContent = '--';
-    const dyEl = document.getElementById('measure-res-dy');
-    if (dyEl) dyEl.textContent = '--';
-    const dzEl = document.getElementById('measure-res-dz');
-    if (dzEl) dzEl.textContent = '--';
-    const p1El = document.getElementById('measure-res-p1');
-    if (p1El) p1El.textContent = '--';
-    const p2El = document.getElementById('measure-res-p2');
-    if (p2El) p2El.textContent = '--';
+    // 4. Clear all Remaining Standard Point Markers
+    if (this.measureMarkers && this.measureMarkers.length > 0) {
+      const ids = this.measureMarkers.map(m => m.id);
+      ids.forEach(id => this.deleteMeasurePoint(id));
+    }
+    this.measureMarkers = [];
+    this.measurePointCounter = 0;
+    this.activeMeasurePointId = null;
+    this.hideMeasurePointPreview();
 
-    const radValEl = document.getElementById('measure-res-radius');
-    if (radValEl) radValEl.textContent = '--';
-    const diaValEl = document.getElementById('measure-res-diameter');
-    if (diaValEl) diaValEl.textContent = '--';
-    const typeValEl = document.getElementById('measure-res-geom-type');
-    if (typeValEl) typeValEl.textContent = '--';
-    const centerValEl = document.getElementById('measure-res-center');
-    if (centerValEl) centerValEl.textContent = '--';
-    const targetValEl = document.getElementById('measure-res-target-pt');
-    if (targetValEl) targetValEl.textContent = '--';
+    // 5. Clean up any 3D marker groups, decomp groups, or legacy measure lines
+    if (this.measureLine) {
+      if (this.measureLine.geometry) this.measureLine.geometry.dispose();
+      if (this.measureLine.material) this.measureLine.material.dispose();
+      this.scene.remove(this.measureLine);
+      this.measureLine = null;
+    }
+    if (this.measureMarkersGroup) {
+      while (this.measureMarkersGroup.children.length > 0) {
+        const obj = this.measureMarkersGroup.children[0];
+        obj.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m && m.dispose());
+            else child.material.dispose();
+          }
+        });
+        this.measureMarkersGroup.remove(obj);
+      }
+    }
+    if (this.distancePreviewDecompGroup) {
+      this.distancePreviewDecompGroup.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      });
+      this.scene.remove(this.distancePreviewDecompGroup);
+      this.distancePreviewDecompGroup = null;
+    }
+
+    // 6. Clean up 2D Callouts & Leader SVGs from DOM
+    const calloutsList = document.getElementById('measure-callouts-list');
+    if (calloutsList) calloutsList.innerHTML = '';
+    const svgEl = document.getElementById('measure-leader-svg');
+    if (svgEl) svgEl.innerHTML = '';
+    const calloutsLayer = document.getElementById('measure-callouts-layer');
+    if (calloutsLayer) {
+      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview)');
+      placedCallouts.forEach(el => el.remove());
+    }
+
+    // 7. Clear Snap Engine indicators
+    if (this.snapEngine) {
+      this.snapEngine.clear();
+    }
+
+    // 8. Reset all Floating Tool Panel values to '--'
+    const resetIds = [
+      'measure-res-pt-elev', 'measure-res-pt-x', 'measure-res-pt-y', 'measure-res-pt-z',
+      'measure-res-pt-slope-ratio', 'measure-res-pt-slope-pct', 'measure-res-pt-slope-deg',
+      'measure-res-distance', 'measure-res-dx', 'measure-res-dy', 'measure-res-dz',
+      'measure-res-slope-ratio', 'measure-res-slope-pct', 'measure-res-slope-deg', 'measure-res-slope',
+      'measure-res-p1', 'measure-res-p2',
+      'measure-res-radius', 'measure-res-diameter', 'measure-res-geom-type', 'measure-res-center', 'measure-res-target-pt',
+      'measure-res-angle-primary', 'measure-res-angle-dec', 'measure-res-angle-dms', 'measure-res-angle-l1', 'measure-res-angle-l2'
+    ];
+    resetIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '--';
+    });
 
     this.renderMeasurementResults();
 
@@ -11597,7 +13139,13 @@ class BIMViewerApp {
     if (hintEl) {
       hintEl.textContent = this.measureMode === 'point'
         ? I18N.t('measurePointHint')
-        : (this.measureMode === 'radius' ? I18N.t('measureRadiusHint') : (this.measureMode === 'distance' ? I18N.t('measurePromptPickFirst') : I18N.t('measurePendingNotice')));
+        : (this.measureMode === 'radius'
+          ? I18N.t('measureRadiusHint')
+          : (this.measureMode === 'distance'
+            ? I18N.t('measurePromptPickFirst')
+            : (this.measureMode === 'angle'
+              ? (I18N.t('measureAnglePromptPickVertex') || 'Click surface to place Angle Vertex (Point 1/3)')
+              : I18N.t('measurePendingNotice'))));
     }
     this.requestRender(200);
   }
@@ -12202,7 +13750,49 @@ class BIMViewerApp {
         this.clearMeasurement();
       });
     }
+
+    // Measure Value Copy Buttons in Floating Tool Panel (Visual #0284c7 flash with 1s fade, no text change)
+    document.querySelectorAll('.measure-val-copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const targetId = btn.getAttribute('data-target');
+        const targetEl = targetId ? document.getElementById(targetId) : null;
+        if (!targetEl) return;
+        const text = (targetEl.textContent || '').trim();
+        if (!text || text === '--') return;
+
+        // Clipboard write without touching button innerHTML
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          });
+        }
+
+        // Highlight with #0284c7 then smoothly fade out over 1s back to normal
+        btn.classList.remove('fading');
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.classList.add('fading');
+          btn.classList.remove('copied');
+        }, 80);
+      });
+    });
     
+    const angleToggleBtn = document.getElementById('btn-measure-angle-toggle-panel');
+    if (angleToggleBtn) {
+      angleToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleAngleMeasurementMode();
+      });
+    }
+
     // 6. Left Sidebar Tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -12761,13 +14351,20 @@ class BIMViewerApp {
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
     const hintEl = document.getElementById('measure-mode-hint');
+    if (mode !== 'distance') {
+      this.cancelPendingDistanceStart();
+    }
+    if (mode !== 'angle') {
+      this.cancelPendingAngleStart();
+    }
     if (mode === 'point') {
       if (hintEl) hintEl.textContent = I18N.t('measurePointHint');
       this.isMeasureMode = true;
       if (this.canvas) this.canvas.style.cursor = 'crosshair';
       this.hideRadiusPreview();
+      this.hideDistancePreview();
     } else if (mode === 'distance') {
-      if (hintEl) hintEl.textContent = this.measurePoints.length === 1 ? I18N.t('measurePromptPickSecond') : I18N.t('measurePromptPickFirst');
+      if (hintEl) hintEl.textContent = this.pendingDistanceStart ? I18N.t('measurePromptPickSecond') : I18N.t('measurePromptPickFirst');
       this.isMeasureMode = true;
       if (this.canvas) this.canvas.style.cursor = 'crosshair';
       this.hideMeasurePointPreview();
@@ -12777,12 +14374,26 @@ class BIMViewerApp {
       this.isMeasureMode = true;
       if (this.canvas) this.canvas.style.cursor = 'crosshair';
       this.hideMeasurePointPreview();
+      this.hideDistancePreview();
+      this.hideAnglePreview();
+    } else if (mode === 'angle') {
+      if (hintEl) {
+        if (!this.pendingAngleState) hintEl.textContent = I18N.t('measurePromptPickAngleVertex');
+        else if (this.pendingAngleState.step === 1) hintEl.textContent = I18N.t('measurePromptPickAngleArm1');
+        else if (this.pendingAngleState.step === 2) hintEl.textContent = I18N.t('measurePromptPickAngleArm2');
+      }
+      this.isMeasureMode = true;
+      if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
+      this.hideDistancePreview();
     } else {
       if (hintEl) hintEl.textContent = I18N.t('measurePendingNotice');
       this.isMeasureMode = false;
       if (this.canvas) this.canvas.style.cursor = 'default';
       this.hideMeasurePointPreview();
       this.hideRadiusPreview();
+      this.hideDistancePreview();
     }
     this.renderMeasurementResults();
   }
@@ -13216,7 +14827,7 @@ class BIMViewerApp {
         }
         this.renderer.setSize(cw, ch);
         this.needsRender = true;
-        if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+        if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
           this.updateMeasureMarkersAndCallouts();
         }
 
@@ -13252,7 +14863,7 @@ class BIMViewerApp {
           this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
         }
 
-        if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0)) {
+        if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
           this.updateMeasureMarkersAndCallouts();
         }
 

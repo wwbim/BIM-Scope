@@ -375,7 +375,7 @@
 
 			}
 
-			const isLocalBlob = resolvedURL && ( resolvedURL.indexOf( 'blob:' ) === 0 || resolvedURL.indexOf( 'data:' ) === 0 || resolvedURL.indexOf( 'http://' ) === 0 || resolvedURL.indexOf( 'https://' ) === 0 );
+			const isLocalBlob = resolvedURL && ( resolvedURL.indexOf( 'blob:' ) === 0 || resolvedURL.indexOf( 'data:' ) === 0 );
 
 			if ( ! isLocalBlob && resolvedURL === fileName ) {
 

@@ -935,24 +935,51 @@ def generate_html(variant_cfg, sources):
                   <div id="measure-result-point-view">
                     <div class="measure-result-primary">
                       <span class="measure-result-label" data-i18n="measureElevPrimary">Elevation (Z / RL)</span>
-                      <span class="measure-result-val" id="measure-res-pt-elev">--</span>
+                      <div class="measure-val-box">
+                        <span class="measure-result-val" id="measure-res-pt-elev">--</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-elev" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
                     </div>
                     <div class="measure-result-details" style="margin-top:6px;">
                       <div class="measure-detail-row">
-                        <span class="measure-detail-label" data-i18n="measureCoordX">X (Easting):</span>
-                        <span class="measure-detail-val" id="measure-res-pt-x">--</span>
+                        <span class="measure-detail-label"><span class="measure-axis-x">X</span> <span data-i18n="measureCoordSuffixX">(Easting):</span></span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-pt-x">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-x" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-detail-row">
-                        <span class="measure-detail-label" data-i18n="measureCoordY">Y (Northing):</span>
-                        <span class="measure-detail-val" id="measure-res-pt-y">--</span>
+                        <span class="measure-detail-label"><span class="measure-axis-y">Y</span> <span data-i18n="measureCoordSuffixY">(Northing):</span></span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-pt-y">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-y" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-detail-row">
-                        <span class="measure-detail-label" data-i18n="measureCoordZ">Z (Elevation):</span>
-                        <span class="measure-detail-val" id="measure-res-pt-z">--</span>
+                        <span class="measure-detail-label"><span class="measure-axis-z">Z</span> <span data-i18n="measureCoordSuffixZ">(Elevation):</span></span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-pt-z">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-z" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
-                      <div class="measure-detail-row" style="margin-top:2px;padding-top:4px;border-top:1px dashed var(--border-color);">
+                      <div class="measure-detail-row measure-slope-row" style="margin-top:2px;padding-top:4px;border-top:1px dashed var(--border-color);">
                         <span class="measure-detail-label" data-i18n="measureMaxSlope">Max Slope:</span>
-                        <span class="measure-detail-val" id="measure-res-pt-slope" style="color:var(--accent);font-weight:600;">--</span>
+                        <div class="measure-slope-badges">
+                          <div class="measure-val-box">
+                            <span class="measure-detail-val" id="measure-res-pt-slope-ratio" style="font-weight:600;">--</span>
+                            <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-slope-ratio" title="Copy Ratio" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                          <span class="measure-slope-sep">·</span>
+                          <div class="measure-val-box">
+                            <span class="measure-detail-val" id="measure-res-pt-slope-pct" style="font-weight:600;">--</span>
+                            <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-slope-pct" title="Copy Grade %" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                          <span class="measure-slope-sep">·</span>
+                          <div class="measure-val-box">
+                            <span class="measure-detail-val" id="measure-res-pt-slope-deg" style="font-weight:600;">--</span>
+                            <button type="button" class="measure-val-copy-btn" data-target="measure-res-pt-slope-deg" title="Copy Angle" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -961,28 +988,95 @@ def generate_html(variant_cfg, sources):
                   <div id="measure-result-dist-view" style="display:none;">
                     <div class="measure-result-primary">
                       <span class="measure-result-label" data-i18n="measureResultDist">Direct Distance</span>
-                      <span class="measure-result-val" id="measure-res-distance">--</span>
+                      <div class="measure-val-box">
+                        <span class="measure-result-val" id="measure-res-distance">--</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-distance" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
                     </div>
                     <div class="measure-result-details" id="measure-result-details" style="margin-top:6px;">
                       <div class="measure-detail-row">
-                        <span class="measure-detail-label">ΔX (Easting):</span>
-                        <span class="measure-detail-val" id="measure-res-dx">--</span>
+                        <span class="measure-detail-label"><span class="measure-axis-x">ΔX</span> <span data-i18n="measureCoordSuffixX">(Easting):</span></span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-dx">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-dx" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-detail-row">
-                        <span class="measure-detail-label">ΔY (Northing):</span>
-                        <span class="measure-detail-val" id="measure-res-dy">--</span>
+                        <span class="measure-detail-label"><span class="measure-axis-y">ΔY</span> <span data-i18n="measureCoordSuffixY">(Northing):</span></span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-dy">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-dy" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-detail-row">
-                        <span class="measure-detail-label">ΔZ (Elevation):</span>
-                        <span class="measure-detail-val" id="measure-res-dz">--</span>
+                        <span class="measure-detail-label"><span class="measure-axis-z">ΔZ</span> <span data-i18n="measureCoordSuffixZ">(Elevation):</span></span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-dz">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-dz" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
-                      <div class="measure-coord-row">
-                        <span class="measure-coord-label" data-i18n="measurePoint1">P1:</span>
-                        <span class="measure-coord-val" id="measure-res-p1">--</span>
+                      <div class="measure-detail-row measure-slope-row" style="margin-top:2px;padding-top:4px;border-top:1px dashed var(--border-color);">
+                        <span class="measure-detail-label" data-i18n="measureSlope">Slope:</span>
+                        <div class="measure-slope-badges">
+                          <div class="measure-val-box">
+                            <span class="measure-detail-val" id="measure-res-slope-ratio" style="font-weight:600;">--</span>
+                            <button type="button" class="measure-val-copy-btn" data-target="measure-res-slope-ratio" title="Copy Ratio" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                          <span class="measure-slope-sep">·</span>
+                          <div class="measure-val-box">
+                            <span class="measure-detail-val" id="measure-res-slope-pct" style="font-weight:600;">--</span>
+                            <button type="button" class="measure-val-copy-btn" data-target="measure-res-slope-pct" title="Copy Grade %" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                          <span class="measure-slope-sep">·</span>
+                          <div class="measure-val-box">
+                            <span class="measure-detail-val" id="measure-res-slope-deg" style="font-weight:600;">--</span>
+                            <button type="button" class="measure-val-copy-btn" data-target="measure-res-slope-deg" title="Copy Angle" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                          </div>
+                        </div>
                       </div>
-                      <div class="measure-coord-row">
-                        <span class="measure-coord-label" data-i18n="measurePoint2">P2:</span>
-                        <span class="measure-coord-val" id="measure-res-p2">--</span>
+                    </div>
+                  </div>
+
+                  <!-- Angle Measurement Result View -->
+                  <div id="measure-result-angle-view" style="display:none;">
+                    <div class="measure-result-primary">
+                      <div style="display:inline-flex;align-items:center;gap:6px;">
+                        <button type="button" class="measure-angle-toggle-btn" id="btn-measure-angle-toggle-panel" title="Toggle Horizontal / 3D Angle" data-i18n-title="measureAngleToggleTip">∠H</button>
+                        <span class="measure-result-label" id="measure-res-angle-label" data-i18n="measureAngleHoriz">Horizontal Angle (∠H)</span>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-result-val" id="measure-res-angle-primary">--</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-angle-primary" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <div class="measure-result-details" style="margin-top:6px;">
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureAngleDecimal">Decimal Angle:</span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-angle-dec">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-angle-dec" title="Copy Decimal Angle" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureAngleDMS">DMS (Deg Min Sec):</span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-angle-dms">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-angle-dms" title="Copy DMS Angle" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
+                      </div>
+                      <div class="measure-detail-row" style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--border-color);">
+                        <span class="measure-detail-label" data-i18n="measureAngleArm1Len">Arm 1 Length (L1):</span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-angle-l1">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-angle-l1" title="Copy Arm 1 Length" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
+                      </div>
+                      <div class="measure-detail-row">
+                        <span class="measure-detail-label" data-i18n="measureAngleArm2Len">Arm 2 Length (L2):</span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-angle-l2">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-angle-l2" title="Copy Arm 2 Length" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -991,24 +1085,39 @@ def generate_html(variant_cfg, sources):
                   <div id="measure-result-radius-view" style="display:none;">
                     <div class="measure-result-primary">
                       <span class="measure-result-label" data-i18n="measureResRadius">Radius (R)</span>
-                      <span class="measure-result-val" id="measure-res-radius">--</span>
+                      <div class="measure-val-box">
+                        <span class="measure-result-val" id="measure-res-radius">--</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-radius" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
                     </div>
                     <div class="measure-result-details" style="margin-top:6px;">
                       <div class="measure-detail-row">
                         <span class="measure-detail-label" data-i18n="measureResDiameter">Diameter (Ø):</span>
-                        <span class="measure-detail-val" id="measure-res-diameter" style="color:var(--accent);font-weight:600;">--</span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-diameter" style="color:var(--accent);font-weight:600;">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-diameter" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-detail-row">
                         <span class="measure-detail-label" data-i18n="measureResType">Geometry Type:</span>
-                        <span class="measure-detail-val" id="measure-res-geom-type">--</span>
+                        <div class="measure-val-box">
+                          <span class="measure-detail-val" id="measure-res-geom-type">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-geom-type" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-coord-row" style="margin-top:4px;padding-top:4px;border-top:1px dashed var(--border-color);">
                         <span class="measure-coord-label" data-i18n="measureResCenter">Center:</span>
-                        <span class="measure-coord-val" id="measure-res-center">--</span>
+                        <div class="measure-val-box">
+                          <span class="measure-coord-val" id="measure-res-center">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-center" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                       <div class="measure-coord-row">
                         <span class="measure-coord-label" data-i18n="measureResPoint">Surface Pt:</span>
-                        <span class="measure-coord-val" id="measure-res-target-pt">--</span>
+                        <div class="measure-val-box">
+                          <span class="measure-coord-val" id="measure-res-target-pt">--</span>
+                          <button type="button" class="measure-val-copy-btn" data-target="measure-res-target-pt" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                        </div>
                       </div>
                     </div>
                   </div>

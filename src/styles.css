@@ -842,7 +842,9 @@ svg.help-btn-svg {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.measure-radius-callout {
+.measure-radius-callout,
+.measure-distance-callout,
+.measure-angle-callout {
   position: absolute;
   top: 0;
   left: 0;
@@ -866,28 +868,36 @@ svg.help-btn-svg {
   transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.measure-radius-callout:hover {
-  background: rgba(245, 158, 11, 0.2);
-  border-color: #fbbf24;
+.measure-radius-callout:hover,
+.measure-distance-callout:hover,
+.measure-angle-callout:hover {
+  background: #5a698e;
+  border-color: #7e8ea6;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 8px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 6px rgba(90, 105, 142, 0.4);
 }
 
-.measure-radius-callout.preview {
+.measure-radius-callout.preview,
+.measure-distance-callout.preview,
+.measure-angle-callout.preview {
   opacity: 0.9;
   border-style: dashed;
   pointer-events: none;
   cursor: default;
 }
 
-[data-theme="light"] .measure-radius-callout {
+[data-theme="light"] .measure-radius-callout,
+[data-theme="light"] .measure-distance-callout,
+[data-theme="light"] .measure-angle-callout {
   background: rgba(255, 255, 255, 0.94);
   border-color: rgba(217, 119, 6, 0.7);
   color: #b45309;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.16);
 }
 
-[data-theme="light"] .measure-radius-callout:hover {
+[data-theme="light"] .measure-radius-callout:hover,
+[data-theme="light"] .measure-distance-callout:hover,
+[data-theme="light"] .measure-angle-callout:hover {
   background: #fef3c7;
   border-color: #b45309;
   color: #78350f;
@@ -1282,7 +1292,26 @@ svg.help-btn-svg {
 }
 
 .measure-detail-val {
-  color: var(--text-primary);
+  color: #cdcbb4;
+}
+
+[data-theme="light"] .measure-detail-val {
+  color: #334155;
+}
+
+.measure-axis-x {
+  color: #ff3b30;
+  font-weight: 700;
+}
+
+.measure-axis-y {
+  color: #00e676;
+  font-weight: 700;
+}
+
+.measure-axis-z {
+  color: #0050ff;
+  font-weight: 700;
 }
 
 .measure-coord-row {
@@ -1296,6 +1325,64 @@ svg.help-btn-svg {
 
 .measure-coord-val {
   color: var(--text-secondary);
+}
+
+.measure-val-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.measure-val-copy-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 1px 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+  width: 17px;
+  height: 17px;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.measure-val-copy-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+  opacity: 1.0;
+}
+
+.measure-val-copy-btn.copied {
+  background-color: #0284c7 !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
+  opacity: 1.0 !important;
+  box-shadow: 0 0 8px rgba(2, 132, 199, 0.65) !important;
+  transition: none !important;
+}
+
+.measure-val-copy-btn.fading {
+  transition: background-color 1s ease, border-color 1s ease, color 1s ease, box-shadow 1s ease, opacity 1s ease !important;
+}
+
+.measure-slope-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.measure-slope-sep {
+  color: var(--text-muted);
+  font-size: 11px;
+  user-select: none;
+  padding: 0 1px;
 }
 
 /* DROPZONE OVERLAY */
@@ -5676,4 +5763,50 @@ mark.help-match-highlight {
   background: rgba(255, 255, 255, 0.94);
   color: var(--text-secondary);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+}
+
+.measure-angle-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.measure-angle-mode-toggle,
+.measure-angle-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 132, 199, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1.1;
+  vertical-align: middle;
+}
+
+.measure-angle-mode-toggle:hover,
+.measure-angle-toggle-btn:hover {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(2, 132, 199, 0.5);
+}
+
+[data-theme="light"] .measure-angle-mode-toggle,
+[data-theme="light"] .measure-angle-toggle-btn {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+[data-theme="light"] .measure-angle-mode-toggle:hover,
+[data-theme="light"] .measure-angle-toggle-btn:hover {
+  background: #0284c7;
+  color: #ffffff;
 }
