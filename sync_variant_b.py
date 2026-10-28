@@ -386,7 +386,7 @@ def run_sync(do_push=False):
         subprocess.run([py_exe, "build_viewer.py", "--variant=B"], cwd=target_proj_dir, check=True)
 
     # 4. Git status & auto-commit/push for Deliverables (Publish target: samwoh/SWBIM-Scope, deliverables only)
-    print("\n[4/4] Checking Git repository status for Deliverables (Publish Target: samwoh/SWBIM-Scope)...")
+    print("\n[4/5] Checking Git repository status for Deliverables (Publish Target: samwoh/SWBIM-Scope)...")
     git_dir = os.path.join(target_deliv_dir, ".git")
     if os.path.exists(git_dir):
         try:
@@ -410,7 +410,7 @@ def run_sync(do_push=False):
                 print("  - Working tree in Deliverables is clean.")
 
             if do_push:
-                print("  - Pushing changes to https://github.com/samwoh/SWBIM-Scope.git...")
+                print("  - Pushing changes to https://github.com/samwoh/SWBIM-Scope.git (Account: Samwoh-WW)...")
                 push_res = subprocess.run(["git", "push", "origin", "main"], cwd=target_deliv_dir, capture_output=True, text=True)
                 if push_res.returncode == 0:
                     print("  - Successfully pushed to remote repository! (origin/main)")
@@ -422,6 +422,44 @@ def run_sync(do_push=False):
             print(f"  - Git operation notice: {e}")
     else:
         print(f"  - Notice: Deliverables directory {target_deliv_dir} is not yet a Git repository.")
+
+    # 5. Git status & auto-commit/push for Source Project B (Publish target: Samwoh-WW/SWBIM-Scope)
+    print("\n[5/5] Checking Git repository status for Source Project B (Publish Target: Samwoh-WW/SWBIM-Scope)...")
+    src_b_git = os.path.join(target_proj_dir, ".git")
+    if os.path.exists(src_b_git):
+        try:
+            status_res = subprocess.run(["git", "status", "-s"], cwd=target_proj_dir, capture_output=True, text=True)
+            changes = status_res.stdout.strip()
+            if changes:
+                print(f"  - Detected local changes in {target_proj_dir}:\n{changes}")
+                subprocess.run(["git", "add", "-A"], cwd=target_proj_dir, check=True)
+                try:
+                    log_res = subprocess.run(["git", "log", "-1", "--pretty=%B"], cwd=BASE_DIR, capture_output=True, text=True)
+                    commit_msg = log_res.stdout.strip()
+                    commit_msg = commit_msg.replace("BIM Scope", "SWBIM Scope")
+                    if not commit_msg or "variant" in commit_msg.lower():
+                        commit_msg = "feat: sync codebase and enhancements from primary variant"
+                except Exception:
+                    commit_msg = "feat: sync codebase and enhancements from primary variant"
+
+                subprocess.run(["git", "commit", "-m", commit_msg], cwd=target_proj_dir, check=True)
+                print(f"  - Created local commit: {commit_msg}")
+            else:
+                print("  - Working tree in Source Project B is clean.")
+
+            if do_push:
+                print("  - Pushing changes to https://github.com/Samwoh-WW/SWBIM-Scope.git (Account: Samwoh-WW)...")
+                push_res = subprocess.run(["git", "push", "origin", "main"], cwd=target_proj_dir, capture_output=True, text=True)
+                if push_res.returncode == 0:
+                    print("  - Successfully pushed to remote repository! (origin/main)")
+                else:
+                    print(f"  - Notice: Push failed: {push_res.stderr.strip()}")
+            else:
+                print("  - [PAUSED] Remote publish is DISABLED by default. Changes remain local in Source Project B until user explicitly instructs push.")
+        except Exception as e:
+            print(f"  - Git operation notice: {e}")
+    else:
+        print(f"  - Notice: Source Project B directory {target_proj_dir} is not yet a Git repository.")
 
     print("=" * 60)
     print("  Sync and Build for Variant B Complete!")
