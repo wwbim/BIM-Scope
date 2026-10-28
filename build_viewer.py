@@ -927,7 +927,10 @@ def generate_html(variant_cfg, sources):
               <div class="control-section" id="measure-results-panel">
                 <div class="control-title" style="display:flex;justify-content:space-between;align-items:center;">
                   <span data-i18n="measureResultsTitle">Measurement Results</span>
-                  <button type="button" class="small-btn" id="btn-measure-clear" data-i18n="measureClearBtn" style="padding:2px 8px;font-size:10.5px;">Clear</button>
+                  <div style="display:inline-flex;align-items:center;gap:6px;">
+                    <button type="button" class="small-btn measure-done-btn" id="btn-measure-multi-done" style="display:none;padding:2px 8px;font-size:10.5px;background:#0284c7;color:#fff;border-color:#38bdf8;" data-i18n="measureDoneBtn">Done</button>
+                    <button type="button" class="small-btn" id="btn-measure-clear" data-i18n="measureClearBtn" style="padding:2px 8px;font-size:10.5px;">Clear</button>
+                  </div>
                 </div>
                 
                 <div class="measure-result-card" id="measure-result-card">
@@ -1121,6 +1124,50 @@ def generate_html(variant_cfg, sources):
                       </div>
                     </div>
                   </div>
+
+                  <!-- Multi-Point Cumulative Distance Result View -->
+                  <div id="measure-result-multi-view" style="display:none;">
+                    <div class="measure-result-primary">
+                      <div style="display:inline-flex;align-items:center;gap:6px;">
+                        <span class="measure-result-label" data-i18n="measureMultiTotal">Total Length</span>
+                        <span class="measure-multi-count-badge" id="measure-multi-seg-count">0 segs</span>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-result-val" id="measure-res-multi-total">--</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-total" title="Copy Total Distance" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <!-- Multi-Point 3D Spatial Area Row -->
+                    <div class="measure-detail-row" id="measure-multi-3d-area-row" style="margin-top:5px;align-items:center;padding:2px 4px;cursor:pointer;" title="Click to activate 3D Area in viewport">
+                      <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <span class="measure-result-label" id="measure-multi-3d-area-label" data-i18n="measureMulti3DAreaClosed" style="font-size:11px;">3D Area (est.) (when closed)</span>
+                        <button type="button" class="measure-self-intersect-btn" id="measure-multi-self-intersect-btn" style="display:none;" title="Self-intersecting" data-i18n-title="measureSelfIntersectTitle">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(255, 59, 48, 0.25)" stroke="#ff3b30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 4h14l-7 8 7 8H5l7-8-7-8z"></path>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-detail-val" id="measure-res-multi-3d-area" style="font-weight:600;font-size:12px;">-.--- m²</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-3d-area" title="Copy 3D Area" data-i18n-title="measureCopy3DArea"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <!-- Multi-Point Horizontal Projected Area Row -->
+                    <div class="measure-detail-row" id="measure-multi-proj-area-row" style="margin-top:3px;align-items:center;padding:2px 4px;cursor:pointer;" title="Click to activate Projected Area in viewport">
+                      <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <span class="measure-result-label" id="measure-multi-proj-area-label" data-i18n="measureMultiProjAreaClosed" style="font-size:11px;">Proj Area (when closed)</span>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-detail-val" id="measure-res-multi-proj-area" style="font-weight:600;font-size:12px;">-.--- m²</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-proj-area" title="Copy Projected Area" data-i18n-title="measureCopyProjArea"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <div class="measure-result-details" id="measure-multi-segments-container" style="margin-top:6px;">
+                      <div class="measure-multi-segments-list" id="measure-multi-segments-list">
+                        <!-- Dynamically populated segment items: Pt #1 ~ Pt #2 : 3.520 m [copy] -->
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1195,6 +1242,26 @@ def generate_html(variant_cfg, sources):
           <div class="context-menu-item" id="menu-measure-delete-point" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
             <span data-i18n="menuDeleteMeasurePoint">Delete Measurement Point</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-delete-measurement" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            <span data-i18n="menuDeleteMeasurement">Delete Measurement</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-insert-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="5" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="19"></line><line x1="4" y1="12" x2="1" y2="12"></line><line x1="23" y1="12" x2="20" y2="12"></line></svg>
+            <span data-i18n="menuInsertMeasurePoint">Insert Measurement Point</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-prepend-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="menuPrependMeasurePoint">Add Point Before</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-append-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><polyline points="12 5 19 12 12 19"></polyline></svg>
+            <span data-i18n="menuAppendMeasurePoint">Add Point After</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-break-closure" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="6" y1="9" x2="6" y2="15"></line><line x1="9" y1="18" x2="15" y2="18"></line></svg>
+            <span data-i18n="menuBreakClosure">Break Closed Polyline</span>
           </div>
         </div>
 

@@ -1939,6 +1939,7 @@ class BimSnapEngine {
 
   showIndicator(snap, camera, container) {
     if (!this.indicatorGroup) return;
+    this.currentSnap = snap;
 
     this.indicatorGroup.position.copy(snap.point);
     this.indicatorGroup.visible = true;
@@ -2132,6 +2133,36 @@ class BIMViewerApp {
     this.anglePreviewCalloutEl = null;
     this.distancePreviewLine = null;
     this.distancePreviewBadgeEl = null;
+    this.multiPointState = {
+      isDrawing: false,
+      isClosed: false,
+      points: [],
+      markers: [],
+      lines: [],
+      segments: [],
+      totalLength: 0,
+      hoveredSegmentIndex: -1
+    };
+    this.multiPointPreviewLine = null;
+    this.multiPointHoverCalloutEl = null;
+    this.multiPointInsertSegIdx = -1;
+    this.multiPointDrawDir = 'append';
+    this.multiPointInsertPreviewLine = null;
+    this.contextMenuMultiPointSegIdx = -1;
+    this.multiPointClosurePopoverEl = null;
+    this.pendingClosureAction = null;
+    this.isSnappedToClosurePoint = false;
+    this.isDraggedSnapToOpposite = false;
+    this.multiPointAreaMesh = null;
+    this.multiPointAreaDropLines = null;
+    this.multiPointAreaMode = '3d';
+    this.multiPointAreaCalloutEl = null;
+    this.multiPointAreaCentroid3D = new THREE.Vector3();
+    this.multiPointAreaDataCache = null;
+    this.multiPointSelfIntersectingSegs = [];
+    this.multiPointSelfIntersectPoints = [];
+    this.multiPointSelfIntersectCenter = null;
+    this.multiPointGlowAnimId = null;
     this.measureMarkers = [];
     this.measurePointCounter = 0;
     this.activeMeasurePointId = null;
@@ -8348,7 +8379,14 @@ class BIMViewerApp {
 
         // Check hover on 3D Measurement Point Markers (draggable across all measure modes)
         if (this.measureMarkers && this.measureMarkers.length > 0) {
-          const markerHits = this.intersectMeasureMarkers(this.raycaster);
+          const isDrawingMP = (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2);
+          const markerHits = this.intersectMeasureMarkers(this.raycaster).filter(h => {
+            if (isDrawingMP && h.marker && h.marker.mode === 'multipoint') {
+              if (this.multiPointDrawDir === 'prepend' && h.marker.multiPointIndex === this.multiPointState.points.length - 1) return false;
+              if (this.multiPointDrawDir !== 'prepend' && h.marker.multiPointIndex === 0) return false;
+            }
+            return true;
+          });
           if (markerHits.length > 0) {
             this.setHoveredMeasureMarker(markerHits[0].marker);
             this.clearHoverOverlay();
@@ -8370,6 +8408,53 @@ class BIMViewerApp {
           snapResult = this.snapEngine.resolveSnap(clientX, clientY, this.camera, valid.length > 0 ? valid[0] : null);
         }
 
+        // Multi-point measurement: magnetic snap to closure point (Pt #1 in append, or Pt #last in prepend)
+        let multiPointClosureSnap = null;
+        if (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2 && this.multiPointInsertSegIdx < 0) {
+          const targetPt = (this.multiPointDrawDir === 'prepend')
+            ? this.multiPointState.points[this.multiPointState.points.length - 1]
+            : this.multiPointState.points[0];
+          const targetMarker = (this.multiPointDrawDir === 'prepend')
+            ? this.multiPointState.markers[this.multiPointState.markers.length - 1]
+            : this.multiPointState.markers[0];
+
+          if (targetPt) {
+            const proj = targetPt.clone().project(this.camera);
+            if (proj.z <= 1.0 && proj.z >= -1.0) {
+              const canvas = this.canvas || this.container;
+              const rect = canvas.getBoundingClientRect();
+              const cw = rect.width || this.container.clientWidth || 1;
+              const ch = rect.height || this.container.clientHeight || 1;
+              const sx = (proj.x * 0.5 + 0.5) * cw;
+              const sy = (-proj.y * 0.5 + 0.5) * ch;
+              const localX = clientX - rect.left;
+              const localY = clientY - rect.top;
+              const distPx = Math.hypot(localX - sx, localY - sy);
+              if (distPx <= 35) {
+                multiPointClosureSnap = {
+                  point: targetPt.clone(),
+                  normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
+                  targetMesh: targetMarker ? targetMarker.group : null,
+                  type: 'endpoint',
+                  hudIcon: '□',
+                  hudLabel: I18N.t('snapEndpoint') || 'Endpoint',
+                  screenX: sx,
+                  screenY: sy,
+                  isClosureSnap: true
+                };
+                snapResult = multiPointClosureSnap;
+                if (this.snapEngine) {
+                  this.snapEngine.showIndicator(snapResult, this.camera, this.container);
+                }
+                this.isSnappedToClosurePoint = true;
+              }
+            }
+          }
+        }
+        if (!multiPointClosureSnap) {
+          this.isSnappedToClosurePoint = false;
+        }
+
         if (this.isMeasureMode) {
           this.clearHoverOverlay();
           this.canvas.style.cursor = 'crosshair';
@@ -8377,7 +8462,8 @@ class BIMViewerApp {
             point: snapResult.point,
             normal: snapResult.normal,
             object: snapResult.targetMesh,
-            face: { normal: snapResult.normal }
+            face: { normal: snapResult.normal },
+            isClosureSnap: !!(snapResult && snapResult.isClosureSnap)
           } : (valid.length > 0 ? valid[0] : null);
 
           if (effectiveHit) {
@@ -8411,13 +8497,25 @@ class BIMViewerApp {
               if (this.pendingAngleState) {
                 this.updateAnglePreview(effectiveHit);
               }
+            } else if (this.measureMode === 'multipoint') {
+              if (this.multiPointInsertSegIdx >= 0) {
+                this.updateMultiPointInsertPreview(effectiveHit);
+              } else if (this.multiPointState && this.multiPointState.isDrawing) {
+                this.updateMultiPointPreview(effectiveHit);
+              }
             }
           } else {
             this.hideMeasurePointPreview();
             this.hideRadiusPreview();
             this.hideDistancePreview();
             this.hideAnglePreview();
+            this.hideMultiPointPreview();
           }
+
+          if (this.measureMode === 'multipoint' && this.multiPointState && !this.multiPointState.isDrawing) {
+            this.checkMultiPointSegmentHover(clientX, clientY);
+          }
+
           return;
         }
 
@@ -8507,7 +8605,14 @@ class BIMViewerApp {
 
         // Check if clicking or dragging a 3D Measurement Point Marker
         if (this.measureMarkers && this.measureMarkers.length > 0) {
-          const markerHits = this.intersectMeasureMarkers(this.raycaster);
+          const isDrawingMP = (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2);
+          const markerHits = this.intersectMeasureMarkers(this.raycaster).filter(h => {
+            if (isDrawingMP && !e.shiftKey && h.marker && h.marker.mode === 'multipoint') {
+              if (this.multiPointDrawDir === 'prepend' && h.marker.multiPointIndex === this.multiPointState.points.length - 1) return false;
+              if (this.multiPointDrawDir !== 'prepend' && h.marker.multiPointIndex === 0) return false;
+            }
+            return true;
+          });
           if (markerHits.length > 0) {
             const hitMarker = markerHits[0].marker;
             if (e.shiftKey) {
@@ -8515,6 +8620,8 @@ class BIMViewerApp {
                 this.deleteDistanceMeasurement(hitMarker.distanceMeasurementId);
               } else if (hitMarker.mode === 'angle') {
                 this.deleteAngleMeasurement(hitMarker.angleMeasurementId);
+              } else if (hitMarker.mode === 'multipoint') {
+                this.deleteMultiPointPoint(hitMarker.id);
               } else {
                 this.deleteMeasurePoint(hitMarker.id);
               }
@@ -8535,6 +8642,8 @@ class BIMViewerApp {
                 this.lastMeasurementData = angleRec.data;
                 this.renderMeasurementResults();
               }
+            } else if (hitMarker.mode === 'multipoint') {
+              this.renderMeasurementResults();
             }
             this.isDraggingMeasurePoint = true;
             this.draggingMeasureMarker = hitMarker;
@@ -8604,7 +8713,56 @@ class BIMViewerApp {
         const intersects = this.raycaster.intersectObjects(searchRoots, true);
         const valid = intersects.filter(hit => this.isPickableElement(hit.object));
         let effectiveHit = valid.length > 0 ? valid[0] : null;
-        if (this.snapEngine && this.snapEngine.enabled) {
+        let isDragOppositeSnap = false;
+        if (this.draggingMeasureMarker.mode === 'multipoint' && this.multiPointState && !this.multiPointState.isClosed && this.multiPointState.points.length >= 3) {
+          const mIdx = this.draggingMeasureMarker.multiPointIndex;
+          const totalPts = this.multiPointState.points.length;
+          if (mIdx === 0 || mIdx === totalPts - 1) {
+            const targetIdx = (mIdx === 0) ? (totalPts - 1) : 0;
+            const targetPt = this.multiPointState.points[targetIdx];
+            const targetMarker = this.multiPointState.markers[targetIdx];
+            if (targetPt) {
+              const proj = targetPt.clone().project(this.camera);
+              if (proj.z <= 1.0 && proj.z >= -1.0) {
+                const canvas = this.canvas || this.container;
+                const rect = canvas.getBoundingClientRect();
+                const cw = rect.width || this.container.clientWidth || 1;
+                const ch = rect.height || this.container.clientHeight || 1;
+                const sx = (proj.x * 0.5 + 0.5) * cw;
+                const sy = (-proj.y * 0.5 + 0.5) * ch;
+                const localX = e.clientX - rect.left;
+                const localY = e.clientY - rect.top;
+                const distPx = Math.hypot(localX - sx, localY - sy);
+                if (distPx <= 35) {
+                  isDragOppositeSnap = true;
+                  effectiveHit = {
+                    point: targetPt.clone(),
+                    normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
+                    object: targetMarker ? targetMarker.group : null,
+                    face: { normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0) },
+                    isDragClosureSnap: true
+                  };
+                  if (this.snapEngine) {
+                    this.snapEngine.showIndicator({
+                      point: targetPt,
+                      type: 'endpoint',
+                      hudIcon: '□',
+                      hudLabel: I18N.t('snapEndpoint') || 'Endpoint',
+                      screenX: sx,
+                      screenY: sy
+                    }, this.camera, this.container);
+                  }
+                  this.isDraggedSnapToOpposite = true;
+                }
+              }
+            }
+          }
+        }
+        if (!isDragOppositeSnap) {
+          this.isDraggedSnapToOpposite = false;
+        }
+
+        if (!isDragOppositeSnap && this.snapEngine && this.snapEngine.enabled) {
           const snap = this.snapEngine.resolveSnap(e.clientX, e.clientY, this.camera, effectiveHit);
           if (snap) {
             effectiveHit = {
@@ -8620,6 +8778,8 @@ class BIMViewerApp {
             this.updateDistanceEndpointFromHit(this.draggingMeasureMarker, effectiveHit);
           } else if (this.draggingMeasureMarker.mode === 'angle') {
             this.updateAnglePointFromHit(this.draggingMeasureMarker, effectiveHit);
+          } else if (this.draggingMeasureMarker.mode === 'multipoint') {
+            this.updateMultiPointFromHit(this.draggingMeasureMarker, effectiveHit);
           } else {
             this.updateMeasurePointFromHit(this.draggingMeasureMarker, effectiveHit);
           }
@@ -8670,8 +8830,40 @@ class BIMViewerApp {
       }
       if (this.isDraggingMeasurePoint) {
         if (this.draggingMeasureMarker) {
+          if (this.draggingMeasureMarker.mode === 'multipoint' && !this.multiPointState.isClosed && this.multiPointState.points.length >= 3) {
+            const mIdx = this.draggingMeasureMarker.multiPointIndex;
+            const totalPts = this.multiPointState.points.length;
+            if (mIdx === 0 || mIdx === totalPts - 1) {
+              const targetIdx = (mIdx === 0) ? (totalPts - 1) : 0;
+              const targetPt = this.multiPointState.points[targetIdx];
+              const curPt = this.draggingMeasureMarker.point;
+
+              const canvas = this.canvas || this.container;
+              const rect = canvas.getBoundingClientRect();
+              const cw = rect.width || this.container.clientWidth || 1;
+              const ch = rect.height || this.container.clientHeight || 1;
+              const proj = targetPt.clone().project(this.camera);
+              const sx = (proj.x * 0.5 + 0.5) * cw;
+              const sy = (-proj.y * 0.5 + 0.5) * ch;
+              const localX = e.clientX - rect.left;
+              const localY = e.clientY - rect.top;
+              const distPx = Math.hypot(localX - sx, localY - sy);
+
+              if (this.isDraggedSnapToOpposite || distPx <= 40 || curPt.distanceTo(targetPt) < 0.6) {
+                this.showMultiPointClosurePopover(targetPt, () => {
+                  this.mergeAndCloseMultiPointOnDrag(mIdx, targetIdx);
+                }, () => {
+                  if (this.snapEngine) this.snapEngine.hideIndicator();
+                });
+              }
+            }
+          }
           this.setMeasureMarkerDragging(this.draggingMeasureMarker, false);
         }
+        if (this.snapEngine && this.isDraggedSnapToOpposite) {
+          this.snapEngine.hideIndicator();
+        }
+        this.isDraggedSnapToOpposite = false;
         this.isDraggingMeasurePoint = false;
         this.draggingMeasureMarker = null;
         this.canvas.style.cursor = this.isMeasureMode ? 'crosshair' : 'default';
@@ -8713,6 +8905,13 @@ class BIMViewerApp {
             if (this.pivotHelper) this.pivotHelper.visible = false;
           }, 1200);
         }
+      }
+    });
+
+    // Double-click to finish Multi-Point measurement
+    this.canvas.addEventListener('dblclick', (e) => {
+      if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
+        this.finishMultiPointMeasurement();
       }
     });
 
@@ -8795,6 +8994,54 @@ class BIMViewerApp {
         const markerHits = this.intersectMeasureMarkers(this.raycaster);
         if (markerHits.length > 0) {
           this.contextMenuMeasureMarker = markerHits[0].marker;
+        }
+      }
+
+      this.contextMenuMultiPointSegIdx = -1;
+      if (!this.contextMenuMeasureMarker && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.segments && this.multiPointState.segments.length > 0) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX;
+        const my = e.clientY;
+        const cw = this.container.clientWidth || 1;
+        const ch = this.container.clientHeight || 1;
+        let bestDistSq = Infinity;
+        let bestSegIdx = -1;
+        const p0Proj = new THREE.Vector3();
+        const p1Proj = new THREE.Vector3();
+
+        for (let i = 0; i < this.multiPointState.segments.length; i++) {
+          const seg = this.multiPointState.segments[i];
+          const p0 = this.multiPointState.points[seg.from];
+          const p1 = this.multiPointState.points[seg.to];
+          if (!p0 || !p1) continue;
+
+          p0Proj.copy(p0).project(this.camera);
+          p1Proj.copy(p1).project(this.camera);
+          if ((p0Proj.z > 1.0 || p0Proj.z < -1.0) && (p1Proj.z > 1.0 || p1Proj.z < -1.0)) continue;
+
+          const s0x = rect.left + (p0Proj.x * 0.5 + 0.5) * cw;
+          const s0y = rect.top + (-p0Proj.y * 0.5 + 0.5) * ch;
+          const s1x = rect.left + (p1Proj.x * 0.5 + 0.5) * cw;
+          const s1y = rect.top + (-p1Proj.y * 0.5 + 0.5) * ch;
+
+          const dx = s1x - s0x;
+          const dy = s1y - s0y;
+          const lenSq = dx * dx + dy * dy;
+          let dSq;
+          if (lenSq === 0) {
+            dSq = (mx - s0x) ** 2 + (my - s0y) ** 2;
+          } else {
+            let t = Math.max(0, Math.min(1, ((mx - s0x) * dx + (my - s0y) * dy) / lenSq));
+            dSq = (mx - (s0x + t * dx)) ** 2 + (my - (s0y + t * dy)) ** 2;
+          }
+
+          if (dSq < 256 && dSq < bestDistSq) {
+            bestDistSq = dSq;
+            bestSegIdx = i;
+          }
+        }
+        if (bestSegIdx >= 0) {
+          this.contextMenuMultiPointSegIdx = bestSegIdx;
         }
       }
 
@@ -8915,18 +9162,34 @@ class BIMViewerApp {
     // Measurement Context Menu Items (Point Measure Mode / Marker Right-Click)
     const itemMeasureDivider = document.getElementById('menu-measure-divider');
     const itemMeasureCreate = document.getElementById('menu-measure-create-point');
-    const itemMeasureDelete = document.getElementById('menu-measure-delete-point');
-    const canCreateMeasurePt = !!(this.isMeasureMode && this.measureMode === 'point' && !this.contextMenuMeasureMarker && this.contextMenuMeasureSurfaceHit);
-    const canDeleteMeasurePt = !!this.contextMenuMeasureMarker;
+    const itemMeasureDeletePt = document.getElementById('menu-measure-delete-point');
+    const itemMeasureDeleteMeas = document.getElementById('menu-measure-delete-measurement');
+    const itemMeasureInsert = document.getElementById('menu-measure-insert-point');
+    const itemMeasurePrepend = document.getElementById('menu-measure-prepend-point');
+    const itemMeasureAppend = document.getElementById('menu-measure-append-point');
+    const itemMeasureBreak = document.getElementById('menu-measure-break-closure');
 
-    if (itemMeasureCreate) {
-      itemMeasureCreate.style.display = canCreateMeasurePt ? 'flex' : 'none';
-    }
-    if (itemMeasureDelete) {
-      itemMeasureDelete.style.display = canDeleteMeasurePt ? 'flex' : 'none';
-    }
+    const canCreateMeasurePt = !!(this.isMeasureMode && this.measureMode === 'point' && !this.contextMenuMeasureMarker && this.contextMenuMeasureSurfaceHit);
+    const marker = this.contextMenuMeasureMarker;
+    const isMultiPtMarker = !!(marker && marker.mode === 'multipoint' && this.multiPointState && this.multiPointState.markers);
+    const isClosedPolyline = !!(this.multiPointState && this.multiPointState.isClosed);
+    const canDeleteMeasurePt = !!(marker && (marker.mode === 'point' || marker.mode === 'multipoint'));
+    const canDeleteMeasurement = !!(marker && (marker.mode === 'distance' || marker.mode === 'angle'));
+
+    const canInsertPt = !!(this.contextMenuMultiPointSegIdx >= 0 && this.multiPointState && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0);
+    const canPrependPt = !!(isMultiPtMarker && marker.multiPointIndex === 0 && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0 && !isClosedPolyline);
+    const canAppendPt = !!(isMultiPtMarker && marker.multiPointIndex === (this.multiPointState.markers.length - 1) && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0 && !isClosedPolyline);
+    const canBreakClosure = !!(isMultiPtMarker && isClosedPolyline);
+
+    if (itemMeasureCreate) itemMeasureCreate.style.display = canCreateMeasurePt ? 'flex' : 'none';
+    if (itemMeasureDeletePt) itemMeasureDeletePt.style.display = canDeleteMeasurePt ? 'flex' : 'none';
+    if (itemMeasureDeleteMeas) itemMeasureDeleteMeas.style.display = canDeleteMeasurement ? 'flex' : 'none';
+    if (itemMeasureInsert) itemMeasureInsert.style.display = canInsertPt ? 'flex' : 'none';
+    if (itemMeasurePrepend) itemMeasurePrepend.style.display = canPrependPt ? 'flex' : 'none';
+    if (itemMeasureAppend) itemMeasureAppend.style.display = canAppendPt ? 'flex' : 'none';
+    if (itemMeasureBreak) itemMeasureBreak.style.display = canBreakClosure ? 'flex' : 'none';
     if (itemMeasureDivider) {
-      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt) ? 'block' : 'none';
+      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt || canDeleteMeasurement || canInsertPt || canPrependPt || canAppendPt || canBreakClosure) ? 'block' : 'none';
     }
 
     // Position menu within viewport bounds
@@ -9064,13 +9327,45 @@ class BIMViewerApp {
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (this.pendingClosureAction) {
+          this.hideMultiPointClosurePopover();
+          return;
+        }
         this.hideContextMenu();
         if (this.pendingDistanceStart) {
           this.cancelPendingDistanceStart();
         }
+        if (this.pendingAngleState) {
+          this.cancelPendingAngleStart();
+        }
+        if (this.multiPointInsertSegIdx >= 0) {
+          this.multiPointInsertSegIdx = -1;
+          this.hideMultiPointInsertPreview();
+          const hintEl = document.getElementById('measure-mode-hint');
+          if (hintEl) hintEl.textContent = I18N.t('measureMultiHint') || 'Multi-point measurement ready';
+          this.requestRender(100);
+          return;
+        }
+        if (this.multiPointState && this.multiPointState.isDrawing) {
+          if (this.multiPointDrawDir === 'prepend') {
+            this.finishMultiPointMeasurement();
+          } else {
+            this.cancelPendingMultiPoint();
+          }
+        }
         if (this.compareEngine && this.compareEngine.isModalOpen()) {
           this.compareEngine.closeSetupModal();
           return;
+        }
+      } else if (e.key === 'Enter') {
+        if (this.pendingClosureAction) {
+          const action = this.pendingClosureAction;
+          this.hideMultiPointClosurePopover();
+          if (action && action.onConfirm) action.onConfirm();
+          return;
+        }
+        if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
+          this.finishMultiPointMeasurement();
         }
       }
 
@@ -9261,7 +9556,64 @@ class BIMViewerApp {
         const marker = this.contextMenuMeasureMarker;
         this.hideContextMenu();
         if (marker) {
-          this.deleteMeasurePoint(marker.id);
+          if (marker.mode === 'multipoint') {
+            this.deleteMultiPointPoint(marker.id);
+          } else {
+            this.deleteMeasurePoint(marker.id);
+          }
+        }
+      };
+    }
+
+    const btnMeasureDeleteMeas = document.getElementById('menu-measure-delete-measurement');
+    if (btnMeasureDeleteMeas) {
+      btnMeasureDeleteMeas.onclick = () => {
+        const marker = this.contextMenuMeasureMarker;
+        this.hideContextMenu();
+        if (marker) {
+          if (marker.mode === 'distance') {
+            this.deleteDistanceMeasurement(marker.distanceMeasurementId);
+          } else if (marker.mode === 'angle') {
+            this.deleteAngleMeasurement(marker.angleMeasurementId);
+          }
+        }
+      };
+    }
+
+    const btnMeasureInsert = document.getElementById('menu-measure-insert-point');
+    if (btnMeasureInsert) {
+      btnMeasureInsert.onclick = () => {
+        const segIdx = this.contextMenuMultiPointSegIdx;
+        this.hideContextMenu();
+        if (segIdx >= 0) {
+          this.startMultiPointInsert(segIdx);
+        }
+      };
+    }
+
+    const btnMeasurePrepend = document.getElementById('menu-measure-prepend-point');
+    if (btnMeasurePrepend) {
+      btnMeasurePrepend.onclick = () => {
+        this.hideContextMenu();
+        this.startMultiPointPrepend();
+      };
+    }
+
+    const btnMeasureAppend = document.getElementById('menu-measure-append-point');
+    if (btnMeasureAppend) {
+      btnMeasureAppend.onclick = () => {
+        this.hideContextMenu();
+        this.startMultiPointAppend();
+      };
+    }
+
+    const btnMeasureBreak = document.getElementById('menu-measure-break-closure');
+    if (btnMeasureBreak) {
+      btnMeasureBreak.onclick = () => {
+        const marker = this.contextMenuMeasureMarker;
+        this.hideContextMenu();
+        if (marker) {
+          this.breakMultiPointClosure(marker.id);
         }
       };
     }
@@ -9603,12 +9955,44 @@ class BIMViewerApp {
           };
         }
       }
-      if (this.measureMode === 'radius') {
+
+
+          if (this.measureMode === 'radius') {
         const radTarget = this.currentRadiusTarget || this.detectRadiusTarget(hit, e.clientX, e.clientY);
         if (radTarget) {
           this.createOrUpdateRadiusMeasurement(radTarget, e);
         }
         return;
+      }
+      if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2 && this.multiPointInsertSegIdx < 0) {
+        const targetPt = (this.multiPointDrawDir === 'prepend')
+          ? this.multiPointState.points[this.multiPointState.points.length - 1]
+          : this.multiPointState.points[0];
+        const targetMarker = (this.multiPointDrawDir === 'prepend')
+          ? this.multiPointState.markers[this.multiPointState.markers.length - 1]
+          : this.multiPointState.markers[0];
+        if (targetPt) {
+          const proj = targetPt.clone().project(this.camera);
+          if (proj.z <= 1.0 && proj.z >= -1.0) {
+            const canvas = this.canvas || this.container;
+            const rect = canvas.getBoundingClientRect();
+            const cw = rect.width || this.container.clientWidth || 1;
+            const ch = rect.height || this.container.clientHeight || 1;
+            const sx = (proj.x * 0.5 + 0.5) * cw;
+            const sy = (-proj.y * 0.5 + 0.5) * ch;
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+            if (Math.hypot(localX - sx, localY - sy) <= 35 || this.isSnappedToClosurePoint) {
+              hit = {
+                object: targetMarker ? targetMarker.group : null,
+                point: targetPt.clone(),
+                normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
+                face: { normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0) },
+                isClosureSnap: true
+              };
+            }
+          }
+        }
       }
       if (hit) {
         this.hideMeasurePointPreview();
@@ -9803,6 +10187,7 @@ class BIMViewerApp {
     this.activeDistanceMeasurementId = null;
     this.pendingDistanceStart = null;
     this.initDistancePreview();
+    this.initMultiPointPreview();
   }
 
   initMeasurePointPreview() {
@@ -12102,7 +12487,8 @@ class BIMViewerApp {
   }
 
   createOrUpdateMeasureCalloutDOM(marker) {
-    if (!marker || marker.mode !== 'point') {
+    if (!marker || marker.mode === 'multipoint') return;
+    if (marker.mode !== 'point') {
       if (marker && marker.calloutEl && marker.calloutEl.parentNode) {
         marker.calloutEl.parentNode.removeChild(marker.calloutEl);
         marker.calloutEl = null;
@@ -12320,6 +12706,14 @@ class BIMViewerApp {
         const sx = (projVec.x * 0.5 + 0.5) * cw;
         const sy = (-projVec.y * 0.5 + 0.5) * ch;
 
+        if (marker.mode === 'multipoint') {
+          if (marker.calloutEl) {
+            marker.calloutEl.style.display = 'block';
+            marker.calloutEl.style.transform = `translate3d(${Math.round(sx + 10)}px, ${Math.round(sy - 22)}px, 0)`;
+          }
+          continue;
+        }
+
         if (marker.calloutEl) {
           marker.calloutEl.style.display = 'block';
           const cardW = marker.calloutEl.offsetWidth || 185;
@@ -12390,6 +12784,19 @@ class BIMViewerApp {
       }
     }
 
+    // Update Multi-Point Hover Callout
+    this.updateMultiPointClosurePopoverPosition();
+    if (this.multiPointState && this.multiPointState.hoveredSegmentIndex >= 0) {
+      const hSeg = this.multiPointState.segments[this.multiPointState.hoveredSegmentIndex];
+      if (hSeg) {
+        const p0 = this.multiPointState.points[hSeg.from];
+        const p1 = this.multiPointState.points[hSeg.to];
+        if (p0 && p1) {
+          this.updateMultiPointHoverCalloutPosition(p0, p1);
+        }
+      }
+    }
+
     // Update placed Angle Measurements (screen projection of arc midpoint)
     if (hasAngleMarkers) {
       for (const angleRec of this.angleMeasurements) {
@@ -12413,6 +12820,22 @@ class BIMViewerApp {
           angleRec.calloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
         }
       }
+    }
+
+    // Update Multi-Point Closed Polygon Area Callout
+    if (this.multiPointAreaCalloutEl && this.multiPointState && this.multiPointState.isClosed && this.multiPointAreaCentroid3D) {
+      projVec.copy(this.multiPointAreaCentroid3D).project(this.camera);
+      const isBehind = (projVec.z > 1.0 || projVec.z < -1.0);
+      if (isBehind) {
+        this.multiPointAreaCalloutEl.style.display = 'none';
+      } else {
+        const sx = (projVec.x * 0.5 + 0.5) * cw;
+        const sy = (-projVec.y * 0.5 + 0.5) * ch;
+        this.multiPointAreaCalloutEl.style.display = 'inline-flex';
+        this.multiPointAreaCalloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
+      }
+    } else if (this.multiPointAreaCalloutEl) {
+      this.multiPointAreaCalloutEl.style.display = 'none';
     }
 
     // Update placed Radius Measurements (scale, projection & Liang-Barsky edge clamping)
@@ -12479,10 +12902,1676 @@ class BIMViewerApp {
 
   refreshPointMeasureUI() {
     if (this.measureMarkers && this.measureMarkers.length > 0) {
-      this.measureMarkers.forEach(m => this.createOrUpdateMeasureCalloutDOM(m));
+      this.measureMarkers.forEach(m => {
+        if (m.mode === 'point') this.createOrUpdateMeasureCalloutDOM(m);
+      });
       this.updateMeasureMarkersAndCallouts();
     }
     this.renderMeasurementResults();
+  }
+
+  // =========================================================================
+  // MULTI-POINT CUMULATIVE DISTANCE MEASUREMENT SYSTEM
+  // =========================================================================
+  ensureMultiPointHoverCalloutDOM() {
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (!listEl) return;
+    if (!this.multiPointHoverCalloutEl) {
+      this.multiPointHoverCalloutEl = document.createElement('div');
+      this.multiPointHoverCalloutEl.className = 'measure-multipoint-seg-hover-callout';
+      this.multiPointHoverCalloutEl.style.display = 'none';
+      this.multiPointHoverCalloutEl.style.pointerEvents = 'none';
+      this.multiPointHoverCalloutEl.textContent = '--';
+    }
+    if (this.multiPointHoverCalloutEl.parentNode !== listEl) {
+      listEl.appendChild(this.multiPointHoverCalloutEl);
+    }
+  }
+
+  initMultiPointPreview() {
+    if (!this.multiPointPreviewLine) {
+      const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      this.multiPointPreviewLine = new THREE.Line(lineGeom, new THREE.LineDashedMaterial({
+        color: 0xf59e0b,
+        dashSize: 0.20,
+        gapSize: 0.12,
+        depthTest: false,
+        depthWrite: false
+      }));
+      this.multiPointPreviewLine.computeLineDistances();
+      this.multiPointPreviewLine.visible = false;
+      this.multiPointPreviewLine.renderOrder = 2300;
+      this.scene.add(this.multiPointPreviewLine);
+    }
+    this.ensureMultiPointHoverCalloutDOM();
+  }
+
+  hideMultiPointPreview() {
+    if (this.multiPointPreviewLine) {
+      this.multiPointPreviewLine.visible = false;
+    }
+    this.requestRender(100);
+  }
+
+  ensureMultiPointClosurePopoverDOM() {
+    if (this.multiPointClosurePopoverEl && this.multiPointClosurePopoverEl.parentNode) return;
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (!listEl) return;
+
+    const pop = document.createElement('div');
+    pop.className = 'measure-closure-popover';
+    pop.id = 'measure-closure-popover';
+    pop.style.display = 'none';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'measure-closure-popover-text';
+    textEl.textContent = I18N.t('measureMultiConfirmClose') || 'Close polyline?';
+
+    const acts = document.createElement('div');
+    acts.className = 'measure-closure-popover-actions';
+
+    const btnConfirm = document.createElement('button');
+    btnConfirm.type = 'button';
+    btnConfirm.className = 'measure-closure-btn-close';
+    btnConfirm.textContent = I18N.t('measureMultiBtnClose') || 'Close';
+
+    const btnCancel = document.createElement('button');
+    btnCancel.type = 'button';
+    btnCancel.className = 'measure-closure-btn-cancel';
+    btnCancel.textContent = I18N.t('measureMultiBtnCancel') || 'Cancel';
+
+    btnConfirm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = this.pendingClosureAction;
+      this.hideMultiPointClosurePopover();
+      if (action && action.onConfirm) action.onConfirm();
+    });
+
+    btnCancel.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = this.pendingClosureAction;
+      this.hideMultiPointClosurePopover();
+      if (action && action.onCancel) action.onCancel();
+    });
+
+    acts.appendChild(btnCancel);
+    acts.appendChild(btnConfirm);
+    pop.appendChild(textEl);
+    pop.appendChild(acts);
+    listEl.appendChild(pop);
+
+    this.multiPointClosurePopoverEl = pop;
+  }
+
+  showMultiPointClosurePopover(anchorPoint, onConfirm, onCancel) {
+    this.ensureMultiPointClosurePopoverDOM();
+    if (!this.multiPointClosurePopoverEl) return;
+
+    this.pendingClosureAction = {
+      point: anchorPoint.clone(),
+      onConfirm,
+      onCancel
+    };
+
+    const textEl = this.multiPointClosurePopoverEl.querySelector('.measure-closure-popover-text');
+    if (textEl) textEl.textContent = I18N.t('measureMultiConfirmClose') || 'Close polyline?';
+    const btnClose = this.multiPointClosurePopoverEl.querySelector('.measure-closure-btn-close');
+    if (btnClose) btnClose.textContent = I18N.t('measureMultiBtnClose') || 'Close';
+    const btnCancel = this.multiPointClosurePopoverEl.querySelector('.measure-closure-btn-cancel');
+    if (btnCancel) btnCancel.textContent = I18N.t('measureMultiBtnCancel') || 'Cancel';
+
+    this.multiPointClosurePopoverEl.style.display = 'flex';
+    this.updateMultiPointClosurePopoverPosition();
+    this.requestRender(100);
+  }
+
+  hideMultiPointClosurePopover() {
+    if (this.multiPointClosurePopoverEl) {
+      this.multiPointClosurePopoverEl.style.display = 'none';
+    }
+    this.pendingClosureAction = null;
+    this.requestRender(100);
+  }
+
+  updateMultiPointClosurePopoverPosition() {
+    if (!this.pendingClosureAction || !this.multiPointClosurePopoverEl || !this.camera || !this.container) return;
+    const p = this.pendingClosureAction.point;
+    const projVec = p.clone().project(this.camera);
+    if (projVec.z > 1.0 || projVec.z < -1.0) {
+      this.multiPointClosurePopoverEl.style.display = 'none';
+      return;
+    }
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+    const sx = (projVec.x * 0.5 + 0.5) * cw;
+    const sy = (-projVec.y * 0.5 + 0.5) * ch;
+
+    this.multiPointClosurePopoverEl.style.display = 'flex';
+    this.multiPointClosurePopoverEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy - 12)}px, 0) translate(-50%, -125%)`;
+  }
+
+  closeMultiPointMeasurement() {
+    if (!this.multiPointState || this.multiPointState.points.length < 3) return;
+    if (this.multiPointState.isClosed) return;
+
+    const points = this.multiPointState.points;
+    const N = points.length;
+    const pLast = points[N - 1];
+    const pFirst = points[0];
+
+    const geom = new THREE.BufferGeometry().setFromPoints([pLast, pFirst]);
+    const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+      color: 0xf59e0b,
+      linewidth: 3,
+      depthTest: false,
+      depthWrite: false
+    }));
+    line.renderOrder = 1205;
+    line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: N - 1 };
+    this.scene.add(line);
+    this.multiPointState.lines.push(line);
+
+    const closeLen = pLast.distanceTo(pFirst);
+    this.multiPointState.segments.push({
+      from: N - 1,
+      to: 0,
+      length: closeLen
+    });
+    this.multiPointState.totalLength += closeLen;
+
+    this.multiPointState.isClosed = true;
+    this.multiPointState.isDrawing = false;
+    this.multiPointDrawDir = 'append';
+    this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = (I18N.t('measureMultiClosed') || 'Closed') + ' polyline';
+
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  mergeAndCloseMultiPointOnDrag(dragIdx, targetIdx) {
+    if (!this.multiPointState || this.multiPointState.isClosed) return;
+    const totalPts = this.multiPointState.points.length;
+    if (totalPts < 3) return;
+
+    if (this.snapEngine) {
+      this.snapEngine.hideIndicator();
+    }
+
+    // Case 1: Tail point dragged to Head point (e.g. Pt #4 dragged to Pt #1)
+    if (dragIdx === totalPts - 1) {
+      const markerToDel = this.multiPointState.markers.pop();
+      if (markerToDel) {
+        this.deleteMeasurePoint(markerToDel.id);
+      }
+      this.multiPointState.points.pop();
+    }
+    // Case 2: Head point dragged to Tail point (e.g. Pt #1 dragged to Pt #4)
+    else if (dragIdx === 0) {
+      const markerToDel = this.multiPointState.markers.shift();
+      if (markerToDel) {
+        this.deleteMeasurePoint(markerToDel.id);
+      }
+      this.multiPointState.points.shift();
+      // Renumber remaining markers
+      this.multiPointState.markers.forEach((m, idx) => {
+        m.multiPointIndex = idx;
+        if (m.calloutEl) {
+          m.calloutEl.textContent = `Pt #${idx + 1}`;
+          m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+        }
+      });
+    }
+
+    // Reconstruct all 3D lines and segments as a closed loop
+    if (this.multiPointState.lines) {
+      for (const line of this.multiPointState.lines) {
+        if (!line) continue;
+        this.scene.remove(line);
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+      }
+    }
+
+    const N = this.multiPointState.points.length;
+    const newLines = [];
+    const newSegments = [];
+    let newTotal = 0;
+
+    for (let i = 0; i < N; i++) {
+      const pA = this.multiPointState.points[i];
+      const pB = this.multiPointState.points[(i + 1) % N];
+      const geom = new THREE.BufferGeometry().setFromPoints([pA, pB]);
+      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        linewidth: 3,
+        depthTest: false,
+        depthWrite: false
+      }));
+      line.renderOrder = 1205;
+      line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: i };
+      this.scene.add(line);
+      newLines.push(line);
+
+      const len = pA.distanceTo(pB);
+      newSegments.push({ from: i, to: (i + 1) % N, length: len });
+      newTotal += len;
+    }
+
+    this.multiPointState.lines = newLines;
+    this.multiPointState.segments = newSegments;
+    this.multiPointState.totalLength = newTotal;
+    this.multiPointState.isClosed = true;
+    this.multiPointState.isDrawing = false;
+    this.multiPointDrawDir = 'append';
+    this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = (I18N.t('measureMultiClosed') || 'Closed') + ' polyline';
+
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  breakMultiPointClosure(markerId) {
+    if (!this.multiPointState || !this.multiPointState.isClosed) return;
+    const mIdx = this.multiPointState.markers.findIndex(m => m.id === markerId);
+    if (mIdx < 0) return;
+
+    const k = mIdx;
+    const N = this.multiPointState.points.length;
+    const oldPoints = this.multiPointState.points;
+    const oldMarkers = this.multiPointState.markers;
+
+    // 1. Re-order points starting from k and append a duplicate of Pk as new endpoint
+    const newPoints = [];
+    const newMarkers = [];
+    for (let i = 0; i < N; i++) {
+      const idx = (k + i) % N;
+      newPoints.push(oldPoints[idx].clone());
+      newMarkers.push(oldMarkers[idx]);
+    }
+    // Duplicate of Pk as final endpoint
+    const pEnd = oldPoints[k].clone();
+    newPoints.push(pEnd);
+
+    // Create new marker at pEnd
+    const endHit = {
+      point: pEnd,
+      normal: oldMarkers[k].normal || new THREE.Vector3(0, 1, 0),
+      object: oldMarkers[k].group
+    };
+    const endMarker = this.createMultiPointMarker(endHit, N + 1);
+    newMarkers.push(endMarker);
+
+    // 2. Recreate all 3D lines
+    this.multiPointState.lines.forEach(line => {
+      if (line) {
+        this.scene.remove(line);
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+      }
+    });
+
+    const newLines = [];
+    const newSegments = [];
+    let newTotal = 0;
+
+    for (let i = 0; i < N; i++) {
+      const pA = newPoints[i];
+      const pB = newPoints[i + 1];
+      const geom = new THREE.BufferGeometry().setFromPoints([pA, pB]);
+      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        linewidth: 3,
+        depthTest: false,
+        depthWrite: false
+      }));
+      line.renderOrder = 1205;
+      line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: i };
+      this.scene.add(line);
+      newLines.push(line);
+
+      const len = pA.distanceTo(pB);
+      newSegments.push({ from: i, to: i + 1, length: len });
+      newTotal += len;
+    }
+
+    // 3. Update multiPointState
+    this.multiPointState.points = newPoints;
+    this.multiPointState.markers = newMarkers;
+    this.multiPointState.lines = newLines;
+    this.multiPointState.segments = newSegments;
+    this.multiPointState.totalLength = newTotal;
+    this.multiPointState.isClosed = false;
+
+    // 4. Renumber all markers
+    this.multiPointState.markers.forEach((m, idx) => {
+      m.multiPointIndex = idx;
+      if (m.calloutEl) {
+        m.calloutEl.textContent = `Pt #${idx + 1}`;
+        m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+      }
+    });
+
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  startMultiPointInsert(segIdx) {
+    if (!this.multiPointState || !this.multiPointState.segments[segIdx]) return;
+    this.multiPointInsertSegIdx = segIdx;
+    this.isMeasureMode = true;
+    if (this.canvas) this.canvas.style.cursor = 'crosshair';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = I18N.t('measureMultiPromptInsert') || "Click surface to insert measurement point | Esc to cancel";
+
+    this.initMultiPointInsertPreview();
+    this.requestRender(100);
+  }
+
+  initMultiPointInsertPreview() {
+    if (this.multiPointInsertPreviewLine) return;
+    const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]);
+    this.multiPointInsertPreviewLine = new THREE.Line(geom, new THREE.LineDashedMaterial({
+      color: 0xf59e0b,
+      dashSize: 0.20,
+      gapSize: 0.12,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.multiPointInsertPreviewLine.computeLineDistances();
+    this.multiPointInsertPreviewLine.visible = false;
+    this.multiPointInsertPreviewLine.renderOrder = 2305;
+    this.scene.add(this.multiPointInsertPreviewLine);
+  }
+
+  hideMultiPointInsertPreview() {
+    if (this.multiPointInsertPreviewLine) {
+      this.multiPointInsertPreviewLine.visible = false;
+    }
+    this.requestRender(100);
+  }
+
+  updateMultiPointInsertPreview(candidateHit) {
+    if (this.multiPointInsertSegIdx < 0 || !this.multiPointState || !this.multiPointState.segments[this.multiPointInsertSegIdx] || !candidateHit || !candidateHit.point) {
+      this.hideMultiPointInsertPreview();
+      return;
+    }
+    const seg = this.multiPointState.segments[this.multiPointInsertSegIdx];
+    const pFrom = this.multiPointState.points[seg.from];
+    const pTo = this.multiPointState.points[seg.to];
+    if (!pFrom || !pTo) return;
+
+    if (!this.multiPointInsertPreviewLine) this.initMultiPointInsertPreview();
+    if (this.multiPointInsertPreviewLine) {
+      const curPt = candidateHit.point;
+      const positions = this.multiPointInsertPreviewLine.geometry.attributes.position;
+      positions.setXYZ(0, pFrom.x, pFrom.y, pFrom.z);
+      positions.setXYZ(1, curPt.x, curPt.y, curPt.z);
+      positions.setXYZ(2, pTo.x, pTo.y, pTo.z);
+      positions.needsUpdate = true;
+      if (this.multiPointInsertPreviewLine.computeLineDistances) {
+        this.multiPointInsertPreviewLine.computeLineDistances();
+      }
+      this.multiPointInsertPreviewLine.visible = true;
+    }
+    this.requestRender(100);
+  }
+
+  startMultiPointPrepend() {
+    if (!this.multiPointState || this.multiPointState.points.length === 0) return;
+    this.multiPointState.isDrawing = true;
+    this.multiPointDrawDir = 'prepend';
+    this.isMeasureMode = true;
+    if (this.canvas) this.canvas.style.cursor = 'crosshair';
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'inline-block';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = I18N.t('measureMultiPromptPrepend') || "Click surface to extend polyline start | Double-click or click 'Done' to finish";
+
+    this.initMultiPointPreview();
+    this.requestRender(100);
+  }
+
+  startMultiPointAppend() {
+    if (!this.multiPointState || this.multiPointState.points.length === 0) return;
+    this.multiPointState.isDrawing = true;
+    this.multiPointDrawDir = 'append';
+    this.isMeasureMode = true;
+    if (this.canvas) this.canvas.style.cursor = 'crosshair';
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'inline-block';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = I18N.t('measureMultiPromptPickNext') || "Click surface to add next point | Double-click or click 'Done' to finish";
+
+    this.initMultiPointPreview();
+    this.requestRender(100);
+  }
+
+  updateMultiPointPreview(candidateHit) {
+    if (this.multiPointInsertSegIdx >= 0) {
+      this.updateMultiPointInsertPreview(candidateHit);
+      return;
+    }
+    if (!this.multiPointState || !this.multiPointState.isDrawing || this.multiPointState.points.length === 0 || !candidateHit || !candidateHit.point) {
+      this.hideMultiPointPreview();
+      return;
+    }
+    const anchorPt = (this.multiPointDrawDir === 'prepend')
+      ? this.multiPointState.points[0]
+      : this.multiPointState.points[this.multiPointState.points.length - 1];
+    const curPt = candidateHit.point;
+
+    if (!this.multiPointPreviewLine) this.initMultiPointPreview();
+
+    if (this.multiPointPreviewLine) {
+      const positions = this.multiPointPreviewLine.geometry.attributes.position;
+      positions.setXYZ(0, anchorPt.x, anchorPt.y, anchorPt.z);
+      positions.setXYZ(1, curPt.x, curPt.y, curPt.z);
+      positions.needsUpdate = true;
+      if (this.multiPointPreviewLine.computeLineDistances) {
+        this.multiPointPreviewLine.computeLineDistances();
+      }
+      this.multiPointPreviewLine.visible = true;
+    }
+    this.requestRender(100);
+  }
+
+  createMultiPointMarker(hit, index) {
+    if (!hit || !hit.point) return null;
+    if (!this.measureMarkersGroup) this.initMeasurementSystem();
+
+    const id = `multi-pt-${++this.measurePointCounter}`;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    const meshParts = this.createStandardMeasureMarkerMesh(id, {
+      showSlopeArrow: false,
+      themeColor: 0x00f0ff
+    });
+
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    const badgeEl = document.createElement('div');
+    badgeEl.className = 'measure-multipoint-badge';
+    badgeEl.textContent = `Pt #${index}`;
+    badgeEl.title = `Pt #${index}: click to inspect, drag to adjust position`;
+    if (listEl) listEl.appendChild(badgeEl);
+
+    const marker = {
+      id,
+      mode: 'multipoint',
+      multiPointIndex: index - 1,
+      point: hit.point.clone(),
+      normal: slopeData.normal.clone(),
+      slopeData,
+      showSlopeArrow: false,
+      baseColor: 0x00f0ff,
+      calloutOffset: { x: 0, y: 0 },
+      calloutEl: badgeEl,
+      leaderLineEl: null,
+      leaderDotEl: null,
+      ...meshParts
+    };
+
+    badgeEl.addEventListener('pointerdown', (e) => {
+      if (e.button === 0 && e.shiftKey) {
+        e.stopPropagation();
+        this.deleteMultiPointPoint(marker.id);
+        return;
+      }
+      e.stopPropagation();
+      this.isDraggingMeasurePoint = true;
+      this.draggingMeasureMarker = marker;
+      this.setMeasureMarkerDragging(marker, true);
+      this.canvas.style.cursor = 'grabbing';
+    });
+
+    badgeEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.contextMenuMeasureMarker = marker;
+      this.contextMenuMeasureSurfaceHit = null;
+      this.showContextMenu(e.clientX, e.clientY);
+    });
+
+    this.measureMarkersGroup.add(marker.group);
+    this.measureMarkers.push(marker);
+
+    this.orientMeasureMarkerToSurface(marker);
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+    return marker;
+  }
+
+  finishMultiPointMeasurement() {
+    if (!this.multiPointState || !this.multiPointState.isDrawing) return;
+
+    const points = this.multiPointState.points;
+    if (points.length < 2) {
+      this.cancelPendingMultiPoint();
+      return;
+    }
+
+    // Check if the last two points are identical (e.g. from dblclick second tap)
+    if (points.length >= 2) {
+      const pLast = points[points.length - 1];
+      const pPrev = points[points.length - 2];
+      if (pLast.distanceTo(pPrev) < 1e-3) {
+        points.pop();
+        const lastMarker = this.multiPointState.markers.pop();
+        if (lastMarker) this.deleteMeasurePoint(lastMarker.id);
+        const lastLine = this.multiPointState.lines.pop();
+        if (lastLine) {
+          this.scene.remove(lastLine);
+          if (lastLine.geometry) lastLine.geometry.dispose();
+          if (lastLine.material) lastLine.material.dispose();
+        }
+        if (this.multiPointState.segments.length > 0) {
+          const removedSeg = this.multiPointState.segments.pop();
+          this.multiPointState.totalLength -= (removedSeg ? removedSeg.length : 0);
+        }
+      }
+    }
+
+    this.multiPointState.isDrawing = false;
+    this.multiPointDrawDir = 'append';
+    this.multiPointInsertSegIdx = -1;
+    this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decimals = unit === 'mm' ? 0 : 3;
+    const formattedTotal = (this.multiPointState.totalLength * scale).toFixed(decimals);
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) {
+      hintEl.textContent = `${I18N.t('measureMultiTotal') || 'Total Length'}: ${formattedTotal} ${unit}. ${I18N.t('measureMultiHint') || 'Drag points to adjust'}`;
+    }
+
+    showToast(`${I18N.t('measureMultiTotal') || 'Total'}: ${formattedTotal} ${unit} (${this.multiPointState.segments.length} segs)`, 'success');
+
+    this.renderMultiPointResults();
+    this.requestRender(200);
+  }
+
+  cancelPendingMultiPoint() {
+    if (!this.multiPointState || !this.multiPointState.isDrawing) return;
+    this.clearMultiPointMeasurement();
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl && this.measureMode === 'multipoint') {
+      hintEl.textContent = I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)';
+    }
+  }
+
+  deleteMultiPointPoint(id) {
+    if (!this.multiPointState || !this.multiPointState.markers) return;
+    const mIdx = this.multiPointState.markers.findIndex(m => m.id === id);
+    if (mIdx < 0) return;
+
+    const totalPts = this.multiPointState.points.length;
+    // If only 1 or 2 points exist, deleting one leaves <= 1 point -> completely clean up and reset
+    if (totalPts <= 2) {
+      this.clearMultiPointMeasurement();
+      return;
+    }
+
+    const marker = this.multiPointState.markers[mIdx];
+    const k = mIdx; // 0-based point index being deleted
+
+    // 1. Remove 3D marker group and 2D badge
+    if (marker.group) {
+      marker.group.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m && m.dispose());
+          else obj.material.dispose();
+        }
+      });
+      if (this.measureMarkersGroup) {
+        this.measureMarkersGroup.remove(marker.group);
+      }
+    }
+    if (marker.calloutEl && marker.calloutEl.parentNode) {
+      marker.calloutEl.parentNode.removeChild(marker.calloutEl);
+      marker.calloutEl = null;
+    }
+
+    // Remove from global measureMarkers
+    const mmIdx = this.measureMarkers.findIndex(m => m.id === id);
+    if (mmIdx >= 0) this.measureMarkers.splice(mmIdx, 1);
+
+    // Remove from multiPointState
+    this.multiPointState.markers.splice(k, 1);
+    this.multiPointState.points.splice(k, 1);
+
+    // 2. Heal lines and segments
+    if (k === 0) {
+      // Deleted start point: remove line 0, shift segments
+      const line0 = this.multiPointState.lines.shift();
+      if (line0) {
+        this.scene.remove(line0);
+        if (line0.geometry) line0.geometry.dispose();
+        if (line0.material) line0.material.dispose();
+      }
+      this.multiPointState.segments.shift();
+      this.multiPointState.segments.forEach((seg, i) => {
+        seg.from = i;
+        seg.to = i + 1;
+        if (this.multiPointState.lines[i]) {
+          this.multiPointState.lines[i].userData.segmentIndex = i;
+        }
+      });
+    } else if (k === totalPts - 1) {
+      // Deleted end point: remove last line
+      const lastLine = this.multiPointState.lines.pop();
+      if (lastLine) {
+        this.scene.remove(lastLine);
+        if (lastLine.geometry) lastLine.geometry.dispose();
+        if (lastLine.material) lastLine.material.dispose();
+      }
+      this.multiPointState.segments.pop();
+    } else {
+      // Deleted intermediate point: heal segment between point k-1 and point k (old k+1)
+      const pPrev = this.multiPointState.points[k - 1];
+      const pNext = this.multiPointState.points[k];
+
+      const linePrev = this.multiPointState.lines[k - 1];
+      if (linePrev) {
+        linePrev.geometry.dispose();
+        linePrev.geometry = new THREE.BufferGeometry().setFromPoints([pPrev, pNext]);
+      }
+
+      const lineNext = this.multiPointState.lines.splice(k, 1)[0];
+      if (lineNext) {
+        this.scene.remove(lineNext);
+        if (lineNext.geometry) lineNext.geometry.dispose();
+        if (lineNext.material) lineNext.material.dispose();
+      }
+
+      this.multiPointState.segments[k - 1].to = k;
+      this.multiPointState.segments[k - 1].length = pPrev.distanceTo(pNext);
+      this.multiPointState.segments.splice(k, 1);
+
+      this.multiPointState.segments.forEach((seg, i) => {
+        seg.from = i;
+        seg.to = i + 1;
+        if (this.multiPointState.lines[i]) {
+          this.multiPointState.lines[i].userData.segmentIndex = i;
+        }
+      });
+    }
+
+    // 3. Renumber all remaining markers and badges sequentially
+    this.multiPointState.markers.forEach((m, idx) => {
+      m.multiPointIndex = idx;
+      if (m.calloutEl) {
+        m.calloutEl.textContent = `Pt #${idx + 1}`;
+        m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+      }
+    });
+
+    // 4. Recalculate total length
+    let newTotal = 0;
+    this.multiPointState.segments.forEach(seg => {
+      newTotal += seg.length;
+    });
+    this.multiPointState.totalLength = newTotal;
+
+    // Reset hovered segment if index is now invalid
+    if (this.multiPointState.hoveredSegmentIndex >= this.multiPointState.segments.length) {
+      this.setMultiPointHoveredSegment(-1);
+    }
+
+    // 5. Update UI and request render
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  clearMultiPointMeasurement() {
+    if (!this.multiPointState) return;
+
+    if (this.multiPointState.lines) {
+      for (const line of this.multiPointState.lines) {
+        if (!line) continue;
+        this.scene.remove(line);
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+      }
+    }
+
+    if (this.multiPointState.markers) {
+      for (const marker of this.multiPointState.markers) {
+        if (!marker) continue;
+        this.deleteMeasurePoint(marker.id);
+      }
+    }
+
+    this.multiPointState = {
+      isDrawing: false,
+      isClosed: false,
+      points: [],
+      markers: [],
+      lines: [],
+      segments: [],
+      totalLength: 0,
+      hoveredSegmentIndex: -1
+    };
+
+    this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+    this.hideMultiPointClosurePopover();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const totalEl = document.getElementById('measure-res-multi-total');
+    if (totalEl) totalEl.textContent = '--';
+
+    const countEl = document.getElementById('measure-multi-seg-count');
+    if (countEl) countEl.textContent = '0 segs';
+
+    const segListEl = document.getElementById('measure-multi-segments-list');
+    if (segListEl) segListEl.innerHTML = '';
+
+    const unit = this.measureUnit || 'm';
+    const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
+    const el3DLabel = document.getElementById('measure-multi-3d-area-label');
+    const el3DVal = document.getElementById('measure-res-multi-3d-area');
+    const elProjLabel = document.getElementById('measure-multi-proj-area-label');
+    const elProjVal = document.getElementById('measure-res-multi-proj-area');
+    const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
+
+    if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (est.) (when closed)';
+    if (el3DVal) el3DVal.textContent = '-.--- ' + areaUnit;
+    if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjAreaClosed') || 'Proj Area (when closed)';
+    if (elProjVal) elProjVal.textContent = '-.--- ' + areaUnit;
+    if (btnSelfIntersect) btnSelfIntersect.style.display = 'none';
+
+    this.multiPointSelfIntersectingSegs = [];
+    this.multiPointSelfIntersectPoints = [];
+    this.removeMultiPointAreaMesh();
+    this.removeMultiPointAreaDropLines();
+    if (this.multiPointAreaCalloutEl) {
+      this.multiPointAreaCalloutEl.style.display = 'none';
+    }
+    this.multiPointAreaDataCache = null;
+    const row3D = document.getElementById('measure-multi-3d-area-row');
+    const rowProj = document.getElementById('measure-multi-proj-area-row');
+    if (row3D) row3D.classList.remove('measure-area-row-active');
+    if (rowProj) rowProj.classList.remove('measure-area-row-active');
+
+    this.requestRender(150);
+  }
+
+  updateMultiPointFromHit(marker, hit) {
+    if (!marker || !hit || !hit.point) return;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    marker.point.copy(hit.point);
+    marker.normal.copy(slopeData.normal);
+    marker.slopeData = slopeData;
+
+    this.orientMeasureMarkerToSurface(marker);
+
+    const idx = marker.multiPointIndex;
+    if (idx !== undefined && this.multiPointState && this.multiPointState.points[idx]) {
+      this.multiPointState.points[idx].copy(hit.point);
+
+      let total = 0;
+      for (let i = 0; i < this.multiPointState.segments.length; i++) {
+        const seg = this.multiPointState.segments[i];
+        const p0 = this.multiPointState.points[seg.from];
+        const p1 = this.multiPointState.points[seg.to];
+        seg.length = p0.distanceTo(p1);
+        total += seg.length;
+
+        const line = this.multiPointState.lines[i];
+        if (line && (seg.from === idx || seg.to === idx)) {
+          line.geometry.setFromPoints([p0, p1]);
+          line.geometry.attributes.position.needsUpdate = true;
+        }
+      }
+      this.multiPointState.totalLength = total;
+
+      if (this.multiPointState.hoveredSegmentIndex >= 0) {
+        const hSeg = this.multiPointState.segments[this.multiPointState.hoveredSegmentIndex];
+        if (hSeg) {
+          const p0 = this.multiPointState.points[hSeg.from];
+          const p1 = this.multiPointState.points[hSeg.to];
+          this.updateMultiPointHoverCalloutPosition(p0, p1);
+        }
+      }
+
+      this.renderMultiPointResults();
+    }
+
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  checkLineSegmentIntersection2D(p1, p2, p3, p4) {
+    const dx12 = p2.x - p1.x;
+    const dy12 = p2.y - p1.y;
+    const dx34 = p4.x - p3.x;
+    const dy34 = p4.y - p3.y;
+
+    const denom = dx12 * dy34 - dy12 * dx34;
+    if (Math.abs(denom) < 1e-9) return null; // Parallel or collinear
+
+    const dx31 = p3.x - p1.x;
+    const dy31 = p3.y - p1.y;
+
+    const t = (dx31 * dy34 - dy31 * dx34) / denom;
+    const u = (dx31 * dy12 - dy31 * dx12) / denom;
+
+    // Strict interior intersection (not sharing endpoints)
+    if (t > 1e-4 && t < 1 - 1e-4 && u > 1e-4 && u < 1 - 1e-4) {
+      return {
+        x: p1.x + t * dx12,
+        y: p1.y + t * dy12,
+        t,
+        u
+      };
+    }
+    return null;
+  }
+
+  computePolygonAreaScheme1(pts2D) {
+    const N = pts2D.length;
+    if (N < 3) return { area: 0, isSelfIntersecting: false, intersectingSegs: [], intersectionPoints: [], subLoops: [] };
+
+    // 1. Detect all pairwise non-adjacent segment intersections
+    const intersections = [];
+    const intersectingSegSet = new Set();
+
+    for (let i = 0; i < N; i++) {
+      const p1 = pts2D[i];
+      const p2 = pts2D[(i + 1) % N];
+
+      for (let j = i + 2; j < N; j++) {
+        // Skip if adjacent in loop (first and last segment share p0)
+        if (i === 0 && j === N - 1) continue;
+
+        const p3 = pts2D[j];
+        const p4 = pts2D[(j + 1) % N];
+
+        const inter = this.checkLineSegmentIntersection2D(p1, p2, p3, p4);
+        if (inter) {
+          intersectingSegSet.add(i);
+          intersectingSegSet.add(j);
+          const orig3D = (p1.orig3D && p2.orig3D) ? new THREE.Vector3().lerpVectors(p1.orig3D, p2.orig3D, inter.t) : null;
+          intersections.push({
+            segA: i,
+            segB: j,
+            tA: inter.t,
+            tB: inter.u,
+            point: { x: inter.x, y: inter.y, orig3D }
+          });
+        }
+      }
+    }
+
+    const isSelfIntersecting = intersectingSegSet.size > 0;
+    const intersectingSegs = Array.from(intersectingSegSet);
+
+    // If no self-intersection: standard Shoelace formula
+    if (!isSelfIntersecting) {
+      let area = 0;
+      for (let i = 0; i < N; i++) {
+        const pA = pts2D[i];
+        const pB = pts2D[(i + 1) % N];
+        area += pA.x * pB.y - pB.x * pA.y;
+      }
+      return {
+        area: Math.abs(area) * 0.5,
+        isSelfIntersecting: false,
+        intersectingSegs: [],
+        intersectionPoints: [],
+        subLoops: [pts2D]
+      };
+    }
+
+    // Scheme 1: Decompose into sub-loops at intersection points
+    const path = [];
+    for (let i = 0; i < N; i++) {
+      path.push({ pt: pts2D[i], id: `v-${i}` });
+
+      const onSeg = [];
+      intersections.forEach(inter => {
+        if (inter.segA === i) {
+          onSeg.push({ t: inter.tA, pt: inter.point, interId: `x-${Math.min(inter.segA, inter.segB)}-${Math.max(inter.segA, inter.segB)}` });
+        } else if (inter.segB === i) {
+          onSeg.push({ t: inter.tB, pt: inter.point, interId: `x-${Math.min(inter.segA, inter.segB)}-${Math.max(inter.segA, inter.segB)}` });
+        }
+      });
+      onSeg.sort((a, b) => a.t - b.t);
+      onSeg.forEach(item => {
+        path.push({ pt: item.pt, id: item.interId });
+      });
+    }
+
+    // Cycle-popping to extract all sub-polygons
+    const stack = [];
+    const subLoops = [];
+    let totalAbsArea = 0;
+
+    for (let k = 0; k < path.length; k++) {
+      const node = path[k];
+      const matchIdx = stack.findIndex(s => s.id === node.id);
+      if (matchIdx >= 0) {
+        // Cycle found from matchIdx to end of stack!
+        const cycle = stack.splice(matchIdx).map(s => s.pt);
+        if (cycle.length >= 3) {
+          let subA = 0;
+          for (let m = 0; m < cycle.length; m++) {
+            const c1 = cycle[m];
+            const c2 = cycle[(m + 1) % cycle.length];
+            subA += c1.x * c2.y - c2.x * c1.y;
+          }
+          const absA = Math.abs(subA) * 0.5;
+          totalAbsArea += absA;
+          subLoops.push(cycle);
+        }
+        stack.push(node);
+      } else {
+        stack.push(node);
+      }
+    }
+
+    if (stack.length >= 3) {
+      const cycle = stack.map(s => s.pt);
+      let remA = 0;
+      for (let m = 0; m < cycle.length; m++) {
+        const c1 = cycle[m];
+        const c2 = cycle[(m + 1) % cycle.length];
+        remA += c1.x * c2.y - c2.x * c1.y;
+      }
+      const absRem = Math.abs(remA) * 0.5;
+      totalAbsArea += absRem;
+      subLoops.push(cycle);
+    }
+
+    return {
+      area: totalAbsArea,
+      isSelfIntersecting: true,
+      intersectingSegs,
+      intersectionPoints: intersections.map(item => item.point),
+      subLoops
+    };
+  }
+
+  ensureMultiPointAreaCalloutDOM() {
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (!listEl) return;
+    if (!this.multiPointAreaCalloutEl) {
+      this.multiPointAreaCalloutEl = document.createElement('div');
+      this.multiPointAreaCalloutEl.className = 'measure-area-callout';
+      this.multiPointAreaCalloutEl.style.display = 'none';
+
+      this.multiPointAreaCalloutEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleMultiPointAreaMode();
+      });
+    }
+    if (this.multiPointAreaCalloutEl.parentNode !== listEl) {
+      listEl.appendChild(this.multiPointAreaCalloutEl);
+    }
+  }
+
+  updateMultiPointAreaCalloutDOM(areaData) {
+    if (!areaData) return;
+    this.ensureMultiPointAreaCalloutDOM();
+    if (!this.multiPointAreaCalloutEl) return;
+
+    const is3D = (this.multiPointAreaMode || '3d') === '3d';
+    const unit = this.measureUnit || 'm';
+    const areaScale = unit === 'mm' ? 1000000 : 1;
+    const areaDecimals = unit === 'mm' ? 0 : 3;
+    const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
+    const valNum = is3D ? areaData.area3D : areaData.areaProj;
+    const valFormatted = (valNum * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+
+    // 3D Mode Icon: 4-sided low pyramid with parallelogram base and obtuse apex (> 90 deg)
+    const svg3DPyramid = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M 2 12 L 10 12 L 14 7 L 6 7 Z"></path><path d="M 8 3.5 L 2 12 M 8 3.5 L 10 12 M 8 3.5 L 14 7 M 8 3.5 L 6 7"></path></svg>`;
+    // Horizontal Projection Mode Icon: same parallelogram base with flattened apex (interior diagonal criss-cross)
+    const svgFlatProj = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M 2 12 L 10 12 L 14 7 L 6 7 Z"></path><path d="M 2 12 L 14 7 M 10 12 L 6 7"></path></svg>`;
+
+    const iconSvg = is3D ? svg3DPyramid : svgFlatProj;
+    const tip = is3D
+      ? (I18N.t('measureMulti3DAreaToggleTip') || '3D True Area (Click to switch to Horizontal Projected Area)')
+      : (I18N.t('measureMultiProjAreaToggleTip') || 'Horizontal Projected Area (Click to switch to 3D True Area)');
+
+    this.multiPointAreaCalloutEl.innerHTML = `
+      <button type="button" class="measure-area-mode-toggle" title="${tip}">${iconSvg}</button>
+      <span class="measure-area-val">${valFormatted}</span>
+    `;
+
+    this.multiPointAreaCalloutEl.style.display = 'inline-flex';
+  }
+
+  toggleMultiPointAreaMode() {
+    this.multiPointAreaMode = (this.multiPointAreaMode === '3d' ? 'horizontal' : '3d');
+    if (this.multiPointAreaDataCache) {
+      this.updateMultiPointAreaMesh(this.multiPointAreaDataCache);
+      this.updateMultiPointAreaCalloutDOM(this.multiPointAreaDataCache);
+    }
+    const row3D = document.getElementById('measure-multi-3d-area-row');
+    const rowProj = document.getElementById('measure-multi-proj-area-row');
+    if (row3D) row3D.classList.toggle('measure-area-row-active', this.multiPointAreaMode === '3d');
+    if (rowProj) rowProj.classList.toggle('measure-area-row-active', this.multiPointAreaMode === 'horizontal');
+
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  computeMultiPointClosedArea() {
+    if (!this.multiPointState || !this.multiPointState.isClosed || this.multiPointState.points.length < 3) {
+      return {
+        area3D: 0,
+        areaProj: 0,
+        isSelfIntersecting: false,
+        intersectingSegs: [],
+        intersectionPoints3D: [],
+        subLoopsTriangles: [],
+        centroid3D: new THREE.Vector3(),
+        minY: 0,
+        points: []
+      };
+    }
+
+    const points = this.multiPointState.points;
+    const N = points.length;
+
+    // 1. Compute Newell Normal for best-fit 3D plane
+    const normal = new THREE.Vector3();
+    let minY = Infinity;
+    const centroid3D = new THREE.Vector3();
+
+    for (let i = 0; i < N; i++) {
+      const pA = points[i];
+      const pB = points[(i + 1) % N];
+      normal.x += (pA.y - pB.y) * (pA.z + pB.z);
+      normal.y += (pA.z - pB.z) * (pA.x + pB.x);
+      normal.z += (pA.x - pB.x) * (pA.y + pB.y);
+
+      if (pA.y < minY) minY = pA.y;
+      centroid3D.add(pA);
+    }
+    centroid3D.divideScalar(N);
+
+    if (normal.lengthSq() < 1e-12) normal.set(0, 1, 0);
+    else normal.normalize();
+
+    // Orthonormal basis (uAxis, vAxis)
+    const up = Math.abs(normal.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const uAxis = new THREE.Vector3().crossVectors(normal, up).normalize();
+    const vAxis = new THREE.Vector3().crossVectors(normal, uAxis).normalize();
+    const origin = points[0];
+
+    // Project to 2D best-fit plane (u, v)
+    const pts2D = points.map(p => {
+      const diff = new THREE.Vector3().subVectors(p, origin);
+      return {
+        x: diff.dot(uAxis),
+        y: diff.dot(vAxis),
+        orig3D: p
+      };
+    });
+
+    const res3D = this.computePolygonAreaScheme1(pts2D);
+
+    // Calculate Ear-Clipping 3D spatial triangle area with original 3D coordinates
+    let real3DArea = 0;
+    const subLoopsTriangles = [];
+    const e1 = new THREE.Vector3();
+    const e2 = new THREE.Vector3();
+    const triCross = new THREE.Vector3();
+
+    res3D.subLoops.forEach(loop => {
+      if (loop.length < 3) return;
+      const shapePts = loop.map(p => new THREE.Vector2(p.x, p.y));
+      const faces = THREE.ShapeUtils.triangulateShape(shapePts, []);
+      const triList = [];
+      faces.forEach(face => {
+        const v0 = loop[face[0]].orig3D;
+        const v1 = loop[face[1]].orig3D;
+        const v2 = loop[face[2]].orig3D;
+        if (v0 && v1 && v2) {
+          e1.subVectors(v1, v0);
+          e2.subVectors(v2, v0);
+          triCross.crossVectors(e1, e2);
+          real3DArea += 0.5 * triCross.length();
+          triList.push([v0, v1, v2]);
+        }
+      });
+      subLoopsTriangles.push(triList);
+    });
+
+    // 2. Horizontal Projected Area (project onto XZ plane where Y=0)
+    const ptsHoriz = points.map(p => ({
+      x: p.x,
+      y: p.z,
+      orig3D: p
+    }));
+    const resHoriz = this.computePolygonAreaScheme1(ptsHoriz);
+
+    const intersectionPoints3D = res3D.intersectionPoints.map(p => {
+      return origin.clone().addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
+    });
+
+    return {
+      area3D: real3DArea,
+      areaProj: resHoriz.area,
+      isSelfIntersecting: res3D.isSelfIntersecting,
+      intersectingSegs: res3D.intersectingSegs,
+      intersectionPoints3D,
+      subLoopsTriangles,
+      centroid3D,
+      minY,
+      points
+    };
+  }
+
+  updateMultiPointAreaMesh(areaData) {
+    this.removeMultiPointAreaMesh();
+    this.removeMultiPointAreaDropLines();
+    if (!areaData || !areaData.subLoopsTriangles || areaData.subLoopsTriangles.length === 0) return;
+
+    const is3D = (this.multiPointAreaMode || '3d') === '3d';
+    const vertices = [];
+
+    areaData.subLoopsTriangles.forEach(triList => {
+      triList.forEach(tri => {
+        const v0 = tri[0];
+        const v1 = tri[1];
+        const v2 = tri[2];
+        if (is3D) {
+          vertices.push(v0.x, v0.y, v0.z);
+          vertices.push(v1.x, v1.y, v1.z);
+          vertices.push(v2.x, v2.y, v2.z);
+        } else {
+          const y = areaData.minY;
+          vertices.push(v0.x, y, v0.z);
+          vertices.push(v1.x, y, v1.z);
+          vertices.push(v2.x, y, v2.z);
+        }
+      });
+    });
+
+    if (vertices.length === 0) return;
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geom.computeVertexNormals();
+
+    this.multiPointAreaMesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      opacity: 0.22,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.multiPointAreaMesh.renderOrder = 1200;
+    this.scene.add(this.multiPointAreaMesh);
+
+    // If in horizontal mode: add dashed drop lines from 3D points down to minY
+    if (!is3D && areaData.points && areaData.points.length > 0) {
+      const dropPts = [];
+      const yMin = areaData.minY;
+      areaData.points.forEach(p => {
+        if (Math.abs(p.y - yMin) > 0.005) {
+          dropPts.push(p.x, p.y, p.z, p.x, yMin, p.z);
+        }
+      });
+      if (dropPts.length > 0) {
+        const dropGeom = new THREE.BufferGeometry();
+        dropGeom.setAttribute('position', new THREE.Float32BufferAttribute(dropPts, 3));
+        const dropMat = new THREE.LineDashedMaterial({
+          color: 0x38bdf8,
+          dashSize: 0.18,
+          gapSize: 0.10,
+          transparent: true,
+          opacity: 0.85,
+          depthTest: false,
+          depthWrite: false
+        });
+        const dropLines = new THREE.LineSegments(dropGeom, dropMat);
+        dropLines.computeLineDistances();
+        dropLines.renderOrder = 1205;
+        this.multiPointAreaDropLines = dropLines;
+        this.scene.add(this.multiPointAreaDropLines);
+      }
+    }
+
+    // Update 3D centroid position
+    if (is3D) {
+      this.multiPointAreaCentroid3D.copy(areaData.centroid3D);
+    } else {
+      this.multiPointAreaCentroid3D.set(areaData.centroid3D.x, areaData.minY, areaData.centroid3D.z);
+    }
+  }
+
+  removeMultiPointAreaMesh() {
+    if (this.multiPointAreaMesh) {
+      this.scene.remove(this.multiPointAreaMesh);
+      if (this.multiPointAreaMesh.geometry) this.multiPointAreaMesh.geometry.dispose();
+      if (this.multiPointAreaMesh.material) this.multiPointAreaMesh.material.dispose();
+      this.multiPointAreaMesh = null;
+    }
+    this.removeMultiPointAreaDropLines();
+  }
+
+  removeMultiPointAreaDropLines() {
+    if (this.multiPointAreaDropLines) {
+      this.scene.remove(this.multiPointAreaDropLines);
+      if (this.multiPointAreaDropLines.geometry) this.multiPointAreaDropLines.geometry.dispose();
+      if (this.multiPointAreaDropLines.material) this.multiPointAreaDropLines.material.dispose();
+      this.multiPointAreaDropLines = null;
+    }
+  }
+
+  focusAndFlashSelfIntersection() {
+    if (!this.multiPointSelfIntersectingSegs || this.multiPointSelfIntersectingSegs.length === 0) return;
+
+    // 1. Focus camera on the self-intersection region
+    const box = new THREE.Box3();
+    if (this.multiPointSelfIntersectPoints && this.multiPointSelfIntersectPoints.length > 0) {
+      this.multiPointSelfIntersectPoints.forEach(p => box.expandByPoint(p));
+    } else if (this.multiPointState && this.multiPointState.lines) {
+      this.multiPointSelfIntersectingSegs.forEach(segIdx => {
+        const line = this.multiPointState.lines[segIdx];
+        if (line) box.expandByObject(line);
+      });
+    }
+
+    if (!box.isEmpty()) {
+      box.expandByScalar(1.5);
+      this.zoomToBox(box);
+    }
+
+    // 2. Glow effect on self-intersecting lines: bright red glow (5px) fading out over 1.0s
+    if (this.multiPointGlowAnimId) {
+      cancelAnimationFrame(this.multiPointGlowAnimId);
+      this.multiPointGlowAnimId = null;
+    }
+
+    const selfIntersectLines = (this.multiPointState && this.multiPointState.lines)
+      ? this.multiPointSelfIntersectingSegs.map(idx => this.multiPointState.lines[idx]).filter(Boolean)
+      : [];
+
+    const startTime = performance.now();
+    const duration = 1000; // 1.0 second
+    const canvas = this.canvas;
+
+    const animateGlow = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+
+      // Interpolate color from bright scarlet #ff0033 to normal self-intersect red #ff3b30
+      // Hex: 0xff0033 -> 0xff3b30
+      const r = 255;
+      const g = Math.round(0 + progress * 59);
+      const b = Math.round(51 - progress * 3);
+      const curColorHex = (r << 16) | (g << 8) | b;
+
+      selfIntersectLines.forEach(line => {
+        if (line && line.material) {
+          line.material.color.setHex(curColorHex);
+        }
+      });
+
+      // 5px glow fading out
+      if (canvas) {
+        const glowBlur = Math.round(5 * (1.0 - progress));
+        const glowAlpha = (1.0 - progress) * 0.85;
+        if (glowBlur > 0 && glowAlpha > 0.05) {
+          canvas.style.filter = `drop-shadow(0 0 ${glowBlur}px rgba(255, 0, 51, ${glowAlpha.toFixed(2)}))`;
+        } else {
+          canvas.style.filter = '';
+        }
+      }
+
+      this.requestRender(100);
+
+      if (progress < 1.0) {
+        this.multiPointGlowAnimId = requestAnimationFrame(animateGlow);
+      } else {
+        if (canvas) canvas.style.filter = '';
+        selfIntersectLines.forEach(line => {
+          if (line && line.material) {
+            line.material.color.setHex(0xff3b30);
+          }
+        });
+        this.multiPointGlowAnimId = null;
+        this.requestRender(100);
+      }
+    };
+
+    this.multiPointGlowAnimId = requestAnimationFrame(animateGlow);
+  }
+
+  renderMultiPointResults() {
+    const totalEl = document.getElementById('measure-res-multi-total');
+    const countEl = document.getElementById('measure-multi-seg-count');
+    const listEl = document.getElementById('measure-multi-segments-list');
+    if (!totalEl || !listEl) return;
+
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decimals = unit === 'mm' ? 0 : 3;
+
+    if (!this.multiPointState || this.multiPointState.points.length === 0) {
+      totalEl.textContent = '--';
+      if (countEl) countEl.textContent = '0 segs';
+      listEl.innerHTML = '';
+      return;
+    }
+
+    const totalFormatted = (this.multiPointState.totalLength * scale).toFixed(decimals) + ' ' + unit;
+    totalEl.textContent = totalFormatted;
+
+    const segCount = this.multiPointState.segments.length;
+    if (countEl) {
+      const template = I18N.t('measureMultiSegCount') || '{count} segs';
+      let text = template.replace('{count}', segCount);
+      if (this.multiPointState.isClosed) {
+        text += ' (' + (I18N.t('measureMultiClosed') || 'Closed') + ')';
+      }
+      countEl.textContent = text;
+    }
+
+    // Area Calculation and Self-Intersection Handling
+    const el3DLabel = document.getElementById('measure-multi-3d-area-label');
+    const el3DVal = document.getElementById('measure-res-multi-3d-area');
+    const elProjLabel = document.getElementById('measure-multi-proj-area-label');
+    const elProjVal = document.getElementById('measure-res-multi-proj-area');
+    const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
+
+    const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
+    const areaScale = unit === 'mm' ? 1e6 : 1;
+    const areaDecimals = unit === 'mm' ? 0 : 3;
+
+    if (!this.multiPointState.isClosed) {
+      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (est.) (when closed)';
+      if (el3DVal) el3DVal.textContent = '-.--- ' + areaUnit;
+      if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjAreaClosed') || 'Proj Area (when closed)';
+      if (elProjVal) elProjVal.textContent = '-.--- ' + areaUnit;
+      if (btnSelfIntersect) btnSelfIntersect.style.display = 'none';
+
+      this.multiPointSelfIntersectingSegs = [];
+      this.multiPointSelfIntersectPoints = [];
+      this.removeMultiPointAreaMesh();
+
+      // Reset lines to amber
+      if (this.multiPointState.lines) {
+        this.multiPointState.lines.forEach(line => {
+          if (line && line.material) line.material.color.setHex(0xf59e0b);
+        });
+      }
+    } else {
+      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DArea') || '3D Area (est.)';
+      if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjArea') || 'Proj Area';
+
+      const areaData = this.computeMultiPointClosedArea();
+      this.multiPointAreaDataCache = areaData;
+      this.multiPointSelfIntersectingSegs = areaData.intersectingSegs || [];
+      this.multiPointSelfIntersectPoints = areaData.intersectionPoints3D || [];
+
+      if (el3DVal) el3DVal.textContent = (areaData.area3D * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+      if (elProjVal) elProjVal.textContent = (areaData.areaProj * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+
+      // Update active highlight on side panel row
+      const row3D = document.getElementById('measure-multi-3d-area-row');
+      const rowProj = document.getElementById('measure-multi-proj-area-row');
+      if (row3D) row3D.classList.toggle('measure-area-row-active', (this.multiPointAreaMode || '3d') === '3d');
+      if (rowProj) rowProj.classList.toggle('measure-area-row-active', (this.multiPointAreaMode || '3d') === 'horizontal');
+
+      if (btnSelfIntersect) {
+        btnSelfIntersect.style.display = areaData.isSelfIntersecting ? 'inline-flex' : 'none';
+        btnSelfIntersect.title = I18N.t('measureSelfIntersectTitle') || 'Self-intersecting';
+      }
+
+      // Highlight self-intersecting segments in Scarlet Red (0xff3b30), others in Amber (0xf59e0b)
+      if (this.multiPointState.lines) {
+        this.multiPointState.lines.forEach((line, idx) => {
+          if (!line || !line.material) return;
+          if (areaData.intersectingSegs.includes(idx)) {
+            line.material.color.setHex(0xff3b30);
+          } else {
+            line.material.color.setHex(0xf59e0b);
+          }
+        });
+      }
+
+      // Update 3D translucent surface fill mesh & drop lines
+      this.updateMultiPointAreaMesh(areaData);
+      this.updateMultiPointAreaCalloutDOM(areaData);
+    }
+
+    listEl.innerHTML = '';
+    this.multiPointState.segments.forEach((seg, idx) => {
+      const segFormatted = (seg.length * scale).toFixed(decimals) + ' ' + unit;
+      const row = document.createElement('div');
+      row.className = 'measure-multi-segment-row';
+      if (this.multiPointState.hoveredSegmentIndex === idx) {
+        row.classList.add('active');
+      }
+      row.setAttribute('data-seg-idx', idx);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'measure-multi-seg-label';
+      labelSpan.textContent = `Pt #${seg.from + 1} ~ Pt #${seg.to + 1}`;
+
+      const rightBox = document.createElement('div');
+      rightBox.style.display = 'inline-flex';
+      rightBox.style.alignItems = 'center';
+      rightBox.style.gap = '6px';
+
+      const valSpan = document.createElement('span');
+      valSpan.className = 'measure-multi-seg-val';
+      valSpan.textContent = segFormatted;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'measure-val-copy-btn';
+      copyBtn.title = 'Copy segment distance';
+      copyBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(segFormatted).catch(() => {});
+        }
+        showToast(`${I18N.t('measureCopied') || 'Copied'}: ${segFormatted}`, 'info');
+        copyBtn.classList.add('copied');
+        setTimeout(() => copyBtn.classList.remove('copied'), 1000);
+      });
+
+      rightBox.appendChild(valSpan);
+      rightBox.appendChild(copyBtn);
+      row.appendChild(labelSpan);
+      row.appendChild(rightBox);
+
+      row.addEventListener('mouseenter', () => {
+        this.setMultiPointHoveredSegment(idx);
+      });
+      row.addEventListener('mouseleave', () => {
+        this.setMultiPointHoveredSegment(-1);
+      });
+
+      listEl.appendChild(row);
+    });
+  }
+
+  setMultiPointHoveredSegment(segIdx) {
+    if (!this.multiPointState) return;
+
+    if (this.multiPointState.hoveredSegmentIndex === segIdx) {
+      if (segIdx >= 0 && this.multiPointState.segments[segIdx]) {
+        const seg = this.multiPointState.segments[segIdx];
+        const p0 = this.multiPointState.points[seg.from];
+        const p1 = this.multiPointState.points[seg.to];
+        if (p0 && p1) {
+          this.ensureMultiPointHoverCalloutDOM();
+          this.updateMultiPointHoverCalloutPosition(p0, p1);
+        }
+      }
+      return;
+    }
+
+    const prevIdx = this.multiPointState.hoveredSegmentIndex;
+    this.multiPointState.hoveredSegmentIndex = segIdx;
+
+    if (prevIdx >= 0 && this.multiPointState.lines[prevIdx]) {
+      const isSelf = this.multiPointSelfIntersectingSegs && this.multiPointSelfIntersectingSegs.includes(prevIdx);
+      this.multiPointState.lines[prevIdx].material.color.setHex(isSelf ? 0xff3b30 : 0xf59e0b);
+    }
+    if (segIdx >= 0 && this.multiPointState.lines[segIdx]) {
+      this.multiPointState.lines[segIdx].material.color.setHex(0x38bdf8);
+    }
+
+    const listEl = document.getElementById('measure-multi-segments-list');
+    if (listEl) {
+      listEl.querySelectorAll('.measure-multi-segment-row').forEach((r, idx) => {
+        r.classList.toggle('active', idx === segIdx);
+      });
+    }
+
+    if (segIdx >= 0 && this.multiPointState.segments[segIdx]) {
+      const seg = this.multiPointState.segments[segIdx];
+      const p0 = this.multiPointState.points[seg.from];
+      const p1 = this.multiPointState.points[seg.to];
+      if (p0 && p1) {
+        this.ensureMultiPointHoverCalloutDOM();
+        const unit = this.measureUnit || 'm';
+        const scale = unit === 'mm' ? 1000 : 1;
+        const decimals = unit === 'mm' ? 0 : 3;
+        const segFormatted = (seg.length * scale).toFixed(decimals) + ' ' + unit;
+        if (this.multiPointHoverCalloutEl) {
+          this.multiPointHoverCalloutEl.textContent = segFormatted;
+          this.multiPointHoverCalloutEl.style.display = 'block';
+        }
+        this.updateMultiPointHoverCalloutPosition(p0, p1);
+      }
+    } else {
+      if (this.multiPointHoverCalloutEl) {
+        this.multiPointHoverCalloutEl.style.display = 'none';
+      }
+    }
+
+    this.requestRender(100);
+  }
+
+  updateMultiPointHoverCalloutPosition(p0, p1) {
+    if (!this.multiPointHoverCalloutEl || !this.camera || !this.container) return;
+    this.ensureMultiPointHoverCalloutDOM();
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+
+    const proj0 = p0.clone().project(this.camera);
+    const proj1 = p1.clone().project(this.camera);
+    const p0Behind = (proj0.z > 1.0 || proj0.z < -1.0);
+    const p1Behind = (proj1.z > 1.0 || proj1.z < -1.0);
+    if (p0Behind && p1Behind) {
+      this.multiPointHoverCalloutEl.style.display = 'none';
+      return;
+    }
+
+    const s0x = (proj0.x * 0.5 + 0.5) * cw;
+    const s0y = (-proj0.y * 0.5 + 0.5) * ch;
+    const s1x = (proj1.x * 0.5 + 0.5) * cw;
+    const s1y = (-proj1.y * 0.5 + 0.5) * ch;
+
+    let bx, by;
+    const safeMargin = 16;
+    const clipRes = this.clipSegmentToScreen ? this.clipSegmentToScreen(s0x, s0y, s1x, s1y, safeMargin, cw - safeMargin, safeMargin, ch - safeMargin) : null;
+    if (clipRes) {
+      const t = Math.max(clipRes.t0, Math.min(clipRes.t1, 0.5));
+      bx = s0x + t * (s1x - s0x);
+      by = s0y + t * (s1y - s0y);
+    } else {
+      bx = (s0x + s1x) * 0.5;
+      by = (s0y + s1y) * 0.5;
+    }
+
+    this.multiPointHoverCalloutEl.style.display = 'block';
+    this.multiPointHoverCalloutEl.style.transform = `translate3d(${Math.round(bx)}px, ${Math.round(by - 16)}px, 0) translate(-50%, -100%)`;
+  }
+
+  checkMultiPointSegmentHover(clientX, clientY) {
+    if (!this.multiPointState || !this.multiPointState.segments || this.multiPointState.segments.length === 0) return;
+    if (!this.camera || !this.container) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const mx = clientX;
+    const my = clientY;
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+
+    let bestDistSq = Infinity;
+    let bestIdx = -1;
+
+    const proj0 = new THREE.Vector3();
+    const proj1 = new THREE.Vector3();
+
+    for (let i = 0; i < this.multiPointState.segments.length; i++) {
+      const seg = this.multiPointState.segments[i];
+      const p0 = this.multiPointState.points[seg.from];
+      const p1 = this.multiPointState.points[seg.to];
+      if (!p0 || !p1) continue;
+
+      proj0.copy(p0).project(this.camera);
+      proj1.copy(p1).project(this.camera);
+
+      if ((proj0.z > 1.0 || proj0.z < -1.0) && (proj1.z > 1.0 || proj1.z < -1.0)) continue;
+
+      const s0x = rect.left + (proj0.x * 0.5 + 0.5) * cw;
+      const s0y = rect.top + (-proj0.y * 0.5 + 0.5) * ch;
+      const s1x = rect.left + (proj1.x * 0.5 + 0.5) * cw;
+      const s1y = rect.top + (-proj1.y * 0.5 + 0.5) * ch;
+
+      const dx = s1x - s0x;
+      const dy = s1y - s0y;
+      const lenSq = dx * dx + dy * dy;
+      let dSq;
+      if (lenSq === 0) {
+        dSq = (mx - s0x) ** 2 + (my - s0y) ** 2;
+      } else {
+        let t = ((mx - s0x) * dx + (my - s0y) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const projX = s0x + t * dx;
+        const projY = s0y + t * dy;
+        dSq = (mx - projX) ** 2 + (my - projY) ** 2;
+      }
+
+      if (dSq < 144 && dSq < bestDistSq) {
+        bestDistSq = dSq;
+        bestIdx = i;
+      }
+    }
+
+    this.setMultiPointHoveredSegment(bestIdx);
   }
 
   handleMeasureClick(hitOrPoint, event = null) {
@@ -12498,6 +14587,238 @@ class BIMViewerApp {
         point: snap.point,
         face: { ...(hitOrPoint.face || {}), normal: snap.normal }
       };
+    }
+
+    if (this.measureMode === 'multipoint') {
+      if (!isHitObj) return;
+      const isShift = Boolean(event && event.shiftKey);
+      if (isShift) return;
+
+      const pt = effectiveHit.point.clone();
+
+      // CASE A: Inserting point into middle of a segment
+      if (this.multiPointInsertSegIdx >= 0) {
+        const segIdx = this.multiPointInsertSegIdx;
+        this.multiPointInsertSegIdx = -1;
+        this.hideMultiPointInsertPreview();
+
+        const seg = this.multiPointState.segments[segIdx];
+        const pFrom = this.multiPointState.points[seg.from];
+        const pTo = this.multiPointState.points[seg.to];
+        const insertIdx = seg.to; // index where new point will be spliced in
+
+        this.multiPointState.points.splice(insertIdx, 0, pt);
+        const marker = this.createMultiPointMarker(effectiveHit, insertIdx + 1);
+        this.multiPointState.markers.splice(insertIdx, 0, marker);
+
+        // Update existing line segIdx: [pFrom -> pt]
+        const lineOld = this.multiPointState.lines[segIdx];
+        if (lineOld) {
+          lineOld.geometry.dispose();
+          lineOld.geometry = new THREE.BufferGeometry().setFromPoints([pFrom, pt]);
+        }
+
+        // Create new line for [pt -> pTo]
+        const lineNew = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([pt, pTo]),
+          new THREE.LineBasicMaterial({
+            color: 0xf59e0b,
+            linewidth: 3,
+            depthTest: false,
+            depthWrite: false
+          })
+        );
+        lineNew.renderOrder = 1205;
+        lineNew.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: insertIdx };
+        this.scene.add(lineNew);
+        this.multiPointState.lines.splice(insertIdx, 0, lineNew);
+
+        // Update segment lengths
+        seg.length = pFrom.distanceTo(pt);
+        this.multiPointState.segments.splice(insertIdx, 0, {
+          from: insertIdx,
+          to: insertIdx + 1,
+          length: pt.distanceTo(pTo)
+        });
+
+        // Re-index all segments
+        this.multiPointState.segments.forEach((s, idx) => {
+          s.from = idx;
+          s.to = idx + 1;
+          if (this.multiPointState.lines[idx]) {
+            this.multiPointState.lines[idx].userData.segmentIndex = idx;
+          }
+        });
+
+        // Renumber all markers & badges
+        this.multiPointState.markers.forEach((m, idx) => {
+          m.multiPointIndex = idx;
+          if (m.calloutEl) {
+            m.calloutEl.textContent = `Pt #${idx + 1}`;
+            m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+          }
+        });
+
+        let total = 0;
+        this.multiPointState.segments.forEach(s => total += s.length);
+        this.multiPointState.totalLength = total;
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measureMultiHint') || 'Multi-point measurement updated';
+
+        this.renderMultiPointResults();
+        this.updateMeasureMarkersAndCallouts();
+        this.requestRender(200);
+        return;
+      }
+
+      // CASE B: Prepending points before Pt #1
+      if (this.multiPointState.isDrawing && this.multiPointDrawDir === 'prepend') {
+        const firstPt = this.multiPointState.points[0];
+        const points = this.multiPointState.points;
+        if (points.length >= 2) {
+          const lastPt = points[points.length - 1];
+          if (pt.distanceTo(lastPt) < 0.45 || this.isSnappedToClosurePoint || (effectiveHit && effectiveHit.isClosureSnap)) {
+            this.showMultiPointClosurePopover(lastPt, () => {
+              this.closeMultiPointMeasurement();
+            }, () => {});
+            if (this.snapEngine) this.snapEngine.hideIndicator();
+            return;
+          }
+        }
+        if (pt.distanceTo(firstPt) < 1e-3) {
+          this.finishMultiPointMeasurement();
+          return;
+        }
+
+        this.multiPointState.points.unshift(pt);
+        const marker = this.createMultiPointMarker(effectiveHit, 1);
+        this.multiPointState.markers.unshift(marker);
+
+        const geom = new THREE.BufferGeometry().setFromPoints([pt, firstPt]);
+        const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+          color: 0xf59e0b,
+          linewidth: 3,
+          depthTest: false,
+          depthWrite: false
+        }));
+        line.renderOrder = 1205;
+        line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: 0 };
+        this.scene.add(line);
+        this.multiPointState.lines.unshift(line);
+
+        const segLen = pt.distanceTo(firstPt);
+        this.multiPointState.segments.unshift({
+          from: 0,
+          to: 1,
+          length: segLen
+        });
+
+        // Re-index all segments
+        this.multiPointState.segments.forEach((s, idx) => {
+          s.from = idx;
+          s.to = idx + 1;
+          if (this.multiPointState.lines[idx]) {
+            this.multiPointState.lines[idx].userData.segmentIndex = idx;
+          }
+        });
+
+        // Renumber all markers & badges
+        this.multiPointState.markers.forEach((m, idx) => {
+          m.multiPointIndex = idx;
+          if (m.calloutEl) {
+            m.calloutEl.textContent = `Pt #${idx + 1}`;
+            m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+          }
+        });
+
+        let total = 0;
+        this.multiPointState.segments.forEach(s => total += s.length);
+        this.multiPointState.totalLength = total;
+
+        this.renderMultiPointResults();
+        this.updateMeasureMarkersAndCallouts();
+        this.requestRender(200);
+        return;
+      }
+
+      if (!this.multiPointState.isDrawing) {
+        if (this.multiPointState.points.length > 0) {
+          this.clearMultiPointMeasurement();
+        }
+
+        this.multiPointState.isDrawing = true;
+        this.multiPointState.points = [pt];
+        const marker = this.createMultiPointMarker(effectiveHit, 1);
+        this.multiPointState.markers = [marker];
+        this.multiPointState.lines = [];
+        this.multiPointState.segments = [];
+        this.multiPointState.totalLength = 0;
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measureMultiPromptPickNext') || "Click surface to add next point | Double-click or click 'Done' to finish";
+
+        const btnDone = document.getElementById('btn-measure-multi-done');
+        if (btnDone) btnDone.style.display = 'none';
+
+        this.renderMultiPointResults();
+        this.initMultiPointPreview();
+        this.requestRender(200);
+        return;
+      }
+
+      const points = this.multiPointState.points;
+      const lastPt = points[points.length - 1];
+
+      // Check if clicking on first point Pt #1 to close polyline (allowed from 3rd point onwards)
+      if (points.length >= 2) {
+        const firstPt = points[0];
+        if (pt.distanceTo(firstPt) < 0.45 || this.isSnappedToClosurePoint || (effectiveHit && effectiveHit.isClosureSnap)) {
+          this.showMultiPointClosurePopover(firstPt, () => {
+            this.closeMultiPointMeasurement();
+          }, () => {});
+          if (this.snapEngine) this.snapEngine.hideIndicator();
+          return;
+        }
+      }
+
+      if (pt.distanceTo(lastPt) < 1e-3) {
+        this.finishMultiPointMeasurement();
+        return;
+      }
+
+      points.push(pt);
+      const newIdx = points.length;
+      const marker = this.createMultiPointMarker(effectiveHit, newIdx);
+      this.multiPointState.markers.push(marker);
+
+      const geom = new THREE.BufferGeometry().setFromPoints([lastPt, pt]);
+      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        linewidth: 3,
+        depthTest: false,
+        depthWrite: false
+      }));
+      line.renderOrder = 1205;
+      line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: points.length - 2 };
+      this.scene.add(line);
+      this.multiPointState.lines.push(line);
+
+      const segLen = lastPt.distanceTo(pt);
+      this.multiPointState.segments.push({
+        from: points.length - 2,
+        to: points.length - 1,
+        length: segLen
+      });
+      this.multiPointState.totalLength += segLen;
+
+      const btnDone = document.getElementById('btn-measure-multi-done');
+      if (btnDone) btnDone.style.display = 'inline-block';
+
+      this.renderMultiPointResults();
+      this.updateMeasureMarkersAndCallouts();
+      this.requestRender(200);
+      return;
     }
 
     if (this.measureMode === 'radius') {
@@ -12832,15 +15153,20 @@ class BIMViewerApp {
     const distView = document.getElementById('measure-result-dist-view');
     const radView = document.getElementById('measure-result-radius-view');
     const angleView = document.getElementById('measure-result-angle-view');
+    const multiView = document.getElementById('measure-result-multi-view');
     if (ptView && distView) {
       const showPt = this.measureMode === 'point';
       const showRad = this.measureMode === 'radius';
       const showAngle = this.measureMode === 'angle';
+      const showMulti = this.measureMode === 'multipoint';
       ptView.style.display = showPt ? 'block' : 'none';
       distView.style.display = (this.measureMode === 'distance') ? 'block' : 'none';
       if (radView) radView.style.display = showRad ? 'block' : 'none';
       if (angleView) angleView.style.display = showAngle ? 'block' : 'none';
+      if (multiView) multiView.style.display = showMulti ? 'block' : 'none';
     }
+
+    this.renderMultiPointResults();
 
     // 1. Update Point Measurement Panel Card
     const activePt = this.getActiveMeasurePoint();
@@ -12880,7 +15206,9 @@ class BIMViewerApp {
 
     // Refresh all point callouts when unit changes
     if (this.measureMarkers && this.measureMarkers.length > 0) {
-      this.measureMarkers.forEach(m => this.createOrUpdateMeasureCalloutDOM(m));
+      this.measureMarkers.forEach(m => {
+        if (m.mode === 'point') this.createOrUpdateMeasureCalloutDOM(m);
+      });
       this.updateMeasureMarkersAndCallouts();
     }
 
@@ -13031,6 +15359,9 @@ class BIMViewerApp {
     this.measurePoints = [];
     this.lastMeasurementData = null;
 
+    // 0. Clear Multi-Point Measurements
+    this.clearMultiPointMeasurement();
+
     // 1. Clear Angle Measurements (arms, arc lines, proj groups, endpoints, callouts)
     if (this.angleMeasurements && this.angleMeasurements.length > 0) {
       const angleIds = this.angleMeasurements.map(a => a.id);
@@ -13109,7 +15440,7 @@ class BIMViewerApp {
     if (svgEl) svgEl.innerHTML = '';
     const calloutsLayer = document.getElementById('measure-callouts-layer');
     if (calloutsLayer) {
-      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview)');
+      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview), .measure-multipoint-badge');
       placedCallouts.forEach(el => el.remove());
     }
 
@@ -13144,8 +15475,10 @@ class BIMViewerApp {
           : (this.measureMode === 'distance'
             ? I18N.t('measurePromptPickFirst')
             : (this.measureMode === 'angle'
-              ? (I18N.t('measureAnglePromptPickVertex') || 'Click surface to place Angle Vertex (Point 1/3)')
-              : I18N.t('measurePendingNotice'))));
+              ? (I18N.t('measurePromptPickAngleVertex') || 'Click surface to place Angle Vertex (Point 1/3)')
+              : (this.measureMode === 'multipoint'
+                ? (I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)')
+                : I18N.t('measurePendingNotice')))));
     }
     this.requestRender(200);
   }
@@ -13751,6 +16084,43 @@ class BIMViewerApp {
       });
     }
 
+    // Measure Multi-Point Done Button
+    const btnDoneMeasure = document.getElementById('btn-measure-multi-done');
+    if (btnDoneMeasure) {
+      btnDoneMeasure.addEventListener('click', () => {
+        this.finishMultiPointMeasurement();
+      });
+    }
+
+    // Measure Multi-Point Area Row Click to Toggle Mode
+    const row3D = document.getElementById('measure-multi-3d-area-row');
+    if (row3D) {
+      row3D.addEventListener('click', (e) => {
+        if (e.target.closest('.measure-val-copy-btn') || e.target.closest('.measure-self-intersect-btn')) return;
+        if (this.multiPointState && this.multiPointState.isClosed && this.multiPointAreaMode !== '3d') {
+          this.toggleMultiPointAreaMode();
+        }
+      });
+    }
+    const rowProj = document.getElementById('measure-multi-proj-area-row');
+    if (rowProj) {
+      rowProj.addEventListener('click', (e) => {
+        if (e.target.closest('.measure-val-copy-btn')) return;
+        if (this.multiPointState && this.multiPointState.isClosed && this.multiPointAreaMode !== 'horizontal') {
+          this.toggleMultiPointAreaMode();
+        }
+      });
+    }
+
+    // Measure Multi-Point Self-Intersection Jump & Glow Button
+    const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
+    if (btnSelfIntersect) {
+      btnSelfIntersect.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.focusAndFlashSelfIntersection();
+      });
+    }
+
     // Measure Value Copy Buttons in Floating Tool Panel (Visual #0284c7 flash with 1s fade, no text change)
     document.querySelectorAll('.measure-val-copy-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -14339,6 +16709,9 @@ class BIMViewerApp {
         this.isMeasureMode = false;
         this.hideMeasurePointPreview();
         this.hideRadiusPreview();
+        this.hideDistancePreview();
+        this.hideAnglePreview();
+        this.hideMultiPointPreview();
         if (this.snapEngine) this.snapEngine.hideIndicator();
         if (this.canvas) this.canvas.style.cursor = 'default';
       }
@@ -14356,6 +16729,9 @@ class BIMViewerApp {
     }
     if (mode !== 'angle') {
       this.cancelPendingAngleStart();
+    }
+    if (mode !== 'multipoint') {
+      this.cancelPendingMultiPoint();
     }
     if (mode === 'point') {
       if (hintEl) hintEl.textContent = I18N.t('measurePointHint');
@@ -14387,6 +16763,21 @@ class BIMViewerApp {
       this.hideMeasurePointPreview();
       this.hideRadiusPreview();
       this.hideDistancePreview();
+      this.hideMultiPointPreview();
+    } else if (mode === 'multipoint') {
+      if (hintEl) {
+        if (!this.multiPointState || !this.multiPointState.isDrawing) {
+          hintEl.textContent = I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)';
+        } else {
+          hintEl.textContent = I18N.t('measureMultiPromptPickNext') || "Click surface to add next point | Double-click or click 'Done' to finish";
+        }
+      }
+      this.isMeasureMode = true;
+      if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
+      this.hideDistancePreview();
+      this.hideAnglePreview();
     } else {
       if (hintEl) hintEl.textContent = I18N.t('measurePendingNotice');
       this.isMeasureMode = false;
