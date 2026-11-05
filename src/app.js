@@ -2197,6 +2197,16 @@ class BIMViewerApp {
     
     // UI Theme System ('dark' | 'light')
     this.currentTheme = 'dark';
+
+    // Keyboard Shortcuts System (Scheme A Standard / Scheme B Autodesk Revit)
+    this.shortcutsMode = localStorage.getItem('bimscope_shortcuts_mode') || 'standard';
+    this.shortcutsBuffer = '';
+    this.shortcutsBufferTimer = null;
+    this.shortcutsFadeTimer = null;
+    this.shortcutsCapsuleEl = null;
+    this.shortcutsCapsuleKeysEl = null;
+    this.shortcutsHudModalEl = null;
+    this.shortcutsHudCurrentTab = this.shortcutsMode;
     
     // Architectural Edge Lines System
     this.showEdges = true;
@@ -2234,6 +2244,7 @@ class BIMViewerApp {
     this.initContextMenu();
     this.initEventListeners();
     this.initUI();
+    this.initShortcutsSystem();
     this.handleWindowAdaptiveLayout();
     
     // Load default CR301 West Depot model
@@ -3320,7 +3331,7 @@ class BIMViewerApp {
     this.buildHierarchyTree();
     this.updateBottomLegend();
     this.updateStats();
-    this.fitView();
+    this.fitView(true);
     this.initViewHistory();
     
     showToast(I18N.t('loadingTitle') + " - " + I18N.t('solarDayMsg'), 'success');
@@ -3379,6 +3390,27 @@ class BIMViewerApp {
       }
     } else {
       this.tweenCamera(targetCam, center);
+    }
+  }
+
+  // Zoom to Fit (smooth camera animation framing entire active model along current viewing line of sight)
+  zoomToFit(immediate = false) {
+    if (!this.activeModel) return;
+    const box = new THREE.Box3().setFromObject(this.activeModel);
+    if (box.isEmpty()) return;
+
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z, 10);
+    const neededFar = Math.min(10000, Math.max(5000, Math.ceil(maxDim * 5)));
+    if (this.camera && this.camera.far < neededFar) {
+      this.setFarClip(neededFar, true);
+    }
+
+    if (immediate) {
+      this.fitView(true);
+    } else {
+      this.zoomToBox(box);
     }
   }
   
@@ -5667,59 +5699,7 @@ class BIMViewerApp {
     if (!mesh) return;
     const box = new THREE.Box3().setFromObject(mesh);
     if (box.isEmpty()) return;
-
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-
-    const sphere = new THREE.Sphere();
-    box.getBoundingSphere(sphere);
-    const radius = Math.max(sphere.radius, 0.5);
-
-    // Keep the exact same camera viewing angle (line of sight)
-    // viewDir points from controls.target to camera.position
-    const viewDir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
-    if (viewDir.lengthSq() < 0.0001) {
-      this.camera.getWorldDirection(viewDir).negate();
-    } else {
-      viewDir.normalize();
-    }
-
-    // Distance calculation so object occupies ~70% of the viewport:
-    // Screen height at distance D is H = 2 * D * tan(fov / 2).
-    // Screen width at distance D is W = H * aspect = 2 * D * tan(fov / 2) * aspect.
-    // Object diameter is 2 * radius.
-    // Screen occupancy fraction along tighter dimension:
-    // (2 * radius) / (2 * D * tan(fov / 2) * min(1, aspect)) = 0.70
-    // => D = (radius / 0.70) / (tan(fov / 2) * min(1, aspect))
-    const zoomFraction = 0.70;
-    if (this.camera && this.camera.isOrthographicCamera) {
-      const width = this.canvas.clientWidth || window.innerWidth;
-      const height = this.canvas.clientHeight || window.innerHeight;
-      const aspect = width / (height || 1);
-      const minAspect = Math.min(1, aspect);
-      const halfH = (radius / minAspect) / zoomFraction;
-      const halfW = halfH * aspect;
-      this.orthographicCamera.left = -halfW;
-      this.orthographicCamera.right = halfW;
-      this.orthographicCamera.top = halfH;
-      this.orthographicCamera.bottom = -halfH;
-      this.orthographicCamera.zoom = 1.0;
-      this.orthographicCamera.updateProjectionMatrix();
-
-      const targetCam = center.clone().addScaledVector(viewDir, 25.0);
-      this.showPivotIndicator(center);
-      this.tweenCamera(targetCam, center);
-      return;
-    }
-
-    const fovRad = ((this.perspectiveCamera ? this.perspectiveCamera.fov : 45) * Math.PI) / 180;
-    const aspect = (this.perspectiveCamera ? this.perspectiveCamera.aspect : 1) || 1;
-    const minAspect = Math.min(1, aspect);
-    const targetDist = Math.max((radius / zoomFraction) / (Math.tan(fovRad / 2) * minAspect), 1.0);
-
-    const targetCam = center.clone().addScaledVector(viewDir, targetDist);
-    this.showPivotIndicator(center);
-    this.tweenCamera(targetCam, center);
+    this.zoomToBox(box);
   }
   
   isolateElement(mesh) {
@@ -6218,7 +6198,7 @@ class BIMViewerApp {
 
     const btnFit = content.querySelector('#btn-fit-model');
     if (btnFit) {
-      btnFit.onclick = () => this.fitView();
+      btnFit.onclick = () => this.zoomToFit(false);
     }
 
     const btnExportJson = content.querySelector('#btn-export-meta-json');
@@ -8117,7 +8097,7 @@ class BIMViewerApp {
       this.currentModelInfo.unitStrZh = `${this.objTuningState.upAxis}轴朝上 | 缩放: ×${this.objTuningState.currentScale} | (${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} 米)`;
       this.updateModelSubtitle();
     }
-    this.fitView();
+    this.fitView(true);
     this.renderModelInfoInspector();
     if (this.renderer && this.scene && this.camera) this.renderer.render(this.scene, this.camera);
   }
@@ -9325,63 +9305,7 @@ class BIMViewerApp {
       }
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (this.pendingClosureAction) {
-          this.hideMultiPointClosurePopover();
-          return;
-        }
-        this.hideContextMenu();
-        if (this.pendingDistanceStart) {
-          this.cancelPendingDistanceStart();
-        }
-        if (this.pendingAngleState) {
-          this.cancelPendingAngleStart();
-        }
-        if (this.multiPointInsertSegIdx >= 0) {
-          this.multiPointInsertSegIdx = -1;
-          this.hideMultiPointInsertPreview();
-          const hintEl = document.getElementById('measure-mode-hint');
-          if (hintEl) hintEl.textContent = I18N.t('measureMultiHint') || 'Multi-point measurement ready';
-          this.requestRender(100);
-          return;
-        }
-        if (this.multiPointState && this.multiPointState.isDrawing) {
-          if (this.multiPointDrawDir === 'prepend') {
-            this.finishMultiPointMeasurement();
-          } else {
-            this.cancelPendingMultiPoint();
-          }
-        }
-        if (this.compareEngine && this.compareEngine.isModalOpen()) {
-          this.compareEngine.closeSetupModal();
-          return;
-        }
-      } else if (e.key === 'Enter') {
-        if (this.pendingClosureAction) {
-          const action = this.pendingClosureAction;
-          this.hideMultiPointClosurePopover();
-          if (action && action.onConfirm) action.onConfirm();
-          return;
-        }
-        if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
-          this.finishMultiPointMeasurement();
-        }
-      }
-
-      // If compare modal is active, mask background shortcuts
-      if (this.compareEngine && this.compareEngine.isModalOpen()) {
-        return;
-      }
-
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        this.undoView();
-      } else if (e.altKey && e.key === 'ArrowRight') {
-        e.preventDefault();
-        this.redoView();
-      }
-    });
+    // Global keyboard handling (Escape, Enter, Alt+Arrows, CAD shortcuts) centralized in handleGlobalKeyDown()
 
     this.canvas.addEventListener('wheel', () => this.hideContextMenu(), { passive: true });
 
@@ -9399,7 +9323,7 @@ class BIMViewerApp {
     if (btnZoomGlobal) {
       btnZoomGlobal.onclick = () => {
         this.hideContextMenu();
-        this.fitView();
+        this.zoomToFit(false);
       };
     }
 
@@ -9619,6 +9543,778 @@ class BIMViewerApp {
     }
   }
 
+  // ==========================================
+  // KEYBOARD SHORTCUTS SYSTEM (STANDARD / REVIT)
+  // ==========================================
+  initShortcutsSystem() {
+    this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
+    this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
+    this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
+    this.shortcutsCandidateTimer = null;
+    this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+
+    // Dismiss candidate panel when clicking outside
+    document.addEventListener('pointerdown', (e) => {
+      if (this.shortcutsCandidatePanelEl && this.shortcutsCandidatePanelEl.classList.contains('visible')) {
+        if (!this.shortcutsCandidatePanelEl.contains(e.target) && (!this.shortcutsCapsuleEl || !this.shortcutsCapsuleEl.contains(e.target))) {
+          this.hideShortcutsCandidates();
+          this.hideShortcutsCapsule();
+          this.resetShortcutsBuffer();
+        }
+      }
+    });
+
+    // 1. Inspector Preference Dual-Button Toggle (Single Key vs Two Key)
+    const btnSingle = document.getElementById('pref-shortcuts-btn-single');
+    const btnTwo = document.getElementById('pref-shortcuts-btn-two');
+    if (btnSingle) {
+      btnSingle.addEventListener('click', () => this.toggleShortcutsMode());
+    }
+    if (btnTwo) {
+      btnTwo.addEventListener('click', () => this.toggleShortcutsMode());
+    }
+    this.updateShortcutsToggleUI();
+
+    // 2. HUD Open Button (Navbar)
+    const btnTopHud = document.getElementById('btn-top-shortcuts-hud');
+    if (btnTopHud) {
+      btnTopHud.addEventListener('click', () => this.toggleShortcutsHud(true));
+    }
+
+    // 3. HUD Close Button & Backdrop Click
+    const btnHudClose = document.getElementById('btn-shortcuts-hud-close');
+    if (btnHudClose) {
+      btnHudClose.addEventListener('click', () => this.toggleShortcutsHud(false));
+    }
+    if (this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl.addEventListener('click', (e) => {
+        if (e.target === this.shortcutsHudModalEl) {
+          this.toggleShortcutsHud(false);
+        }
+      });
+    }
+
+    // 4. HUD Tab Switching (Standard vs Revit)
+    const btnTabStd = document.getElementById('btn-hud-tab-standard');
+    if (btnTabStd) {
+      btnTabStd.addEventListener('click', () => {
+        this.syncShortcutsHudTab('standard');
+      });
+    }
+    const btnTabRvt = document.getElementById('btn-hud-tab-revit');
+    if (btnTabRvt) {
+      btnTabRvt.addEventListener('click', () => {
+        this.syncShortcutsHudTab('revit');
+      });
+    }
+
+    // 5. Global Keyboard Listener
+    window.addEventListener('keydown', (e) => this.handleGlobalKeyDown(e));
+  }
+
+  toggleShortcutsMode() {
+    this.setShortcutsMode(this.shortcutsMode === 'standard' ? 'revit' : 'standard');
+  }
+
+  updateShortcutsToggleUI() {
+    const btnSingle = document.getElementById('pref-shortcuts-btn-single');
+    const btnTwo = document.getElementById('pref-shortcuts-btn-two');
+    if (btnSingle) btnSingle.classList.toggle('active', this.shortcutsMode === 'standard');
+    if (btnTwo) btnTwo.classList.toggle('active', this.shortcutsMode === 'revit');
+  }
+
+  setShortcutsMode(mode) {
+    if (mode !== 'standard' && mode !== 'revit') mode = 'standard';
+    this.shortcutsMode = mode;
+    try {
+      localStorage.setItem('bimscope_shortcuts_mode', mode);
+    } catch (_) {}
+    this.updateShortcutsToggleUI();
+    this.syncShortcutsHudTab(mode);
+    this.resetShortcutsBuffer();
+    this.hideShortcutsCapsule();
+    const label = mode === 'revit' ? (I18N.t('shortcutsRevit') || 'Autodesk Revit (2-Letter)') : (I18N.t('shortcutsStandard') || 'Standard (Single-Key)');
+    showToast((I18N.t('shortcutsScheme') || 'Shortcuts') + ': ' + label, 'info');
+  }
+
+  syncShortcutsHudTab(scheme) {
+    this.shortcutsHudCurrentTab = scheme;
+    if (!this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+    }
+    if (this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl.classList.toggle('hud-mode-standard', scheme === 'standard');
+      this.shortcutsHudModalEl.classList.toggle('hud-mode-revit', scheme === 'revit');
+    }
+    const tabStd = document.getElementById('btn-hud-tab-standard');
+    const tabRvt = document.getElementById('btn-hud-tab-revit');
+    if (tabStd) tabStd.classList.toggle('active', scheme === 'standard');
+    if (tabRvt) tabRvt.classList.toggle('active', scheme === 'revit');
+  }
+
+  toggleShortcutsHud(forceState = null) {
+    if (!this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+    }
+    if (!this.shortcutsHudModalEl) return;
+    const isOpen = this.shortcutsHudModalEl.classList.contains('open');
+    const target = forceState !== null ? forceState : !isOpen;
+    if (target) {
+      this.shortcutsHudModalEl.classList.add('open');
+      this.syncShortcutsHudTab(this.shortcutsMode);
+    } else {
+      this.shortcutsHudModalEl.classList.remove('open');
+    }
+  }
+
+  showShortcutsCandidates(candidates, onSelect, timeoutMs = 5000) {
+    if (!this.shortcutsCandidatePanelEl) {
+      this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
+    }
+    if (!this.shortcutsCandidatePanelEl) return;
+    this.shortcutsCandidatePanelEl.innerHTML = '';
+
+    candidates.forEach(cand => {
+      const row = document.createElement('div');
+      row.className = 'shortcuts-candidate-item';
+      row.innerHTML = `
+        <span class="shortcuts-cand-key">${cand.key}</span>
+        <span class="shortcuts-cand-name">${cand.name}</span>
+      `;
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hideShortcutsCandidates();
+        onSelect(cand);
+      });
+      this.shortcutsCandidatePanelEl.appendChild(row);
+    });
+
+    this.shortcutsCandidatePanelEl.style.display = 'flex';
+    requestAnimationFrame(() => {
+      if (this.shortcutsCandidatePanelEl) {
+        this.shortcutsCandidatePanelEl.classList.add('visible');
+      }
+    });
+
+    if (this.shortcutsCandidateTimer) {
+      clearTimeout(this.shortcutsCandidateTimer);
+      this.shortcutsCandidateTimer = null;
+    }
+    this.shortcutsCandidateTimer = setTimeout(() => {
+      this.hideShortcutsCandidates();
+    }, timeoutMs);
+  }
+
+  hideShortcutsCandidates() {
+    if (this.shortcutsCandidateTimer) {
+      clearTimeout(this.shortcutsCandidateTimer);
+      this.shortcutsCandidateTimer = null;
+    }
+    if (this.shortcutsCandidatePanelEl) {
+      this.shortcutsCandidatePanelEl.classList.remove('visible');
+      setTimeout(() => {
+        if (this.shortcutsCandidatePanelEl && !this.shortcutsCandidatePanelEl.classList.contains('visible')) {
+          this.shortcutsCandidatePanelEl.style.display = 'none';
+        }
+      }, 150);
+    }
+  }
+
+  showShortcutsCapsule(text, isMatched = false, durationMs = null) {
+    if (!this.shortcutsCapsuleEl) {
+      this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
+      this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
+    }
+    if (!this.shortcutsCapsuleEl) return;
+    if (this.shortcutsCapsuleKeysEl) {
+      this.shortcutsCapsuleKeysEl.textContent = text;
+    }
+    this.shortcutsCapsuleEl.classList.remove('matched');
+    if (isMatched) {
+      this.shortcutsCapsuleEl.classList.add('matched');
+    }
+    this.shortcutsCapsuleEl.classList.add('visible');
+
+    if (this.shortcutsFadeTimer) {
+      clearTimeout(this.shortcutsFadeTimer);
+      this.shortcutsFadeTimer = null;
+    }
+    const defaultDuration = isMatched ? 850 : 1200;
+    this.shortcutsFadeTimer = setTimeout(() => {
+      if (this.shortcutsCapsuleEl) {
+        this.shortcutsCapsuleEl.classList.remove('visible');
+        this.shortcutsCapsuleEl.classList.remove('matched');
+      }
+    }, durationMs !== null ? durationMs : defaultDuration);
+  }
+
+  hideShortcutsCapsule() {
+    this.hideShortcutsCandidates();
+    if (this.shortcutsCapsuleEl) {
+      this.shortcutsCapsuleEl.classList.remove('visible');
+      this.shortcutsCapsuleEl.classList.remove('matched');
+    }
+    if (this.shortcutsFadeTimer) {
+      clearTimeout(this.shortcutsFadeTimer);
+      this.shortcutsFadeTimer = null;
+    }
+  }
+
+  resetShortcutsBuffer() {
+    this.shortcutsBuffer = '';
+    this.hideShortcutsCandidates();
+    if (this.shortcutsBufferTimer) {
+      clearTimeout(this.shortcutsBufferTimer);
+      this.shortcutsBufferTimer = null;
+    }
+  }
+
+  zoomToSelected() {
+    if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+      this.zoomToGroup(this.selectedMeshes);
+    } else if (this.selectedMesh) {
+      this.zoomToElement(this.selectedMesh);
+    } else if (this.selectedMeshes && this.selectedMeshes.length === 1) {
+      this.zoomToElement(this.selectedMeshes[0]);
+    } else {
+      this.zoomToFit(false);
+    }
+  }
+
+  hideSelected() {
+    if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+      this.hideGroup(this.selectedMeshes);
+      this.clearSelection();
+    } else if (this.selectedMesh) {
+      this.selectedMesh.visible = false;
+      this.clearSelection();
+    } else if (this.selectedMeshes && this.selectedMeshes.length === 1) {
+      this.selectedMeshes[0].visible = false;
+      this.clearSelection();
+    }
+  }
+
+  isolateSelected() {
+    if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+      this.isolateGroup(this.selectedMeshes);
+    } else if (this.selectedMesh) {
+      this.isolateElement(this.selectedMesh);
+    } else if (this.selectedMeshes && this.selectedMeshes.length === 1) {
+      this.isolateElement(this.selectedMeshes[0]);
+    }
+  }
+
+  unhideAll() {
+    const b = document.getElementById('btn-show-all');
+    if (b) {
+      b.click();
+    } else {
+      if (this.activeModel) {
+        this.activeModel.traverse(m => { if (m.isMesh) m.visible = true; });
+      }
+      this.categoryStates.forEach(st => {
+        st.visible = true;
+        if (st.chipEl) {
+          st.chipEl.classList.remove('cat-hidden');
+          st.chipEl.classList.remove('cat-isolated');
+        }
+        if (st.checkboxEl) st.checkboxEl.checked = true;
+      });
+      if (this.virtualStructTree) this.virtualStructTree.showAll();
+    }
+    this.requestRender(100);
+  }
+
+  selectAllElements() {
+    if (!this.activeModel) return;
+    const pickable = [];
+    this.activeModel.traverse(m => {
+      if (m.isMesh && m.visible && this.isPickableElement(m)) {
+        pickable.push(m);
+      }
+    });
+    if (pickable.length > 0) {
+      this.selectElements(pickable);
+    }
+  }
+
+  toggleMeasurePanel() {
+    if (this.isFloatingToolsOpen && this.activeToolTab === 'tab-measure-content') {
+      this.closeFloatingTools();
+    } else {
+      this.openFloatingTools('tab-measure-content');
+    }
+  }
+
+  setMeasureSubmode(mode) {
+    if (!this.isFloatingToolsOpen || this.activeToolTab !== 'tab-measure-content') {
+      this.openFloatingTools('tab-measure-content');
+    }
+    this.setMeasureMode(mode);
+  }
+
+  toggleSectionPlane() {
+    if (!this.clippingEngine) return;
+    this.openFloatingTools('tab-section-content');
+    const secActive = document.getElementById('sec-active-chk');
+    if (!this.clippingEngine.enabled) {
+      this.clippingEngine.enabled = true;
+      if (secActive) secActive.checked = true;
+    }
+    this.clippingEngine.mode = 'plane';
+    this.clippingEngine.update();
+    this.syncSectionUI();
+    this.requestRender(100);
+  }
+
+  toggleSectionBox() {
+    if (!this.clippingEngine) return;
+    this.openFloatingTools('tab-section-content');
+    const secActive = document.getElementById('sec-active-chk');
+    if (!this.clippingEngine.enabled) {
+      this.clippingEngine.enabled = true;
+      if (secActive) secActive.checked = true;
+    }
+    this.clippingEngine.mode = 'box';
+    this.clippingEngine.update();
+    this.syncSectionUI();
+    this.requestRender(100);
+  }
+
+  flipSectionPlane() {
+    if (!this.clippingEngine) return;
+    if (!this.clippingEngine.enabled) {
+      this.clippingEngine.enabled = true;
+      const secActive = document.getElementById('sec-active-chk');
+      if (secActive) secActive.checked = true;
+    }
+    this.clippingEngine.planeInvert = !this.clippingEngine.planeInvert;
+    this.clippingEngine.updatePlaneFromState();
+    this.syncSectionUI();
+    this.requestRender(100);
+  }
+
+  toggleSolarPanel() {
+    const btnSolar = document.getElementById('btn-tool-solar');
+    if (btnSolar) {
+      btnSolar.click();
+    } else {
+      this.openFloatingTools('tab-light-content');
+    }
+  }
+
+  toggleCompareModal() {
+    if (this.compareEngine) {
+      if (this.compareEngine.isModalOpen()) {
+        this.compareEngine.closeSetupModal();
+      } else {
+        this.compareEngine.openSetupModal();
+      }
+    } else {
+      const btnCompare = document.getElementById('btn-tool-compare');
+      if (btnCompare) btnCompare.click();
+    }
+  }
+
+  handleGlobalKeyDown(e) {
+    // 1. Guard against typing inside input, textarea, select or contentEditable
+    const activeEl = document.activeElement;
+    const tag = activeEl ? activeEl.tagName : '';
+    const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (activeEl && activeEl.isContentEditable);
+    if (isTyping) {
+      if (e.key === 'Escape') {
+        activeEl.blur();
+      }
+      return;
+    }
+
+    // 2. Shortcuts HUD Modal open handling
+    if (this.shortcutsHudModalEl && this.shortcutsHudModalEl.classList.contains('open')) {
+      if (e.key === 'Escape' || e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        this.toggleShortcutsHud(false);
+      }
+      return;
+    }
+
+    // 3. Compare Modal / Guided Tour open handling
+    if (this.compareEngine && this.compareEngine.isModalOpen()) {
+      if (e.key === 'Escape') {
+        this.compareEngine.closeSetupModal();
+      }
+      return;
+    }
+    if (this.helpSystem && this.helpSystem.isTourActive) {
+      if (e.key === 'Escape') {
+        this.helpSystem.exitTour();
+      }
+      return;
+    }
+
+    // 4. Escape Key: dismiss current mode, popover, context menu, clear selection
+    if (e.key === 'Escape') {
+      this.resetShortcutsBuffer();
+      this.hideShortcutsCapsule();
+      if (this.pendingClosureAction) {
+        this.hideMultiPointClosurePopover();
+        return;
+      }
+      this.hideContextMenu();
+      if (this.pendingDistanceStart) {
+        this.cancelPendingDistanceStart();
+      }
+      if (this.pendingAngleState) {
+        this.cancelPendingAngleStart();
+      }
+      if (this.multiPointInsertSegIdx >= 0) {
+        this.multiPointInsertSegIdx = -1;
+        this.hideMultiPointInsertPreview();
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measureMultiHint') || 'Multi-point measurement ready';
+        this.requestRender(100);
+        return;
+      }
+      if (this.multiPointState && this.multiPointState.isDrawing) {
+        if (this.multiPointDrawDir === 'prepend') {
+          this.finishMultiPointMeasurement();
+        } else {
+          this.cancelPendingMultiPoint();
+        }
+      }
+      if (this.snapEngine && this.snapEngine.flyoutOpen) {
+        this.snapEngine.setFlyoutOpen(false);
+      }
+      if ((this.selectedMeshes && this.selectedMeshes.length > 0) || this.selectedMesh) {
+        this.clearSelection();
+      }
+      return;
+    }
+
+    // 5. Enter Key: confirm closure or finish multipoint
+    if (e.key === 'Enter') {
+      if (this.pendingClosureAction) {
+        const action = this.pendingClosureAction;
+        this.hideMultiPointClosurePopover();
+        if (action && action.onConfirm) action.onConfirm();
+        return;
+      }
+      if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
+        this.finishMultiPointMeasurement();
+        return;
+      }
+    }
+
+    // 6. HUD Cheatsheet Toggle ('?' or Shift+'/')
+    if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+      e.preventDefault();
+      this.toggleShortcutsHud();
+      return;
+    }
+
+    // 7. Viewport Navigation History (Alt+Left / Alt+Right)
+    if (e.altKey && !e.ctrlKey && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      this.undoView();
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && e.key === 'ArrowRight') {
+      e.preventDefault();
+      this.redoView();
+      return;
+    }
+
+    // 8. Modifier Shortcuts (Ctrl+O, Ctrl+A, Ctrl+H, Alt+H)
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'o' || e.key === 'O')) {
+      e.preventDefault();
+      const fileInput = document.getElementById('file-input');
+      if (fileInput) fileInput.click();
+      this.showShortcutsCapsule('Ctrl+O  ' + (I18N.t('shortcutsDescOpenFile') || 'Open Local File'), true);
+      return;
+    }
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      this.selectAllElements();
+      this.showShortcutsCapsule('Ctrl+A  ' + (I18N.t('shortcutsDescSelectAll') || 'Select All'), true);
+      return;
+    }
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      this.hideSelected();
+      this.showShortcutsCapsule('Ctrl+H  ' + (I18N.t('shortcutsDescHide') || 'Hide Selected'), true);
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      this.unhideAll();
+      this.showShortcutsCapsule('Alt+H  ' + (I18N.t('shortcutsDescUnhide') || 'Unhide All'), true);
+      return;
+    }
+
+    // If any modifier key is held (Ctrl, Alt, Meta), do not intercept other keys
+    if (e.ctrlKey || e.altKey || e.metaKey) {
+      return;
+    }
+
+    // 8b. Page Down: Focus / Zoom to Selection & Page Up: Zoom to Fit (active in both modes)
+    if (e.key === 'PageDown') {
+      e.preventDefault();
+      this.zoomToSelected();
+      this.showShortcutsCapsule('PageDown  ' + (I18N.t('shortcutsDescFocus') || 'Zoom to Selection'), true);
+      return;
+    }
+    if (e.key === 'PageUp') {
+      e.preventDefault();
+      this.zoomToFit(false);
+      this.showShortcutsCapsule('PageUp  ' + (I18N.t('shortcutsDescZoomFit') || 'Zoom to Fit'), true);
+      return;
+    }
+
+    // 9. Sidebars Toggle ('[' and ']')
+    if (e.key === '[') {
+      e.preventDefault();
+      if (this.toggleTreeCollapse) this.toggleTreeCollapse();
+      this.showShortcutsCapsule('[  ' + (I18N.t('shortcutsDescLeftSidebar') || 'Model Tree'), true);
+      return;
+    }
+    if (e.key === ']') {
+      e.preventDefault();
+      if (this.toggleInspectorCollapse) this.toggleInspectorCollapse();
+      this.showShortcutsCapsule(']  ' + (I18N.t('shortcutsDescRightSidebar') || 'Inspector Panel'), true);
+      return;
+    }
+
+    // 10. Scheme A: Standard Single-Key Mode
+    if (this.shortcutsMode === 'standard') {
+      const k = e.key.toLowerCase();
+      switch (k) {
+        case 'd':
+          e.preventDefault();
+          this.toggleMeasurePanel();
+          const measureCandidates = [
+            { key: '1', submode: 'point', name: I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates' },
+            { key: '2', submode: 'distance', name: I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance' },
+            { key: '3', submode: 'multipoint', name: I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area' },
+            { key: '4', submode: 'angle', name: I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension' },
+            { key: '5', submode: 'radius', name: I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension' },
+          ];
+          this.showShortcutsCapsule('D _', false, 5000);
+          this.showShortcutsCandidates(measureCandidates, (item) => {
+            this.setMeasureSubmode(item.submode);
+            this.showShortcutsCapsule(item.key + '  ' + item.name, true);
+          }, 5000);
+          break;
+        case '1':
+          e.preventDefault();
+          this.hideShortcutsCandidates();
+          this.setMeasureSubmode('point');
+          this.showShortcutsCapsule('1  ' + (I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates'), true);
+          break;
+        case '2':
+          e.preventDefault();
+          this.hideShortcutsCandidates();
+          this.setMeasureSubmode('distance');
+          this.showShortcutsCapsule('2  ' + (I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance'), true);
+          break;
+        case '3':
+          e.preventDefault();
+          this.hideShortcutsCandidates();
+          this.setMeasureSubmode('multipoint');
+          this.showShortcutsCapsule('3  ' + (I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area'), true);
+          break;
+        case '4':
+          e.preventDefault();
+          this.hideShortcutsCandidates();
+          this.setMeasureSubmode('angle');
+          this.showShortcutsCapsule('4  ' + (I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension'), true);
+          break;
+        case '5':
+          e.preventDefault();
+          this.hideShortcutsCandidates();
+          this.setMeasureSubmode('radius');
+          this.showShortcutsCapsule('5  ' + (I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension'), true);
+          break;
+        case 't':
+          e.preventDefault();
+          this.setView('plan');
+          this.showShortcutsCapsule('T  ' + (I18N.t('shortcutsDescTopView') || 'Top View (Plan)'), true);
+          break;
+        case 'f':
+          e.preventDefault();
+          this.setView('south');
+          this.showShortcutsCapsule('F  ' + (I18N.t('shortcutsDescFrontView') || 'Front View (South)'), true);
+          break;
+        case 'z':
+          e.preventDefault();
+          this.zoomToSelected();
+          this.showShortcutsCapsule('Z  ' + (I18N.t('shortcutsDescFocus') || 'Zoom Extents'), true);
+          break;
+        case 'u':
+          e.preventDefault();
+          this.toggleCameraProjection();
+          this.showShortcutsCapsule('U  ' + (I18N.t('shortcutsDescOrthoPersp') || 'Projection'), true);
+          break;
+        case 'p':
+          e.preventDefault();
+          this.toggleSectionPlane();
+          this.showShortcutsCapsule('P  ' + (I18N.t('shortcutsDescSecPlane') || 'Section Plane'), true);
+          break;
+        case 'b':
+          e.preventDefault();
+          this.toggleSectionBox();
+          this.showShortcutsCapsule('B  ' + (I18N.t('shortcutsDescSecBox') || 'Section Box'), true);
+          break;
+        case 'x':
+          e.preventDefault();
+          this.flipSectionPlane();
+          this.showShortcutsCapsule('X  ' + (I18N.t('shortcutsDescSecFlip') || 'Flip Section Cut'), true);
+          break;
+        case 'i':
+          e.preventDefault();
+          this.isolateSelected();
+          this.showShortcutsCapsule('I  ' + (I18N.t('shortcutsDescIsolate') || 'Isolate Selected'), true);
+          break;
+
+        case 'c':
+          e.preventDefault();
+          this.toggleCompareModal();
+          this.showShortcutsCapsule('C  ' + (I18N.t('shortcutsDescCompare') || 'Model Compare'), true);
+          break;
+        case 'e':
+          e.preventDefault();
+          this.setEdgeLinesVisible(!this.showEdges);
+          this.showShortcutsCapsule('E  ' + (I18N.t('shortcutsDescEdgeLines') || 'Crease Edges'), true);
+          break;
+      }
+      return;
+    }
+
+    // 11. Scheme B: Autodesk Revit 2-Letter Combo Mode
+    if (this.shortcutsMode === 'revit') {
+      this.handleRevitModeKeyDown(e);
+    }
+  }
+
+  handleRevitModeKeyDown(e) {
+    const rawKey = e.key;
+    const uKey = rawKey.toUpperCase();
+
+    // Only handle letters A-Z, Space, Enter
+    if (!/^[A-Z]$/.test(uKey)) {
+      if (rawKey === ' ' || rawKey === 'Enter') {
+        if (this.shortcutsBuffer) {
+          e.preventDefault();
+          this.commitRevitBuffer();
+        }
+      }
+      return;
+    }
+
+    e.preventDefault();
+
+    const revitCommands = {
+      'DP': { name: 'Point Coordinates', descKey: 'shortcutsDescMeasurePoint', action: () => this.setMeasureSubmode('point') },
+      'DI': { name: 'Distance', descKey: 'shortcutsDescMeasureDist', action: () => this.setMeasureSubmode('distance') },
+      'DL': { name: 'Multi-Point / Area', descKey: 'shortcutsDescMeasureMulti', action: () => this.setMeasureSubmode('multipoint') },
+      'DA': { name: 'Angular Dimension', descKey: 'shortcutsDescMeasureAngle', action: () => this.setMeasureSubmode('angle') },
+      'DR': { name: 'Radial Dimension', descKey: 'shortcutsDescMeasureRadius', action: () => this.setMeasureSubmode('radius') },
+      'SP': { name: 'Section Plane', descKey: 'shortcutsDescSecPlane', action: () => this.toggleSectionPlane() },
+      'BX': { name: 'Section Box', descKey: 'shortcutsDescSecBox', action: () => this.toggleSectionBox() },
+      'FL': { name: 'Flip Section', descKey: 'shortcutsDescSecFlip', action: () => this.flipSectionPlane() },
+      'HH': { name: 'Hide Selected', descKey: 'shortcutsDescHide', action: () => this.hideSelected() },
+      'HI': { name: 'Isolate Selected', descKey: 'shortcutsDescIsolate', action: () => this.isolateSelected() },
+      'HR': { name: 'Reset Visibility', descKey: 'shortcutsDescUnhide', action: () => this.unhideAll() },
+      'ZE': { name: 'Zoom Extents', descKey: 'shortcutsDescFocus', action: () => this.zoomToSelected() },
+      'VP': { name: 'View Projection', descKey: 'shortcutsDescOrthoPersp', action: () => this.toggleCameraProjection() },
+
+      'CM': { name: 'Compare Model', descKey: 'shortcutsDescCompare', action: () => this.toggleCompareModal() },
+      'TL': { name: 'Thin Lines', descKey: 'shortcutsDescEdgeLines', action: () => this.setEdgeLinesVisible(!this.showEdges) },
+      'SA': { name: 'Select All', descKey: 'shortcutsDescSelectAll', action: () => this.selectAllElements() },
+      'TV': { name: 'Top View', descKey: 'shortcutsDescTopView', action: () => this.setView('plan') },
+      'FV': { name: 'Front View', descKey: 'shortcutsDescFrontView', action: () => this.setView('south') },
+    };
+
+    // If buffer has 1 key already: combine and execute
+    if (this.shortcutsBuffer.length === 1) {
+      this.hideShortcutsCandidates();
+      const combo = this.shortcutsBuffer + uKey;
+      if (this.shortcutsBufferTimer) {
+        clearTimeout(this.shortcutsBufferTimer);
+        this.shortcutsBufferTimer = null;
+      }
+      this.shortcutsBuffer = '';
+
+      if (revitCommands[combo]) {
+        const cmd = revitCommands[combo];
+        cmd.action();
+        const desc = I18N.t(cmd.descKey) || cmd.name;
+        this.showShortcutsCapsule(combo + '  ' + desc, true);
+      } else {
+        this.showShortcutsCapsule(combo + '  --', false);
+      }
+      return;
+    }
+
+    // Buffer is empty: start a new combo
+    this.shortcutsBuffer = uKey;
+
+    const matching = Object.keys(revitCommands)
+      .filter(k => k.startsWith(uKey))
+      .map(k => ({
+        key: k,
+        name: I18N.t(revitCommands[k].descKey) || revitCommands[k].name,
+        cmd: revitCommands[k]
+      }));
+
+    // Timeout: per user choice, T/F keep 650ms, other keys give 5000ms
+    const timeoutMs = (uKey === 'T' || uKey === 'F') ? 650 : 5000;
+    this.showShortcutsCapsule(uKey + ' _', false, timeoutMs);
+
+    if (matching.length > 0) {
+      this.showShortcutsCandidates(matching, (item) => {
+        if (this.shortcutsBufferTimer) {
+          clearTimeout(this.shortcutsBufferTimer);
+          this.shortcutsBufferTimer = null;
+        }
+        this.shortcutsBuffer = '';
+        item.cmd.action();
+        this.showShortcutsCapsule(item.key + '  ' + item.name, true);
+      }, timeoutMs);
+    } else {
+      this.hideShortcutsCandidates();
+    }
+
+    if (this.shortcutsBufferTimer) {
+      clearTimeout(this.shortcutsBufferTimer);
+    }
+    this.shortcutsBufferTimer = setTimeout(() => {
+      this.commitRevitBuffer();
+    }, timeoutMs);
+  }
+
+  commitRevitBuffer() {
+    this.hideShortcutsCandidates();
+    if (!this.shortcutsBuffer) return;
+    const key = this.shortcutsBuffer;
+    this.shortcutsBuffer = '';
+    if (this.shortcutsBufferTimer) {
+      clearTimeout(this.shortcutsBufferTimer);
+      this.shortcutsBufferTimer = null;
+    }
+
+    if (key === 'T') {
+      this.setView('plan');
+      this.showShortcutsCapsule('T  ' + (I18N.t('shortcutsDescTopView') || 'Top View (Plan)'), true);
+    } else if (key === 'F') {
+      this.setView('south');
+      this.showShortcutsCapsule('F  ' + (I18N.t('shortcutsDescFrontView') || 'Front View (South)'), true);
+    } else if (key === 'Z') {
+      this.zoomToSelected();
+      this.showShortcutsCapsule('ZE  ' + (I18N.t('shortcutsDescFocus') || 'Zoom Extents'), true);
+    } else {
+      this.hideShortcutsCapsule();
+    }
+  }
+
   computeBoundsFromTarget(target) {
     const box = new THREE.Box3();
     if (Array.isArray(target)) {
@@ -9654,9 +10350,11 @@ class BIMViewerApp {
     const viewDir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
     if (viewDir.lengthSq() < 0.0001) {
       this.camera.getWorldDirection(viewDir).negate();
-    } else {
-      viewDir.normalize();
     }
+    if (viewDir.lengthSq() < 0.0001) {
+      viewDir.set(-0.72, 0.50, 0.82);
+    }
+    viewDir.normalize();
 
     const zoomFraction = 0.70;
     if (this.camera && this.camera.isOrthographicCamera) {
@@ -9666,16 +10364,20 @@ class BIMViewerApp {
       const minAspect = Math.min(1, aspect);
       const halfH = (radius / minAspect) / zoomFraction;
       const halfW = halfH * aspect;
-      this.orthographicCamera.left = -halfW;
-      this.orthographicCamera.right = halfW;
-      this.orthographicCamera.top = halfH;
-      this.orthographicCamera.bottom = -halfH;
-      this.orthographicCamera.zoom = 1.0;
-      this.orthographicCamera.updateProjectionMatrix();
-
+      
+      const currentZoom = this.orthographicCamera.zoom || 1.0;
+      const currentHalfH = (this.orthographicCamera.top - this.orthographicCamera.bottom) / 2.0;
+      const targetZoom = (currentHalfH / halfH) * currentZoom;
       const targetCam = center.clone().addScaledVector(viewDir, 25.0);
       this.showPivotIndicator(center);
-      this.tweenCamera(targetCam, center);
+      this.tweenCamera(targetCam, center, 400, () => {
+        this.orthographicCamera.left = -halfW;
+        this.orthographicCamera.right = halfW;
+        this.orthographicCamera.top = halfH;
+        this.orthographicCamera.bottom = -halfH;
+        this.orthographicCamera.zoom = 1.0;
+        this.orthographicCamera.updateProjectionMatrix();
+      }, currentZoom, targetZoom);
       return;
     }
 
@@ -15940,16 +16642,19 @@ class BIMViewerApp {
     const toggleInspectorCollapse = (forceOpen = null) => {
       if (!rsb) return;
       const willCollapse = forceOpen !== null ? !forceOpen : !rsb.classList.contains('collapsed');
+      const vc = document.getElementById('viewport-container');
       if (willCollapse) {
         rsb.classList.add('collapsed');
         rsb.style.width = '0px';
         if (btnInspect) btnInspect.classList.remove('active');
+        if (vc) vc.classList.add('sidebar-collapsed');
         updateCollapseBtnUI(true);
       } else {
         rsb.classList.remove('collapsed');
         rsb.classList.remove('hidden');
         rsb.style.width = `${this.customInspectorWidth || 330}px`;
         if (btnInspect) btnInspect.classList.add('active');
+        if (vc) vc.classList.remove('sidebar-collapsed');
         updateCollapseBtnUI(false);
         if (this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.length > 0)) {
           setTimeout(() => this.setupInspectorTabsScroll(), 250);

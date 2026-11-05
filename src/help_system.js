@@ -75,8 +75,8 @@ class BIMHelpSystem {
             title: "Top Navigation & Management Tools",
             desc: "Access global project tools, model file loading, and revision comparisons:",
             items: [
-              "🧰 <b>Tools</b>: Open floating architectural tools (Sectioning, Sun & Light, Measurement)",
-              "🌐 <b>Language & Theme</b>: Toggle English / Chinese and Dark / Light appearances",
+              "🧰 <b>Tools</b>: Open floating architectural tools (5-Mode Precision Measurement, 3-Axis Sectioning, Singapore Sun & Light)",
+              "🌐 <b>Language & Theme</b>: Toggle English / Chinese localization and Dark / Light theme appearances directly in top navbar",
               "⚖️ <b>Compare</b>: Dual-model geometric difference analysis (Added/Deleted/Modified color-coded)",
               "📂 <b>Open Model</b>: Load local IFC, GLB, FBX, OBJ architectural models directly"
             ]
@@ -97,6 +97,7 @@ class BIMHelpSystem {
             title: "Inspector & Properties Panel",
             desc: "Inspect element properties, customize visuals, and fine-tune material styles:",
             items: [
+              "⌨️ <b>Shortcuts Scheme</b>: One-click dual-button [ Single Key | Two Key ] toggle for instant switching between Standard and Revit hotkeys",
               "🎨 <b>Selection & Outlines</b>: Customize selection highlight color and silhouette edge intensity",
               "📋 <b>Model Profile</b>: View IFC Psets, geometric dimensions, elevation levels, and quantities",
               "🎛️ <b>Object Tuning</b>: Adjust surface color, opacity, and wireframe for selected elements",
@@ -187,18 +188,33 @@ class BIMHelpSystem {
           },
           {
             id: "tools",
-            title: "4. Measurement & Sectioning Tools",
+            title: "4. Precision Measurement & Sectioning Tools",
             icon: "✂️",
             content: `
               <p>Click the <b>Tools</b> button on the top right to open the floating architectural tools panel:</p>
+              <h4>CAD-Grade 3D Geometric Snapping Engine:</h4>
               <ul>
-                <li><b>Two-Point Distance Measurement</b>: Snap to model surface vertices to measure 3D spatial direct distance, horizontal distance (ΔX, ΔY), and vertical level difference (ΔZ). Supports Meters (m) and Millimeters (mm).</li>
-                <li><b>3-Axis Dynamic Sectioning Box</b>: Interactive clipping box along X, Y, and Z axes. Drag sliders to slice through building interiors without geometry distortion. Supports clip inversion and section plane outlines.</li>
+                <li><b>Smart Feature Snapping</b>: Automatically detects and snaps to Endpoints (□), Midpoints (△), Circle Centers (⨁), and Nearest Points on Edges (⧗).</li>
+                <li><b>Double-Layer Occlusion Culling</b>: Back-facing normal screening + line-of-sight raycast occlusion testing, strictly preventing false snaps to hidden surfaces inside elements.</li>
+              </ul>
+              <h4>5 Versatile Measurement Modes:</h4>
+              <ul>
+                <li><b>1. Point Coordinates</b>: Click any surface to place an absolute 3D coordinate marker with dynamic SVG elbow leader lines, reporting (X, Y, Z) coordinates and RL design elevation. Draggable and copyable.</li>
+                <li><b>2. Two-Point Distance</b>: Measures true 3D spatial direct distance, projecting Red (ΔX), Green (ΔY), and Blue (ΔZ) orthogonal decomposition lines. Instant switch between Meters (m) and Millimeters (mm).</li>
+                <li><b>3. 3-Point Angle</b>: Pick vertex and two arms to measure 3D spatial angle, horizontal ground projected angle, and vertical pitch, rendered with a translucent sector fan.</li>
+                <li><b>4. 3-Point Radius & Diameter</b>: Select 3 points on any arc, pipe, or circular hole to compute 3D fitted circle, CAD center mark (⨁), and dimension arrow badge (e.g. <code>R 75 mm</code> / <code>R 0.075 m</code>).</li>
+                <li><b>5. Multi-Point Distance & Closed Area</b>: Sequentially pick polyline nodes to measure segment lengths and total cumulative perimeter. Snapping back to the start point closes the boundary to compute area, with one-click toggle between Horizontal Projected Area and 3D Spatial Undulating Area (<code>(est.)</code>). Includes <b>self-intersection detection and scarlet red alert</b> on crossing edges, with an interactive bowtie button for smooth camera framing.</li>
+              </ul>
+              <h4>Dynamic 3D Sectioning System:</h4>
+              <ul>
+                <li><b>Section Plane</b>: Single plane clipping along X/Y/Z axes with 5° angle snapping, elevation slider, and one-click flip.</li>
+                <li><b>3-Axis Section Box</b>: Free 6-sided cubic slicing with WebGL double-pass Stencil Buffer solid capping (45° golden architectural hatching) and bold charcoal perimeter outlines.</li>
+                <li><b>Context Alignment</b>: Right-click any component in 3D viewport to instantly snap the section plane or section box to it.</li>
               </ul>
               <div class="help-links-group">
                 <span class="help-target-link" data-target="tools-panel">Tools Floating Panel</span>
-                <span class="help-target-link" data-target="measure-tool">Distance Measurement</span>
-                <span class="help-target-link" data-target="section-tool">3-Axis Sectioning Box</span>
+                <span class="help-target-link" data-target="measure-tool">Precision Measurement</span>
+                <span class="help-target-link" data-target="section-tool">Dynamic Sectioning Box</span>
               </div>
             `
           },
@@ -227,19 +243,34 @@ class BIMHelpSystem {
             content: `
               <p>The right sidebar Inspector provides in-depth component data, visual style customization, and revision comparison:</p>
               <ul>
+                <li><b>Shortcuts Scheme</b>: One-click dual-button <code>[ Single Key | Two Key ]</code> toggle in the Preferences card, with persistent memory.</li>
                 <li><b>Selection Visuals</b>: Pick your favorite selection highlight color (Cyan, Blue, Green, Amber, etc.) and configure component outline silhouette intensity.</li>
                 <li><b>Model Profile</b>: Click any 3D element to inspect its IFC GUID, entity type, dimensions (Length, Width, Height), material layers, and detailed Pset property sets.</li>
                 <li><b>Object Tuning</b>: Fine-tune selected component surface color, opacity, and wireframe overlays in real time.</li>
+                <li><b>Adaptive Tools Slide</b>: When the Inspector sidebar is collapsed, the Tools floating panel smoothly slides right to 52px, maximizing the 3D canvas while keeping the expand button accessible.</li>
                 <li><b>Model Comparison (Compare)</b>: Compare two IFC models. Added components highlight in Green, Deleted in Red, and Modified in Amber, with automatic geometric drift detection and ghosting.</li>
                 <li><b>Category Legend & Status Bar</b>: Bottom chips provide one-click category filtering and show real-time 3D cursor coordinates and 165 FPS metrics.</li>
               </ul>
               <div class="help-links-group">
                 <span class="help-target-link" data-target="right-sidebar">Inspector Panel</span>
+                <span class="help-target-link" data-target="shortcuts-toggle">Shortcuts Scheme Toggle</span>
                 <span class="help-target-link" data-target="inspector-profile">Component Profile</span>
                 <span class="help-target-link" data-target="inspector-tuning">Object Tuning</span>
                 <span class="help-target-link" data-target="compare-btn">Model Compare</span>
                 <span class="help-target-link" data-target="bottom-legend">Category Legend</span>
                 <span class="help-target-link" data-target="bottom-stats">Status Bar Metrics</span>
+              </div>
+            `
+          },
+          {
+            id: "shortcuts",
+            title: "7. Keyboard Shortcuts & Fast Navigation",
+            icon: "⌨️",
+            content: `
+              <p>Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback. For two-key combinations, pressing the initial letter displays matching candidate shortcuts directly above the capsule for keyboard or mouse execution.</p>
+              <div class="help-links-group">
+                <span class="help-target-link" data-target="shortcuts-toggle">Shortcuts Scheme Toggle</span>
+                <span class="help-target-link" data-target="shortcuts-hud">Shortcuts Cheatsheet (?)</span>
               </div>
             `
           }
@@ -294,8 +325,8 @@ class BIMHelpSystem {
           title: "右上方打开、对比和语言切换",
           desc: "常用全局工具、模型文件打开与版本比对功能区：",
           items: [
-            "🧰 <b>Tools 工具</b>：展开三轴剖切、新加坡日照模拟与空间测量浮动工具箱",
-            "🌐 <b>语言与主题切换</b>：一键无缝切换中英文与高对比深色/浅色外观",
+            "🧰 <b>Tools 工具</b>：展开五大空间测量模式、三轴实体剖切与新加坡真实日照浮动工具箱",
+            "🌐 <b>语言与主题切换</b>：顶栏一键无缝切换中英文与高对比深色/浅色工程外观",
             "⚖️ <b>Compare 模式</b>：双 IFC 模型版本几何差异分析（新增绿、删除红、修改黄）",
             "📂 <b>Open Model</b>：直接打开并解析本地 IFC、GLB、FBX、OBJ 等格式工程模型"
           ]
@@ -316,6 +347,7 @@ class BIMHelpSystem {
           title: "右侧面板及多种信息显示",
           desc: "属性检查器、样式定制与构件外观微调：",
           items: [
+            "⌨️ <b>快捷键方案切换</b>：检查器顶端配备 [ Single Key | Two Key ] 双按钮一键互切标准单键与 Revit 双键模式",
             "🎨 <b>高亮与轮廓线</b>：自定义构件选中高亮颜色及外轮廓线 (Outline) 粗细强度",
             "📋 <b>Model Profile</b>：选中构件后展示 IFC 属性集 (Psets)、空间尺寸、材料与工程量",
             "🎛️ <b>构件微调 (Object Tuning)</b>：实时微调选中构件的材质颜色、透明度与网格线",
@@ -406,18 +438,33 @@ class BIMHelpSystem {
         },
         {
           id: "tools",
-          title: "4. 测量工具与三轴剖切盒",
+          title: "4. 空间高精度测量与三轴剖切盒",
           icon: "✂️",
           content: `
-            <p>点击右上角 <b>Tools</b> 按钮展开浮动工具面板，包含高精度测量与动态剖切能力：</p>
+            <p>点击右上角 <b>Tools</b> 按钮展开浮动工具面板，集成 AutoCAD 级几何特征捕捉与全能空间量测能力：</p>
+            <h4>AutoCAD 级几何特征对象捕捉引擎：</h4>
             <ul>
-              <li><b>两点空间距离测量</b>：点击模型表面两点，精确测算三维直线距离、水平距离 (ΔX, ΔY) 及垂直标高差 (ΔZ)，支持米 (m) 与毫米 (mm) 切换。</li>
-              <li><b>三轴动态剖切盒 (Sectioning Box)</b>：沿 X、Y、Z 三个坐标轴滑动剖切面，切入建筑内部查看结构剖面，支持剖切方向反转与剖切框贴合构件。</li>
+              <li><b>智能特征吸附</b>：鼠标悬停时自动捕获端点（□ Endpoint）、中点（△ Midpoint）、圆心（⨁ Center）及边线上最近点（⧗ Nearest）。</li>
+              <li><b>双层背面与遮挡剔除</b>：搭载反向三角面法线剔除与视线光线遮挡测试（<code>isPointOccluded</code>），杜绝吸附到构件内部或背面的隐藏点。</li>
+            </ul>
+            <h4>五大多功能空间量测模式：</h4>
+            <ul>
+              <li><b>1. 单点三维坐标测量</b>：点击表面生成带动态 SVG 折角引出线与三维标徽的坐标卡，输出世界坐标 (X, Y, Z) 与设计标高 (RL Level)，支持自由拖拽调位与一键复制。</li>
+              <li><b>2. 2点空间距离测量</b>：精确测算空间直线距离，投射红 (ΔX)、绿 (ΔY)、蓝 (ΔZ) 三色正交分解线并计算水平与标高分量差，支持米 (m) 与毫米 (mm) 一键互切。</li>
+              <li><b>3. 3点空间角度测量</b>：依次拾取角点及两边，测量 3D 真实夹角与水平投影二维工程角，实时投射动态半透明弧形扇形网格与角度引线。</li>
+              <li><b>4. 3点智能半径直径测量</b>：选取圆弧、圆管或圆孔表面 3 点，自适应最小二乘拟合三维圆环，绘制 CAD 十字准星（⨁）与极简尺寸标注箭头（如 <code>R 75 mm</code> / <code>R 0.075 m</code>）。</li>
+              <li><b>5. 多点折线距离与闭合面积测量</b>：连续拾取节点计算各段长与总走向线长；首尾闭合时自动解算闭合多边形面积（支持水平投影面积与 3D 表面积 <code>(est.)</code> 一键互切）；具备<b>自交错识别与猩红预警</b>（如 8 字形自交），采用三角剖分分解法求出绝对真实面积，高亮自交边线并提供 8 字形沙漏平滑聚焦按钮。</li>
+            </ul>
+            <h4>三轴动态剖切系统：</h4>
+            <ul>
+              <li><b>单剖切面 (Section Plane)</b>：沿 X/Y/Z 轴平移剖切，支持 5° 旋转吸附手柄与一键翻转反向。</li>
+              <li><b>三轴剖切盒 (Section Box)</b>：六面自由长方体切削，配备 WebGL 双通道 Stencil Buffer 实时实体斜线封口（45° 金色建筑剖面线，缩放不失真）与深黑外轮廓线圈。</li>
+              <li><b>右键快速剖切对齐</b>：视口构件右键菜单支持一键将剖切面或剖切盒贴合移动至所选构件。</li>
             </ul>
             <div class="help-links-group">
               <span class="help-target-link" data-target="tools-panel">Tools 浮动面板</span>
-              <span class="help-target-link" data-target="measure-tool">空间距离测量</span>
-              <span class="help-target-link" data-target="section-tool">三轴动态剖切</span>
+              <span class="help-target-link" data-target="measure-tool">高精度空间测量</span>
+              <span class="help-target-link" data-target="section-tool">三轴动态剖切盒</span>
             </div>
           `
         },
@@ -446,19 +493,34 @@ class BIMHelpSystem {
           content: `
             <p>右侧检查器提供详尽的构件工程属性、视觉效果定制与双版本几何对比：</p>
             <ul>
+              <li><b>快捷键模式切换</b>：在偏好设置卡片顶端提供 <code>[ Single Key | Two Key ]</code> 双按钮一键互切，持久化保存。</li>
               <li><b>视觉表现定制</b>：自定义构件高亮选中色（青、蓝、绿、金等）及构件外边缘轮廓线 (Outline) 强度。</li>
               <li><b>构件属性 (Model Profile)</b>：选中任意构件后，显示 IFC 全套 Pset 属性集、长宽厚尺寸、所处楼层及所属类别；未选中构件时显示项目总体概览。</li>
               <li><b>构件微调 (Object Tuning)</b>：实时定制选中构件的表面漫反射颜色、透明度及线框显示。</li>
+              <li><b>侧栏折叠与工具栏跟随滑动</b>：折叠右侧面板时，Tools 工具面板自动向右滑动至 52px 贴边，留出边距避免遮挡恢复按钮，最大化视口空间。</li>
               <li><b>双模型几何版本对比 (Compare)</b>：加载新旧两个版本的 IFC 模型，自动高亮新增构件（绿色）、删除构件（红色）与变更构件（黄色），并支持几何位移残影展示。</li>
               <li><b>底栏图例与状态监控</b>：底栏左侧构件胶囊支持一键切换显示或 Alt 独占隔离；右侧显示光标所指位置实时 3D 坐标与稳固的 165 FPS 性能指标。</li>
             </ul>
             <div class="help-links-group">
               <span class="help-target-link" data-target="right-sidebar">检查器面板</span>
+              <span class="help-target-link" data-target="shortcuts-toggle">快捷键模式切换</span>
               <span class="help-target-link" data-target="inspector-profile">构件属性卡片</span>
               <span class="help-target-link" data-target="inspector-tuning">构件外观微调</span>
               <span class="help-target-link" data-target="compare-btn">模型版本对比</span>
               <span class="help-target-link" data-target="bottom-legend">构件分类图例</span>
               <span class="help-target-link" data-target="bottom-stats">底栏坐标与状态</span>
+            </div>
+          `
+        },
+        {
+          id: "shortcuts",
+          title: "7. 键盘快捷键系统与极速导航",
+          icon: "⌨️",
+          content: `
+            <p>按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈。对于需要组合按键的热键，按下首个按键后会在胶囊上方动态列出所有匹配候选项，支持键盘连击或鼠标点击快捷执行。</p>
+            <div class="help-links-group">
+              <span class="help-target-link" data-target="shortcuts-toggle">快捷键模式切换</span>
+              <span class="help-target-link" data-target="shortcuts-hud">快捷键全屏速查 (?)</span>
             </div>
           `
         }
@@ -1396,6 +1458,16 @@ class BIMHelpSystem {
       case 'tab-elements':
         app.switchLeftTab('tab-elem-content');
         break;
+      case 'shortcuts-toggle':
+        if (app.toggleInspectorCollapse && document.getElementById('right-sidebar') && document.getElementById('right-sidebar').classList.contains('collapsed')) {
+          app.toggleInspectorCollapse(true);
+        }
+        break;
+      case 'shortcuts-hud':
+        if (app.toggleShortcutsHud) {
+          app.toggleShortcutsHud(true);
+        }
+        break;
       case 'inspector-profile':
       case 'inspector-tuning':
         // If no element selected, automatically select a representative component from demo model!
@@ -1457,6 +1529,10 @@ class BIMHelpSystem {
       case 'tab-elements':
       case 'tree-search':
         return document.getElementById('left-sidebar');
+      case 'shortcuts-toggle':
+        return document.getElementById('shortcuts-mode-toggle-group') || document.querySelector('.shortcuts-mode-dual-btn') || document.getElementById('right-sidebar');
+      case 'shortcuts-hud':
+        return document.getElementById('shortcuts-hud-modal') || document.getElementById('shortcuts-mode-toggle-group');
       case 'right-sidebar':
       case 'inspector-profile':
       case 'inspector-tuning':

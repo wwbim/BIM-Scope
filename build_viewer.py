@@ -406,6 +406,20 @@ def generate_html(variant_cfg, sources):
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           <span data-i18n="openFile">Open Model</span>
         </button>
+        <button class="tool-btn icon-circle-btn" id="btn-top-shortcuts-hud" title="Keyboard Shortcuts (?)" data-i18n-title="shortcutsViewHudBtn" aria-label="Shortcuts">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+            <line x1="6" y1="8" x2="6" y2="8"></line>
+            <line x1="10" y1="8" x2="10" y2="8"></line>
+            <line x1="14" y1="8" x2="14" y2="8"></line>
+            <line x1="18" y1="8" x2="18" y2="8"></line>
+            <line x1="6" y1="12" x2="6" y2="12"></line>
+            <line x1="10" y1="12" x2="10" y2="12"></line>
+            <line x1="14" y1="12" x2="14" y2="12"></line>
+            <line x1="18" y1="12" x2="18" y2="12"></line>
+            <line x1="7" y1="16" x2="17" y2="16"></line>
+          </svg>
+        </button>
         <button class="tool-btn icon-circle-btn" id="btn-help-guide" title="Help & Guide" data-i18n-title="helpGuideTitle" aria-label="Help">
           <svg class="help-btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path class="help-question-mark" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
@@ -1307,19 +1321,7 @@ def generate_html(variant_cfg, sources):
 
         <!-- Unified Preferences Card (Theme, Selection Highlight & Edge Lines) -->
         <div class="inspector-pref-card">
-          <!-- UI Theme Appearance -->
-          <div class="pref-subgroup">
-            <div class="pref-inline-row" style="margin-bottom:6px">
-              <span class="pref-inline-label" data-i18n="uiAppearance">Theme Appearance</span>
-              <div class="segmented-control" id="pref-theme-segmented" style="max-width:130px;margin-left:auto;">
-                <button type="button" class="segment-btn active" id="pref-theme-dark-btn" data-theme-val="dark" data-i18n="themeDark">Dark</button>
-                <button type="button" class="segment-btn" id="pref-theme-light-btn" data-theme-val="light" data-i18n="themeLight">Light</button>
-              </div>
-            </div>
-          </div>
 
-          <!-- Subtle Divider -->
-          <div class="pref-divider"></div>
 
           <!-- Selection Highlight Settings (Color & Opacity) -->
           <div class="pref-subgroup">
@@ -1354,6 +1356,20 @@ def generate_html(variant_cfg, sources):
               <span class="pref-inline-label" data-i18n="edgeOpacity">Edge Intensity</span>
               <input type="range" min="10" max="100" step="5" value="65" class="range-slider pref-fixed-slider" id="edge-opacity-slider">
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
+            </div>
+          </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
+          <!-- Keyboard Shortcuts -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row">
+              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="shortcutsTitle">Shortcuts</span>
+              <div class="segmented-control" id="pref-shortcuts-segmented" style="max-width:145px;margin-left:auto;padding:2px;gap:2px;">
+                <button type="button" class="segment-btn active" id="pref-shortcuts-btn-single" style="padding:2px 8px;font-size:10.5px;">Single Key</button>
+                <button type="button" class="segment-btn" id="pref-shortcuts-btn-two" style="padding:2px 8px;font-size:10.5px;">Two Key</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1557,6 +1573,296 @@ def generate_html(variant_cfg, sources):
           </svg>
           <span data-i18n="compareStartBtn">Start Comparison</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYBOARD SHORTCUTS FLOATING CANDIDATE PANEL & INPUT CAPSULE -->
+  <div class="shortcuts-candidate-panel" id="shortcuts-candidate-panel" style="display:none;"></div>
+  <div class="shortcuts-key-capsule" id="shortcuts-key-capsule">
+    <span id="shortcuts-capsule-keys">--</span>
+  </div>
+
+  <!-- FULLSCREEN KEYBOARD SHORTCUTS HUD MODAL -->
+  <div class="shortcuts-hud-modal hud-mode-standard" id="shortcuts-hud-modal">
+    <div class="shortcuts-hud-card">
+      <div class="shortcuts-hud-header">
+        <div class="shortcuts-hud-title-box">
+          <div class="shortcuts-hud-title">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+              <line x1="6" y1="8" x2="6" y2="8"></line>
+              <line x1="10" y1="8" x2="10" y2="8"></line>
+              <line x1="14" y1="8" x2="14" y2="8"></line>
+              <line x1="18" y1="8" x2="18" y2="8"></line>
+              <line x1="6" y1="12" x2="6" y2="12"></line>
+              <line x1="10" y1="12" x2="10" y2="12"></line>
+              <line x1="14" y1="12" x2="14" y2="12"></line>
+              <line x1="18" y1="12" x2="18" y2="12"></line>
+              <line x1="7" y1="16" x2="17" y2="16"></line>
+            </svg>
+            <span data-i18n="shortcutsHudTitle">Keyboard Shortcuts Quick Reference</span>
+          </div>
+          <div class="shortcuts-hud-subtitle" data-i18n="shortcutsHudSubtitle">
+            Boost your workflow with keyboard shortcuts. Press '?' anytime to toggle.
+          </div>
+        </div>
+
+        <div class="shortcuts-hud-segmented">
+          <button type="button" class="shortcuts-hud-tab-btn active" id="btn-hud-tab-standard" data-scheme="standard" data-i18n="shortcutsStandard">Standard (Single-Key)</button>
+          <button type="button" class="shortcuts-hud-tab-btn" id="btn-hud-tab-revit" data-scheme="revit" data-i18n="shortcutsRevit">Autodesk Revit (2-Letter)</button>
+        </div>
+
+        <button type="button" class="shortcuts-hud-close-btn" id="btn-shortcuts-hud-close" title="Close (?)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="shortcuts-hud-body">
+        <!-- Group 1: Measurement Tools -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 21"></path><path d="M14 4l6 6"></path><path d="M4 14l6 6"></path></svg>
+            <span data-i18n="shortcutsCatMeasure">Measurement Tools</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureToggle">Toggle Measurement Panel</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">D</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasurePoint">Point Coordinates</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">1</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">P</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureDist">Two-Point Distance</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">2</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">I</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureMulti">Multi-point Polyline (Pt 3)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">3</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">L</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureAngle">Three-point Angle (Pt 4)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">4</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">A</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureRadius">Radius / Sphere (Pt 5)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">5</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">R</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureClear">Clear Current Measurements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Delete</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Delete</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 2: Sectioning & Clipping -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"></path><path d="M4 20L20 4"></path></svg>
+            <span data-i18n="shortcutsCatSection">Sectioning & Clipping</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSectionPlane">Toggle Section Plane</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">P</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">S</span><span class="shortcuts-hud-kbd">P</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSectionBox">Toggle Section Box</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">B</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">B</span><span class="shortcuts-hud-kbd">X</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSectionFlip">Flip Cut Direction</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">X</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">F</span><span class="shortcuts-hud-kbd">L</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 3: Selection & Visibility -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <span data-i18n="shortcutsCatSelect">Selection & Visibility</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescHide">Hide Selected Elements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">H</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">H</span><span class="shortcuts-hud-kbd">H</span> / <span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">H</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescIsolate">Isolate Selected Elements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">I</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">H</span><span class="shortcuts-hud-kbd">I</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescUnhide">Reset Isolation / Unhide All</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">H</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">H</span><span class="shortcuts-hud-kbd">R</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSelectAll">Select All Visible Elements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">A</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">A</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescDeselect">Deselect / Cancel / Exit Mode</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Esc</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Esc</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 4: Camera & Navigation -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            <span data-i18n="shortcutsCatCamera">Camera & Navigation</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescFocus">Focus / Zoom to Selection</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Page Down</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Z</span><span class="shortcuts-hud-kbd">E</span> / <span class="shortcuts-hud-kbd">Page Down</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescZoomFit">Zoom to Fit / Model Extents</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Page Up</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Page Up</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescTopView">Top / Plan View</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">T</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">T</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescFrontView">Front / South Elevation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">F</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">F</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescOrthoPersp">Toggle Ortho / Perspective</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">U</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">V</span><span class="shortcuts-hud-kbd">P</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescViewUndo">Undo Viewpoint Navigation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">←</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">←</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescViewRedo">Redo Viewpoint Navigation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">→</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">→</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 5: Tools & Interface -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span data-i18n="shortcutsCatTools">Tools & Interface</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescCompare">Model Comparison Modal</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">C</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">C</span><span class="shortcuts-hud-kbd">M</span></span>
+            </div>
+          </div>
+
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescEdgeLines">Toggle Edge Crease Lines</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">E</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">T</span><span class="shortcuts-hud-kbd">L</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescLeftSidebar">Toggle Left Model Tree</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">[</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">[</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescRightSidebar">Toggle Right Inspector</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">]</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">]</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescOpenFile">Open Local Model File</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">O</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">O</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescShowHud">Toggle Shortcuts Quick Reference</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">?</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">?</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="shortcuts-hud-footer">
+        <span>Tip: Configure default shortcuts in Inspector &gt; Preferences. Press '?' or Esc to dismiss.</span>
+        <span>BIM Scope / SWBIM Scope</span>
       </div>
     </div>
   </div>
