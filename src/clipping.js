@@ -669,14 +669,24 @@ class ClippingEngine {
       curr = curr.parent;
     }
 
-    // Exclude open site/terrain/topography meshes from stencil capping
-    // (Open surface meshes lack closed back-faces and cause stencil buffer winding leaks)
+    // Exclude open site meshes, MEP fixtures, sanitary terminals, furniture, railings, and spaces
+    // These non-structural/thin/open features lack watertight solids and do not receive architectural masonry section capping
     const cat = (mesh.userData?.category || mesh.userData?.rawCategory || mesh.name || '').toLowerCase();
     const elemName = (mesh.userData?.element || '').toLowerCase();
-    if (cat.includes('site') || cat.includes('terrain') || cat.includes('topograph') ||
-        elemName.includes('turf') || elemName.includes('strata') || elemName.includes('topography')) {
-      if (!elemName.includes('foundation') && !elemName.includes('pad')) {
-        return false;
+    const nonSolidCategories = [
+      'site', 'terrain', 'topograph',
+      'sanitary', 'plumbing', 'terminal', 'fixture',
+      'furniture', 'furnishing',
+      'railing', 'handrail',
+      'flow', 'duct', 'pipe',
+      'electric', 'light', 'lamp', 'sensor', 'alarm',
+      'fastener', 'space', 'opening'
+    ];
+    for (const nsc of nonSolidCategories) {
+      if (cat.includes(nsc) || elemName.includes(nsc)) {
+        if (!elemName.includes('foundation') && !elemName.includes('pad')) {
+          return false;
+        }
       }
     }
 
@@ -835,10 +845,48 @@ class ClippingEngine {
 
   syncStencilVisibility() {
     if (!this.enabled || !this.stencilGroups || this.stencilGroups.length === 0) return;
+    const isPlaneMode = (this.mode === 'plane');
+    const cutPlane = this.singlePlane;
+
     for (let i = 0; i < this.stencilGroups.length; i++) {
       const entry = this.stencilGroups[i];
-      if (entry.sGroup && entry.parentMesh) {
-        entry.sGroup.visible = this.isMeshVisibleInHierarchy(entry.parentMesh);
+      const mesh = entry.parentMesh;
+      if (!entry.sGroup || !mesh) continue;
+
+      if (!this.isMeshVisibleInHierarchy(mesh)) {
+        entry.sGroup.visible = false;
+        continue;
+      }
+
+      let meshBox = mesh.userData && mesh.userData._cachedWorldBox;
+      if (!meshBox) {
+        meshBox = new THREE.Box3().setFromObject(mesh);
+        if (mesh.userData) mesh.userData._cachedWorldBox = meshBox;
+      }
+
+      if (meshBox.isEmpty()) {
+        entry.sGroup.visible = false;
+        continue;
+      }
+
+      if (isPlaneMode) {
+        // Plane mode: only visible if mesh bounding box actually intersects the active cutting plane
+        const intersects = meshBox.intersectsPlane(cutPlane);
+        entry.sGroup.visible = intersects;
+        if (entry.planePair) entry.planePair.visible = intersects;
+        if (entry.boxPairs) entry.boxPairs.forEach(bp => bp.visible = false);
+      } else {
+        // Box mode: toggle face pairs and overall sGroup visibility
+        let anyIntersects = false;
+        if (entry.planePair) entry.planePair.visible = false;
+        if (entry.boxPairs) {
+          for (let k = 0; k < 6; k++) {
+            const intersectsK = meshBox.intersectsPlane(this.boxPlanes[k]);
+            entry.boxPairs[k].visible = intersectsK;
+            if (intersectsK) anyIntersects = true;
+          }
+        }
+        entry.sGroup.visible = anyIntersects;
       }
     }
   }
@@ -2066,14 +2114,6 @@ class ClippingEngine {
       if (this.planeCapMesh) this.planeCapMesh.visible = true;
       if (this.boxCapMeshes) this.boxCapMeshes.forEach(bm => bm.visible = false);
 
-      if (this.stencilGroups) {
-        this.stencilGroups.forEach(e => {
-          if (e.sGroup) e.sGroup.visible = this.isMeshVisibleInHierarchy(e.parentMesh);
-          if (e.planePair) e.planePair.visible = true;
-          if (e.boxPairs) e.boxPairs.forEach(bp => bp.visible = false);
-        });
-      }
-
       this.setPlaneAxis(this.planeAxis);
     } else {
       this.planeGroup.visible = false;
@@ -2081,16 +2121,9 @@ class ClippingEngine {
       if (this.planeCapMesh) this.planeCapMesh.visible = false;
       if (this.boxCapMeshes) this.boxCapMeshes.forEach(bm => bm.visible = true);
 
-      if (this.stencilGroups) {
-        this.stencilGroups.forEach(e => {
-          if (e.sGroup) e.sGroup.visible = this.isMeshVisibleInHierarchy(e.parentMesh);
-          if (e.planePair) e.planePair.visible = false;
-          if (e.boxPairs) e.boxPairs.forEach(bp => bp.visible = true);
-        });
-      }
-
       this.updateBoxPlanesAndHelpers();
     }
+    this.syncStencilVisibility();
   }
   
   get clippingPlanes() {

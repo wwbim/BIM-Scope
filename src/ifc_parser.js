@@ -1122,6 +1122,10 @@ class IFCParser {
   isProductType(type) {
     if (!type || !type.startsWith('IFC')) return false;
     if (this.isSpatialType(type)) return false;
+    if (type.endsWith('TYPE')) return false;
+    if (type.startsWith('IFCREL') || type === 'IFCELEMENTQUANTITY' || type === 'IFCDERIVEDUNITELEMENT') {
+      return false;
+    }
     if (type === 'IFCANNOTATION' || type === 'IFCGEOMETRICREPRESENTATIONCONTEXT' ||
         type === 'IFCUNITASSIGNMENT' || type === 'IFCOWNERHISTORY' ||
         type === 'IFCPERSON' || type === 'IFCORGANIZATION') {
@@ -1941,22 +1945,27 @@ class IFCParser {
       return (isSteel && !isConcrete) ? D.STEEL_FRAMING : D.CONCRETE_COLUMN;
     }
 
-    // 8. Floors / Slabs
+    // 8. Roofs (prioritized before floors/slabs so roof slabs like IfcSlab.ROOF or Basic Roof get roof styling)
+    if (type === 'IFCROOF' || raw.includes('roof') || raw.includes('canopy')) {
+      return D.ROOF;
+    }
+
+    // 9. Floors / Slabs
     if (type === 'IFCSLAB' || raw.includes('floor') || raw.includes('slab') || raw.includes('deck')) {
       return D.FLOOR;
     }
 
-    // 9. Walls
+    // 10. Walls
     if (type === 'IFCWALL' || type === 'IFCWALLSTANDARDCASE' || raw.includes('wall')) {
       return D.WALL;
     }
 
-    // 10. Stairs
+    // 11. Stairs
     if (type === 'IFCSTAIR' || type === 'IFCSTAIRFLIGHT' || raw.includes('stair')) {
       return D.STAIR;
     }
 
-    // 11. Railings & Guardrails
+    // 12. Railings & Guardrails
     if (type === 'IFCRAILING' || raw.includes('railing') || raw.includes('guardrail') || raw.includes('handrail') || raw.includes('balustrade')) {
       if (raw.includes('stainless') || raw.includes('chrome') || raw.includes('nickel') || raw.includes('polished')) {
         return { category: 'Railing', color: 0xd4d4d8, opacity: 1.0, transparent: false, roughness: 0.22, metalness: 0.88 };
@@ -1968,11 +1977,6 @@ class IFCParser {
         return { category: 'Railing', color: 0xcbd5e1, opacity: 1.0, transparent: false, roughness: 0.38, metalness: 0.75 };
       }
       return D.RAILING;
-    }
-
-    // 12. Roofs
-    if (type === 'IFCROOF' || raw.includes('roof') || raw.includes('canopy')) {
-      return D.ROOF;
     }
 
     // 13. Ceilings / Coverings
@@ -3017,12 +3021,27 @@ class IFCParser {
     }
 
     try {
-      // 1. Compute Newell's unit normal from outer contour
+      // 1. Strip duplicate closure points if present
+      const cleanPts = [...pts];
+      if (cleanPts.length > 2 && cleanPts[cleanPts.length - 1].distanceToSquared(cleanPts[0]) < 1e-10) {
+        cleanPts.pop();
+      }
+      const cleanHoles = (holesList || []).map(h => {
+        const ch = [...h];
+        if (ch.length > 2 && ch[ch.length - 1].distanceToSquared(ch[0]) < 1e-10) {
+          ch.pop();
+        }
+        return ch;
+      }).filter(h => h.length >= 3);
+
+      if (cleanPts.length < 3) return [];
+
+      // 2. Compute Newell's unit normal from outer contour
       let nx = 0, ny = 0, nz = 0;
-      const n = pts.length;
+      const n = cleanPts.length;
       for (let i = 0; i < n; i++) {
-        const c = pts[i];
-        const nxt = pts[(i + 1) % n];
+        const c = cleanPts[i];
+        const nxt = cleanPts[(i + 1) % n];
         nx += (c.y - nxt.y) * (c.z + nxt.z);
         ny += (c.z - nxt.z) * (c.x + nxt.x);
         nz += (c.x - nxt.x) * (c.y + nxt.y);
@@ -3033,28 +3052,39 @@ class IFCParser {
       }
       const normal = new THREE.Vector3(nx / len, ny / len, nz / len);
 
-      // 2. Build right-handed orthonormal basis (u, v, normal)
+      // 3. Build right-handed orthonormal basis (u, v, normal)
       const ref = (Math.abs(normal.z) < 0.9) ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
       const u = new THREE.Vector3().crossVectors(ref, normal).normalize();
       const v = new THREE.Vector3().crossVectors(normal, u).normalize();
 
-      // 3. Project outer contour and holes to 2D
-      const pts2D = pts.map(p => new THREE.Vector2(p.dot(u), p.dot(v)));
-      const holes2D = (holesList && holesList.length > 0) ? holesList.map(h => 
+      // 4. Project outer contour and holes to 2D
+      const pts2D = cleanPts.map(p => new THREE.Vector2(p.dot(u), p.dot(v)));
+      const holes2D = cleanHoles.map(h => 
         h.map(p => new THREE.Vector2(p.dot(u), p.dot(v)))
-      ).filter(h => h.length >= 3) : [];
+      );
 
-      const allPts3D = [...pts];
-      if (holesList && holesList.length > 0) {
-        for (const h of holesList) {
-          if (h && h.length >= 3) {
-            allPts3D.push(...h);
-          }
+      // Ensure holes have opposite winding from outer contour for robust earcut triangulation
+      const outerCw = THREE.ShapeUtils.isClockWise(pts2D);
+      const alignedHoles2D = [];
+      const alignedCleanHoles3D = [];
+      for (let k = 0; k < holes2D.length; k++) {
+        const h2D = holes2D[k];
+        const ch3D = cleanHoles[k];
+        if (THREE.ShapeUtils.isClockWise(h2D) === outerCw) {
+          h2D.reverse();
+          ch3D.reverse();
         }
+        alignedHoles2D.push(h2D);
+        alignedCleanHoles3D.push(ch3D);
       }
 
-      // 4. Triangulate using Three.js ShapeUtils.triangulateShape (earcut)
-      const triangles = THREE.ShapeUtils.triangulateShape(pts2D, holes2D);
+      const allPts3D = [...cleanPts];
+      for (const h of alignedCleanHoles3D) {
+        allPts3D.push(...h);
+      }
+
+      // 5. Triangulate using Three.js ShapeUtils.triangulateShape (earcut)
+      const triangles = THREE.ShapeUtils.triangulateShape(pts2D, alignedHoles2D);
       if (triangles && triangles.length > 0) {
         const result = [];
         for (const tri of triangles) {
@@ -3101,11 +3131,33 @@ class IFCParser {
     for (const fId of faceIds) {
       const fEnt = this.getEntity(fId);
       if (!fEnt) continue;
-      const indices = [...fEnt.rawArgs.matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
-      if (indices.length >= 3) {
-        const polyPts = indices.map(idx => pts[idx]).filter(Boolean);
+
+      let outerIndices = [];
+      let holesIndices = [];
+
+      if (fEnt.type === 'IFCINDEXEDPOLYGONALFACEWITHVOIDS') {
+        const fArgs = this.parseArgs(fEnt.rawArgs);
+        if (fArgs.length > 0 && fArgs[0]) {
+          outerIndices = [...fArgs[0].matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
+        }
+        if (fArgs.length > 1 && fArgs[1]) {
+          const innerMatches = [...fArgs[1].matchAll(/\(([^()]+)\)/g)];
+          for (const im of innerMatches) {
+            const hIdx = [...im[1].matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
+            if (hIdx.length >= 3) {
+              holesIndices.push(hIdx);
+            }
+          }
+        }
+      } else {
+        outerIndices = [...fEnt.rawArgs.matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
+      }
+
+      if (outerIndices.length >= 3) {
+        const polyPts = outerIndices.map(idx => pts[idx]).filter(Boolean);
+        const holesList = holesIndices.map(h => h.map(idx => pts[idx]).filter(Boolean)).filter(h => h.length >= 3);
         if (polyPts.length >= 3) {
-          const triVerts = this.triangulate3DPolygon(polyPts);
+          const triVerts = this.triangulate3DPolygon(polyPts, holesList);
           for (const v of triVerts) {
             positions.push(v.x, v.y, v.z);
           }
@@ -3116,6 +3168,7 @@ class IFCParser {
     if (positions.length === 0) return null;
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.computeVertexNormals();
     return geom;
   }
 
@@ -3367,6 +3420,81 @@ class IFCParser {
             const r = (parseFloat(cArgs[1]) || 500) * this.unitScale;
             path.absarc(cx, cy, r, 0, Math.PI * 2, false);
             first = false;
+          }
+        }
+      }
+      path.closePath();
+      return path;
+    } else if (curveEnt.type === 'IFCINDEXEDPOLYCURVE') {
+      const args = this.parseArgs(curveEnt.rawArgs);
+      const ptListEnt = this.getEntity(args[0]);
+      if (!ptListEnt) return null;
+
+      // Extract 2D / 3D points
+      const pts = [];
+      const ptMatches = ptListEnt.rawArgs.matchAll(/\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)(?:\s*,\s*([-\d.eE+]+))?\s*\)/g);
+      for (const m of ptMatches) {
+        pts.push({
+          x: parseFloat(m[1]) * this.unitScale,
+          y: parseFloat(m[2]) * this.unitScale
+        });
+      }
+      if (pts.length < 2) return null;
+
+      const segmentsStr = args[1];
+      if (!segmentsStr || segmentsStr === '$') {
+        // Continuous polyline through all points
+        let count = pts.length;
+        if (count > 2 && Math.hypot(pts[count - 1].x - pts[0].x, pts[count - 1].y - pts[0].y) < 1e-4) {
+          count--;
+        }
+        path.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < count; i++) {
+          path.lineTo(pts[i].x, pts[i].y);
+        }
+      } else {
+        // Explicit line/arc segments (IFCLINEINDEX / IFCARCINDEX)
+        const segMatches = segmentsStr.matchAll(/(IFCLINEINDEX|IFCARCINDEX)?\s*\(\s*([^)]+)\s*\)/gi);
+        let first = true;
+        for (const sm of segMatches) {
+          const segType = (sm[1] || 'IFCLINEINDEX').toUpperCase();
+          const indices = sm[2].split(',').map(s => parseInt(s.trim(), 10) - 1);
+          if (segType === 'IFCLINEINDEX') {
+            for (let i = 0; i < indices.length; i++) {
+              const idx = indices[i];
+              if (!pts[idx]) continue;
+              if (first) {
+                path.moveTo(pts[idx].x, pts[idx].y);
+                first = false;
+              } else {
+                path.lineTo(pts[idx].x, pts[idx].y);
+              }
+            }
+          } else if (segType === 'IFCARCINDEX' && indices.length >= 3) {
+            const p1 = pts[indices[0]], p2 = pts[indices[1]], p3 = pts[indices[2]];
+            if (p1 && p2 && p3) {
+              if (first) {
+                path.moveTo(p1.x, p1.y);
+                first = false;
+              }
+              const d = 2 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+              if (Math.abs(d) > 1e-9) {
+                const ux = ((p1.x * p1.x + p1.y * p1.y) * (p2.y - p3.y) + (p2.x * p2.x + p2.y * p2.y) * (p3.y - p1.y) + (p3.x * p3.x + p3.y * p3.y) * (p1.y - p2.y)) / d;
+                const uy = ((p1.x * p1.x + p1.y * p1.y) * (p3.x - p2.x) + (p2.x * p2.x + p2.y * p2.y) * (p1.x - p3.x) + (p3.x * p3.x + p3.y * p3.y) * (p2.x - p1.x)) / d;
+                const r = Math.hypot(p1.x - ux, p1.y - uy);
+                const a1 = Math.atan2(p1.y - uy, p1.x - ux);
+                const a2 = Math.atan2(p2.y - uy, p2.x - ux);
+                const a3 = Math.atan2(p3.y - uy, p3.x - ux);
+                let d12 = a2 - a1;
+                while (d12 < 0) d12 += Math.PI * 2;
+                let d13 = a3 - a1;
+                while (d13 < 0) d13 += Math.PI * 2;
+                const ccw = (d12 < d13);
+                path.absarc(ux, uy, r, a1, a3, !ccw);
+              } else {
+                path.lineTo(p3.x, p3.y);
+              }
+            }
           }
         }
       }

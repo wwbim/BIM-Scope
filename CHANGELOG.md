@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **70 小时 26 分钟 (70.44 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **37 天 22 小时 21 分钟** (2026-09-29 22:17 至 2026-11-06 20:38)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **28,946 Steps** (跨 36 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **74 小时 53 分钟 (74.90 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **38 天 5 小时 01 分钟** (2026-09-29 22:17 至 2026-11-07 03:18)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **30,220 Steps** (跨 37 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -41,9 +41,37 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-27** | 19:50~20:35, 21:25~00:21 | 3h 40m (3.67h) | 空间两点测距（ΔX, ΔY, ΔZ, 俯仰角/方位角）、三点空间夹角与水平投影角测量 / 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
 | **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | 多点连续折线测量与闭合多边形面积解算（自相交猩红警示与 Earcut 剖分）、3方多仓库隔离发布管线确立 / Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
 | **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | 双模式快捷键系统（单键/Revit双键）、动态候选列表、平滑飞入导航与帮助手册重构 / Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
-| **2026-11-06** | 19:47~20:38 | 0h 51m (0.85h) | 变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul |
+| **2026-11-06** | 19:47~20:39, 22:52~03:18 | 5h 18m (5.31h) | 变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul |
 ---
 
+## [v1.2611070315] - 2026-11-07 03:15
+
+### 原地环视、滚轮穿透、双击贴近与穿墙漫游及几何拓扑滤波 / In-Place Look Around, Wheel Zoom Interior Pass-Through, Double-Click Penetration & Geometry Topology Filtering
+- **原地环视交互（Shift + 右键 / 左右键同时按住拖拽） / In-Place Look Around (Shift + Right Drag or Left + Right Drag)**
+  - **中文**:
+    1. **相机原点绝对锁定与第一人称头部转向**: 支持通过 Shift + 右键按住拖拽 或 鼠标左右键同时按住拖拽 激活原地环视模式。相机世界三维坐标保持严格静止，镜头视角自然模拟头部转动（Yaw / Pitch），并在正负天顶极角处提供平滑阻尼保护，杜绝画面倾斜与翻转。
+    2. **事件流状态即时复位与防死击**: 深度重构视口指针事件管线，左右键和弦环视释放后立即清理所有交互锁存状态，确保松开后下一次主动点击（无论是左键点选构件还是右键调出菜单）100% 立即响应。
+  - **English**:
+    1. **Absolute Camera Position Invariance & Natural Head Turn**: Added look-around navigation triggered via Shift + Right Drag or chorded Left + Right Drag. Camera 3D world position remains strictly stationary while yaw and pitch orientation smoothly rotates with polar angle safety clamp and zero horizon roll.
+    2. **Immediate Event Lifecycle Reset**: Overhauled pointer state lifecycle so chorded button releases instantly restore standard interaction flags, eliminating dead clicks.
+
+- **滚轮极限接近穿透与双击构件贴近/穿透室内漫游 / Wheel Zoom Pass-Through & Double-Click Component Penetration**
+  - **中文**:
+    1. **滚轮极限接近穿透（Wheel Zoom Pass-Through）**: 当通过鼠标滚轮将视点推进至构件极限贴近距离（< 0.5m）时，继续推进滚轮将自动沿着视线射线向前步进 1.2m 穿透构件外表面，快速进入建筑物内部空间。
+    2. **视口双击贴近与二次双击穿墙（Double-Click Approach & Penetration）**: 在视口中双击任意构件表面，相机平滑飞入至距该目标点 1.0m 处（且完全保留当前构件选择态，不干扰属性树）；在 1.35m 极限距离内再次双击该构件，系统自动以双面光线投射穿透解算后方出射面，并平滑移动至构件后方 1.0m 处，实现高效的室内外穿墙漫游。
+  - **English**:
+    1. **Wheel Zoom Interior Pass-Through**: When zooming into a surface reaches the threshold distance (< 0.5m), subsequent forward wheel rolls step the camera 1.2m forward along the cursor ray directly into building interiors.
+    2. **Double-Click Approach & Secondary Penetration**: Double-clicking any visible component smoothly animates the camera to 1.0m from the clicked surface while strictly preserving element selection; double-clicking again at close range (< 1.35m) casts double-sided penetration rays to find the exit surface and flies the camera to 1.0m behind it.
+
+- **IFC 几何拓扑冗余线条剔除与剖切遮挡鲁棒性 / IFC Geometry Topology Cleanup & Section Plane Robustness**
+  - **中文**:
+    1. **CSG 开洞边界共面 T-Junction 冗余边线消除**: 针对 IFC 布尔洞口减运算产生的内部共面剖分边界，引入拓扑自适应配对与重合投影滤波算法，彻底剔除模型表面的非真实视觉线条。
+    2. **剖面填充与右键交互时序优化**: 针对非密闭面几何体优化剖切检测；调整右键 Orbit 旋转与 Contextmenu 判定时序，消除右键拖曳旋转松开时的偶发菜单误弹。
+  - **English**:
+    1. **CSG Void Coplanar T-Junction Line Suppression**: Implemented topology pairing and overlap filtering for coplanar CSG void subtraction seams, eliminating non-physical edge lines.
+    2. **Section Fill & Context Menu Timing**: Enhanced section plane capping for non-watertight geometry and decoupled orbit drag release from context menu invocation to prevent spurious menu triggers.
+
+---
 ## [v1.2611052330] - 2026-11-05 23:30
 
 ### 双模式快捷键架构、动态候选菜单、平滑镜头导航与帮助手册重构 / Dual-Scheme Hotkey System, Candidate HUD Popup, Smooth Framing Transitions & Overhauled Help Manual

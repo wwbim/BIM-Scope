@@ -52,10 +52,11 @@ class BIMHelpSystem {
             title: "3D Viewport & Mouse Navigation",
             desc: "High-performance WebGL 3D rendering engine. Master viewport camera navigation with simple gestures:",
             items: [
-              "🖱️ <b>Left Mouse Drag</b>: Orbit / rotate camera freely",
-              "🖱️ <b>Right Mouse Drag</b>: Pan viewport horizontally / vertically",
-              "🖱️ <b>Scroll Wheel</b>: Smooth zoom in / zoom out",
-              "🖱️ <b>Double-Click on Component</b>: Smoothly center & fit view to the clicked element"
+              "🖱️ <b>Right Mouse Drag</b>: Orbit / rotate camera around cursor surface pivot",
+              "🖱️ <b>Middle Mouse Drag</b>: Pan viewport horizontally / vertically",
+              "🖱️ <b>Shift / Left + Right Drag</b>: Look around in place without moving camera position",
+              "🖱️ <b>Scroll Wheel</b>: Smooth zoom along cursor ray; scroll at close limit to pass through into interiors",
+              "🖱️ <b>Double-Click on Component</b>: Smoothly approach within 1m; double-click again to pass through behind it"
             ]
           },
           {
@@ -124,12 +125,13 @@ class BIMHelpSystem {
               <p>BIM Scope runs 100% offline in your browser, delivering high-precision BIM visualization with zero cloud dependency.</p>
               <h4>Basic Mouse Controls:</h4>
               <ul>
-                <li><b>Left Mouse Button Drag</b>: Orbit / rotate the model in 3D space.</li>
-                <li><b>Right Mouse Button Drag</b>: Pan and translate the viewport.</li>
-                <li><b>Mouse Wheel</b>: Smooth zoom in and out.</li>
-                <li><b>Double-Click Any Element</b>: Instantly center the camera on the target element.</li>
-                <li><b>Left-Click Element</b>: Select component and open its property inspector.</li>
-                <li><b>Shift + Left Mouse Drag</b>: Box / marquee selection to pick multiple elements simultaneously.</li>
+                <li><b>Right Mouse Drag</b>: Orbit camera around cursor surface pivot.</li>
+                <li><b>Middle Mouse Drag</b>: Pan and translate the viewport.</li>
+                <li><b>Shift / Left + Right Drag</b>: Look around in place (first-person head rotation).</li>
+                <li><b>Mouse Wheel</b>: Smooth zoom; scroll at minimum distance to pass through walls into interiors.</li>
+                <li><b>Double-Click Element</b>: Approach to 1 meter in front of element; double-click again to step behind it.</li>
+                <li><b>Left-Click Element</b>: Select component and view properties in Inspector.</li>
+                <li><b>Left Mouse Drag</b>: Box / marquee selection to pick multiple elements simultaneously.</li>
               </ul>
               <h4>Quick Action Targets:</h4>
               <p>Click any feature tag below to locate it on screen:</p>
@@ -302,10 +304,11 @@ class BIMHelpSystem {
           title: "3D 视口及常规鼠标操作",
           desc: "高性能 WebGL 3D 渲染核心。通过简单直观的鼠标手势掌控三维视角：",
           items: [
-            "🖱️ <b>按住鼠标左键拖拽</b>：自由旋转 / 环视模型 (Orbit)",
-            "🖱️ <b>按住鼠标右键拖拽</b>：水平 / 垂直平移视口 (Pan)",
-            "🖱️ <b>滚动鼠标滚轮</b>：平滑缩放视距 (Zoom)",
-            "🖱️ <b>双击任意构件</b>：镜头平滑过渡并居中对齐该构件 (Focus)"
+            "🖱️ <b>按住鼠标右键拖拽</b>：围绕光标着手点轨道旋转模型 (Orbit)",
+            "🖱️ <b>按住鼠标中键拖拽</b>：水平 / 垂直平移视口 (Pan)",
+            "🖱️ <b>Shift 或左键 + 右键拖拽</b>：相机位置不变，原地环顾四周视角 (Look Around)",
+            "🖱️ <b>滚动鼠标滚轮</b>：平滑缩放；在靠近极限距离继续推轮可直接穿透物体进入室内",
+            "🖱️ <b>双击任意构件</b>：镜头平滑贴近至距该物件 1 米处；再次双击穿透该构件来到后方" 
           ]
         },
         {
@@ -374,12 +377,13 @@ class BIMHelpSystem {
             <p>BIM Scope 采用纯浏览器本地离线运行机制，不上传任何模型数据至云端，提供高安全、高精度的三维工程可视化能力。</p>
             <h4>常用鼠标手势：</h4>
             <ul>
-              <li><b>鼠标左键拖拽</b>：在三维空间中旋转环视模型。</li>
-              <li><b>鼠标右键拖拽</b>：平移相机视口。</li>
-              <li><b>鼠标滚轮滚动</b>：平滑推进与拉远视距。</li>
-              <li><b>双击任意构件</b>：镜头平滑过渡并将该构件居中缩放至屏幕正中。</li>
-              <li><b>单击任意构件</b>：选中该构件并在右侧检查器中激活属性面板。</li>
-              <li><b>Shift + 鼠标左键拖拽</b>：框选视口内的多个构件进行批量检查。</li>
+              <li><b>鼠标右键拖拽</b>：围绕光标所指模型表面点轨道旋转。</li>
+              <li><b>鼠标中键拖拽</b>：平移相机视口 (Pan)。</li>
+              <li><b>Shift 或左键 + 右键拖拽</b>：相机位置固定，第一人称原地环视四周 (Look Around)。</li>
+              <li><b>鼠标滚轮滚动</b>：精准推拉；在障碍物极限距离继续推滚轮可穿透进入室内。</li>
+              <li><b>双击任意构件</b>：相机平滑贴近至构件表面 1 米处；再次双击穿透该构件来到后方内部。</li>
+              <li><b>单击任意构件</b>：选中构件并在右侧检查器中展示属性信息。</li>
+              <li><b>鼠标左键拖拽</b>：框选矩形区域内的多个构件进行批量检查。</li>
             </ul>
             <h4>快速定位常用入口：</h4>
             <p>点击下方标签可直接在主界面中高亮对应功能区域：</p>
