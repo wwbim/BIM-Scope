@@ -4,9 +4,15 @@ import json
 import os
 import re
 
-TRANSCRIPT_PATH = r'C:\Users\wangw\.gemini\antigravity\brain\c32053e9-0d69-4326-bb73-cc3f73cc9237\.system_generated\logs\transcript.jsonl'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHANGELOG_PATH = os.path.join(BASE_DIR, "CHANGELOG.md")
+BRAIN_DIR = r"C:\Users\wangw\.gemini\antigravity\brain"
+
+KNOWN_CONVERSATIONS = [
+    "c32053e9-0d69-4326-bb73-cc3f73cc9237",
+    "ac3c9fa6-c749-492a-bc7c-4feab0de10dd",
+    "187a8b35-b83c-4416-9500-02799a949159",
+]
 
 MILESTONES_A = {
     "2026-09-29": "项目脚手架初始化、Three.js 单文件离线引擎搭建 / Project scaffold & Three.js engine setup",
@@ -16,19 +22,26 @@ MILESTONES_A = {
     "2026-10-03": "墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor",
     "2026-10-04": "正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover",
     "2026-10-05": "左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow",
-    "2026-10-06": "双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync"
+    "2026-10-06": "双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync",
+    "2026-10-07": "多版本 IFC 深度对比模式研发、四色工程着色与幽灵体叠加 / Multi-version IFC comparison engine, 4-color diff & ghost mesh",
+    "2026-10-08": "模型对比双态差异树、属性差异表与边界熔断优化 / Difference tree, property diff table & comparison safety guards",
+    "2026-10-09": "IFC 几何解析优化、复杂构件平滑折角法线重构 / IFC geometry optimizations & smooth creased normal reconstruction",
+    "2026-10-10": "IFC 递归映射堆栈多层屋檐复原与深层属性提取 / IFC recursive mapped item multi-tier roof fixes & deep pset extraction",
+    "2026-10-11": "PWA 渐进式应用离线部署、Service Worker 缓存集成 / Progressive Web App (PWA) offline deployment & Service Worker caching",
+    "2026-10-12": "文档精准校准与多格式元数据档案治理 / Comprehensive documentation alignment & multi-format metadata governance",
+    "2026-10-16": "代码架构深度体检与安全执行效率评估 / Architecture & codebase health audit, security & performance review",
+    "2026-10-25": "智能半径/圆弧/球面测量体系与 CAD 级尺寸箭头、单点测量与最大坡度 / Smart radius, arc & sphere measurement, CAD-grade badges, 3D point & slope",
+    "2026-10-26": "开发规程沉淀与 3D 几何防错准则确立 / Development guidelines & 3D geometry snapping invariants established",
+    "2026-10-27": "空间两点测距（ΔX, ΔY, ΔZ, 俯仰角/方位角）、三点空间夹角与水平投影角测量 / 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing",
+    "2026-10-28": "多点连续折线测量与闭合多边形面积解算（自相交猩红警示与 Earcut 剖分）、3方多仓库隔离发布管线确立 / Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline",
+    "2026-11-05": "双模式快捷键系统（单键/Revit双键）、动态候选列表、平滑飞入导航与帮助手册重构 / Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor",
+    "2026-11-06": "变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul"
 }
 
 MILESTONES_B = {
-    "2026-09-29": "项目脚手架初始化、Three.js 单文件离线引擎搭建 / Project scaffold & Three.js engine setup",
-    "2026-09-30": "3D 罗盘、标高指示、图钉系统与演示模型初始构建 / 3D compass, elevation readouts, pin labels & demo model",
-    "2026-10-01": "剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling",
-    "2026-10-02": "FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing",
-    "2026-10-03": "墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor",
-    "2026-10-04": "正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover",
-    "2026-10-05": "左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow",
-    "2026-10-06": "多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync"
+    k: (v.split(" / ", 1)[1] if " / " in v else v) for k, v in MILESTONES_A.items()
 }
+MILESTONES_B["2026-10-06"] = "Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync"
 
 def get_milestones(base_dir=BASE_DIR):
     if "SWBIM Scope" in base_dir:
@@ -37,28 +50,61 @@ def get_milestones(base_dir=BASE_DIR):
 
 MILESTONES = MILESTONES_A
 
-def calculate_time_metrics(base_dir=BASE_DIR):
-    if not os.path.exists(TRANSCRIPT_PATH):
-        return None
-
+def load_timestamps(base_dir=BASE_DIR):
     times = []
-    with open(TRANSCRIPT_PATH, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line: continue
+    loaded_history = False
+
+    # 1. Search for historical_telemetry.json
+    candidates = [
+        os.path.join(base_dir, "historical_telemetry.json"),
+        os.path.join(BASE_DIR, "historical_telemetry.json"),
+        os.path.join(os.path.dirname(base_dir), "BIM Scope", "Project", "historical_telemetry.json"),
+        os.path.join(os.path.dirname(os.path.dirname(base_dir)), "BIM Scope", "Project", "historical_telemetry.json")
+    ]
+    for hp in candidates:
+        if os.path.exists(hp):
             try:
-                obj = json.loads(line)
-                ca = obj.get('created_at')
-                if ca:
-                    dt = datetime.datetime.fromisoformat(ca.replace('Z', '+00:00'))
-                    times.append(dt + datetime.timedelta(hours=8)) # Local time UTC+8
-            except:
+                with open(hp, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for ca in data.get("historical_timestamps", []):
+                        dt = datetime.datetime.fromisoformat(ca.replace('Z', '+00:00'))
+                        times.append(dt + datetime.timedelta(hours=8))
+                loaded_history = True
+                break
+            except Exception:
                 pass
 
+    # 2. If historical telemetry was loaded, only active ongoing conversations (not in history)
+    # need to be read. If not loaded, attempt to read all known conversations.
+    convs_to_read = ["187a8b35-b83c-4416-9500-02799a949159"] if loaded_history else KNOWN_CONVERSATIONS
+
+    for cid in convs_to_read:
+        p = os.path.join(BRAIN_DIR, cid, ".system_generated", "logs", "transcript.jsonl")
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line: continue
+                        try:
+                            obj = json.loads(line)
+                            ca = obj.get("created_at")
+                            if ca:
+                                dt = datetime.datetime.fromisoformat(ca.replace('Z', '+00:00'))
+                                times.append(dt + datetime.timedelta(hours=8))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+    times.sort()
+    return times
+
+def calculate_time_metrics(base_dir=BASE_DIR):
+    times = load_timestamps(base_dir=base_dir)
     if not times:
         return None
 
-    times.sort()
     total_steps = len(times)
     start_t = times[0]
     end_t = times[-1]

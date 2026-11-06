@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **48 小时 06 分钟 (48.10 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **11 天 21 小时 37 分钟** (2026-09-29 22:17 至 2026-10-11 19:55)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **22,150 Steps** (跨 25 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **70 小时 26 分钟 (70.44 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **37 天 22 小时 21 分钟** (2026-09-29 22:17 至 2026-11-06 20:38)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **28,946 Steps** (跨 36 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -29,11 +29,134 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
-| **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | 功能迭代与持续优化 / Feature development |
-| **2026-10-08** | 13:25~13:42, 21:37~21:46 (共 3 个时段) | 0h 46m (0.77h) | 功能迭代与持续优化 / Feature development |
-| **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | 功能迭代与持续优化 / Feature development |
-| **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | 功能迭代与持续优化 / Feature development |
-| **2026-10-11** | 00:31~01:54, 19:41~19:55 (共 3 个时段) | 3h 47m (3.78h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | 多版本 IFC 深度对比模式研发、四色工程着色与幽灵体叠加 / Multi-version IFC comparison engine, 4-color diff & ghost mesh |
+| **2026-10-08** | 13:25~13:42, 21:37~21:46 (共 3 个时段) | 0h 46m (0.77h) | 模型对比双态差异树、属性差异表与边界熔断优化 / Difference tree, property diff table & comparison safety guards |
+| **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | IFC 几何解析优化、复杂构件平滑折角法线重构 / IFC geometry optimizations & smooth creased normal reconstruction |
+| **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | IFC 递归映射堆栈多层屋檐复原与深层属性提取 / IFC recursive mapped item multi-tier roof fixes & deep pset extraction |
+| **2026-10-11** | 00:31~01:54, 19:41~19:55 (共 5 个时段) | 5h 34m (5.58h) | PWA 渐进式应用离线部署、Service Worker 缓存集成 / Progressive Web App (PWA) offline deployment & Service Worker caching |
+| **2026-10-12** | 22:26~01:18 | 2h 51m (2.85h) | 文档精准校准与多格式元数据档案治理 / Comprehensive documentation alignment & multi-format metadata governance |
+| **2026-10-16** | 23:32~00:20 | 0h 47m (0.80h) | 代码架构深度体检与安全执行效率评估 / Architecture & codebase health audit, security & performance review |
+| **2026-10-25** | 17:41~22:51 | 5h 10m (5.18h) | 智能半径/圆弧/球面测量体系与 CAD 级尺寸箭头、单点测量与最大坡度 / Smart radius, arc & sphere measurement, CAD-grade badges, 3D point & slope |
+| **2026-10-26** | 21:24~21:27 | 0h 02m (0.04h) | 开发规程沉淀与 3D 几何防错准则确立 / Development guidelines & 3D geometry snapping invariants established |
+| **2026-10-27** | 19:50~20:35, 21:25~00:21 | 3h 40m (3.67h) | 空间两点测距（ΔX, ΔY, ΔZ, 俯仰角/方位角）、三点空间夹角与水平投影角测量 / 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
+| **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | 多点连续折线测量与闭合多边形面积解算（自相交猩红警示与 Earcut 剖分）、3方多仓库隔离发布管线确立 / Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
+| **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | 双模式快捷键系统（单键/Revit双键）、动态候选列表、平滑飞入导航与帮助手册重构 / Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
+| **2026-11-06** | 19:47~20:38 | 0h 51m (0.85h) | 变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul |
+---
+
+## [v1.2611052330] - 2026-11-05 23:30
+
+### 双模式快捷键架构、动态候选菜单、平滑镜头导航与帮助手册重构 / Dual-Scheme Hotkey System, Candidate HUD Popup, Smooth Framing Transitions & Overhauled Help Manual
+- **双模式快捷键系统与一键互切双按钮 / Dual-Scheme Hotkey Architecture & One-Click Toggle Pill**
+  - **中文**:
+    1. **Single-Key 与 Two-Key (Revit 规范) 双模式深度适配**: 系统全面支持两套主流快捷键体系。①「单键模式（Single Key）」：以极简单字母激发（如 `D` 测量、`O` 正交/透视、`F` 全景居中、`S` 剖切面），适合快速浏览与高频单手交互；②「双键模式（Two Key）」：全面遵循国际主流 Autodesk Revit 标准快捷键规范（如 `HH` 临时隐藏构件、`HI` 隔离构件、`HR` 重置隐藏与隔离、`SD` 着色模式、`HL` 隐藏线框、`BX` 选中构件局部剖切盒、`ZX` 聚焦选中构件、`ZA` 全景居中等）。
+    2. **检查器顶栏一键互切双按钮**: 在右侧检查器顶栏（Shortcuts 标题右侧）新增精巧的 `Single Key` / `Two Key` 胶囊互切双按钮，半边高亮显示当前模式，无论点击任意半边均直接无缝互切到另一套模式；用户模式偏好实时本地持久化存储。
+    3. **快捷键速查面板（HUD Cheatsheet）**: 点击快捷键帮助按钮可调出覆盖全屏的快捷键映射面板，以清晰双列表格直观呈现单键模式与双键模式的全量功能对比映射，并在面板顶部标注完整模式全称。
+  - **English**:
+    1. **Dual-Scheme Architecture (Single-Key & Two-Key Revit Standard)**: Implemented two comprehensive hotkey paradigms: ① "Single-Key Mode" triggered by direct single keystrokes (e.g. `D` for measure, `O` for ortho/persp, `F` for zoom fit, `S` for section plane), optimized for rapid single-handed navigation; ② "Two-Key Mode" adhering strictly to industry-standard Autodesk Revit keyboard conventions (e.g. `HH` hide element, `HI` isolate element, `HR` reset hide/isolate, `SD` shaded display, `HL` hidden line, `BX` selection section box, `ZX` zoom to selection, `ZA` zoom all).
+    2. **One-Click Toggle Pill in Inspector Header**: Added a sleek dual-segment pill button (`Single Key` / `Two Key`) immediately to the right of the Shortcuts title in the inspector panel; clicking either side seamlessly toggles to the other scheme, with user preferences persisted locally.
+    3. **Full Shortcuts Cheatsheet HUD**: Clicking the cheatsheet button reveals an interactive full-screen modal displaying comprehensive side-by-side keybinding tables for both schemes with full naming designations.
+
+- **5秒悬停动态候选菜单与鼠标/键盘双模执行 / 5-Second Hotkey Candidate Panel & Mouse/Keyboard Dual Execution**
+  - **中文**:
+    1. **视口居中胶囊上方垂直候选面板**: 在视口底部中央快捷键悬浮胶囊（`#shortcuts-key-capsule`）正上方动态垂直展开匹配候选功能面板（`#shortcuts-candidate-panel`）。在单键模式下按下 `D`（胶囊显示 `D _`），上方自动浮出 5 项测量子模式清单（`1: Distance`, `2: Angle`, `3: Radius`, `4: Polyline`, `5: Area`）；在 Revit 双键模式下敲击前置字母（如 `H`，胶囊显示 `H _`），上方清晰列出所有以该字母开头的匹配命令（`HI: Isolate Selected`, `HH: Hide Selected`, `HR: Reset Hide/Isolate`）。
+    2. **键盘次键或鼠标点击双模执行**: 用户既可敲击第二按键立即激活目标功能，亦可直接使用鼠标悬停点击候选列表项执行命令，兼顾键盘盲打极速操作与新手直观引导。
+    3. **5秒自适应保留时长与极速模式解耦**: 为确保用户从容辨识候选指令并进行鼠标点选，候选菜单与胶囊提示自适应延展至 5 秒（`5000ms`）静止保留；针对 `T`/`F` 等顶视图与全景视角切换维持 650ms 极速自动提交机制，避免视图连续缩放切换产生操作迟滞；支持按 `Esc` 键或点击视口任意空白处即时退出并关闭候选菜单。
+    4. **字体微缩与视觉层级沉降**: 快捷键浮动胶囊字体微调缩小 1 号（字号 `12px`，内边距 `5px 12px`），与工程视口专业沉浸质感深度融合。
+  - **English**:
+    1. **Vertical Candidate Panel Above Capsule HUD**: Dynamically expands a matching candidate list panel (`#shortcuts-candidate-panel`) directly above the bottom-center feedback capsule (`#shortcuts-key-capsule`). In Single-Key mode, pressing `D` displays `D _` with 5 measurement submodes stacked above (`1: Distance`, `2: Angle`, `3: Radius`, `4: Polyline`, `5: Area`); in Revit Two-Key mode, typing the first prefix (e.g. `H`) displays `H _` along with all matching candidate commands (`HI: Isolate Selected`, `HH: Hide Selected`, `HR: Reset Hide/Isolate`).
+    2. **Mouse-Clickable & Keyboard-Executable Dual Control**: Users can either tap the second hotkey key to execute immediately or hover and click candidate items directly with the mouse cursor, bridging keyboard speed and visual discovery.
+    3. **5-Second Extended Retention & Fast View Decoupling**: Extended the candidate panel and capsule retention window to 5 seconds (`5000ms`) for comfortable review and mouse interaction; decoupled instant view presets (`T`/`F`) which retain a crisp 650ms auto-commit timer to avoid lag during rapid navigation; supports instant dismissal via `Esc` key or viewport backdrop clicks.
+    4. **Reduced Capsule Typography**: Downsized the floating HUD capsule font by one step (`12px`, padding `5px 12px`), matching professional CAD interface ergonomics.
+
+- **全局镜头平滑补间动画与帮助手册系统重构 / Unified Smooth Camera Transitions & Help Manual Overhaul**
+  - **中文**:
+    1. **Page Down 聚焦选中构件 (Zoom to Selection)**: 将构件聚焦单键快捷键统一绑定为 `Page Down`，在单键模式与双键模式下均全局生效；透视与正交相机均自适应推近构件至视口 70% 黄金构图。
+    2. **Page Up 全局平滑飞入居中 (Smooth Zoom to Fit)**: 将全景居中快捷键统一绑定为 `Page Up`（双模式通用），消除原先瞬间跳变重置视角的生硬感，采用 450ms 贝塞尔曲线平滑飞入全局全景，镜头过渡丝滑自然。
+    3. **帮助手册系统全面重构与精准精简**: 帮助系统（`help_system.js`）全面升级以适配当前最新 UI；第 4 节系统化收录 CAD 级吸附（□ 端点、△ 中点、⨁ 圆心、⧗ 线上最近点）、自相交猩红警戒与多边形面积三角化解算说明；第 7 节“快捷键速查与动态反馈”彻底去冗，剔除原先冗长重复的键位清单，重点阐述双模式切换、悬停反馈胶囊与动态候选列表，并内嵌 `[ Shortcuts Scheme Toggle ]` 与 `[ Shortcuts Cheatsheet (?) ]` 交互跳转按钮。
+    4. **右侧面板联动防遮挡滑移**: 浮动工具栏跟随右侧面板自适应折叠滑移，右侧保留安全缓冲间隙，确保不遮挡侧边栏展开复位按钮；测量面板动态 HUD 移除冗余编号提示，面积模式严谨标识为 `3D Area (est.)`。
+  - **English**:
+    1. **Page Down Zoom to Selection**: Unified single-key framing shortcut to `Page Down` across both Single-Key and Two-Key modes, advancing perspective and orthographic cameras to frame the selected entity at 70% viewport occupancy.
+    2. **Page Up Smooth Zoom to Fit**: Unified global framing shortcut to `Page Up` across both schemes; replaces jarring instantaneous viewport snaps with a smooth 450ms cubic-bezier camera fly-in transition.
+    3. **Comprehensive Help Manual Restructuring**: Modernized `help_system.js` to align with latest UI paradigms; updated Section 4 with all 5 measurement workflows, CAD-grade snapping glyphs, and self-intersection triangulation; streamlined Section 7 to focus on scheme switching, HUD capsule feedback, and candidate popups with direct interactive trigger buttons.
+    4. **Non-Obstructive Responsive Sliding Toolbar**: Floating tools panel smoothly glides when the right inspector collapses while preserving safe clearance margins so as never to occlude the restore toggle button; cleaned dynamic HUD measurement headers and formalized `3D Area (est.)` estimation readouts.
+
+---
+
+## [v1.2610290130] - 2026-10-29 01:30
+
+### 多点连续折线测量、闭合多边形面积解算与自相交猩红警示 / Multi-Point Polyline, 3D Polygon Area & Self-Intersection Scarlet Alert
+- **多点连续折线周长与单段三维测距 / Multi-Point Continuous Polyline Measurement**
+  - **中文**:
+    1. **自由折线连续空间绘制**: 测量系统新增第 4 模式「Polyline（连续折线）」，支持用户在三维模型任意表面、顶点、边缘连续点选 N 个定位点，动态生成连续三维空间折线网络。
+    2. **各段分段三维长度实时注记**: 折线每两个相邻顶点之间自动解算真实三维欧氏距离，并在各线段几何中心上方悬浮半透明单数值紧凑标徽；各标徽严格实施视口屏幕像素恒定缩放（Screen-Space Pixel Scaling）与梁友栋-巴斯基视口安全边界平滑裁切。
+    3. **累计总周长/走向综合汇报**: 实时统计所有线段三维长度之和，在折线末端定位点悬浮标徽醒目汇报累计总长（Total Polyline Length）；支持按 `Backspace` 撤销回退上一个测量点，按 `Enter` 或双击完成折线闭合，按 `Esc` 退出模式并保留三维标注。
+  - **English**:
+    1. **Continuous 3D Polyline Drafting**: Introduced the 4th measurement submode "Polyline", enabling sequential multi-point clicks across geometry surfaces, vertices, and edges to construct an interactive 3D polyline network.
+    2. **Segment-by-Segment 3D Dimension Badges**: Automatically calculates authentic Euclidean distances between adjacent vertices, anchoring compact dimension badges at segment midpoints with screen-space pixel locking and Liang-Barsky viewport clamping.
+    3. **Cumulative Perimeter & Real-Time Undo**: Computes running cumulative perimeter displayed on the terminal endpoint badge; supports `Backspace` to undo the previous vertex, `Enter` or double-click to close the path, and `Esc` to commit and retain the 3D dimensions.
+
+- **三维多边形平面拟合与 Newell-Earcut 三角剖分面积解算 / 3D Best-Fit Plane & Newell-Earcut Triangulation Area**
+  - **中文**:
+    1. **闭合多边形表面积精准解算**: 测量系统新增第 5 模式「Area（多边形面积）」，支持点选 3 个或更多空间定位点围合闭合空间区域。
+    2. **Newell 空间最佳拟合平面投影**: 采用国际计算机图形学 Newell 算法遍历多边形所有空间顶点，解算其在三维空间中的最佳拟合平面法向量（Best-Fit Plane Normal），并将空间三维顶点严格正交投影映射至该平面的二维局部坐标系。
+    3. **Mapbox Earcut 凹凸多边形三角剖分**: 深度整合 Mapbox Earcut 纯前端三角剖分算法，对复杂凹多边形与不规则空间几何执行高保真耳切剖分，精确统计各三角形面积并累加输出三维闭合区域的真实表面积（Area）与封闭周长（Perimeter）；悬浮标徽支持一键点击复制完整数据，随工程单位制（m² 与 sq ft）实时联动换算。
+  - **English**:
+    1. **Enclosed Polygon Surface Area Engine**: Introduced the 5th measurement submode "Area", supporting 3 or more spatial control points enclosing arbitrary 3D coplanar or non-coplanar polygonal boundaries.
+    2. **Newell 3D Best-Fit Plane Projection**: Employs Newell's method to compute optimal spatial plane normals from boundary vertices, projecting 3D points orthogonally onto a 2D local coordinate system.
+    3. **Mapbox Earcut Triangulation**: Integrates Mapbox Earcut triangulation to robustly partition arbitrary concave/convex polygons into non-overlapping triangle meshes, calculating total surface area and perimeter; supports one-click copying and metric/imperial unit conversion ($m^2 \leftrightarrow 	ext{sq ft}$).
+
+- **自相交拓扑探测与猩红高亮报警 / Topological Self-Intersection Detection & Scarlet Alert**
+  - **中文**:
+    1. **空间自相交快速线段相交判定**: 在用户连续点选或移动光标时，算法实时检测当前多边形各边线段之间是否存在非端点的二维投影交叉重叠（如绘制成“8”字形或多环交叉折叠）。
+    2. **猩红报警材质即时切换**: 一旦探测到自相交拓扑，多边形半透明填充网格与边界轮廓线立即由常规青蓝色自适应翻转为鲜明醒目的猩红报警色（Scarlet Red `#ef4444`），并在动态悬浮标徽上直观标注自相交风险提示，严防工程人员误读自交多边形面积。
+  - **English**:
+    1. **Real-Time Boundary Intersection Detection**: Continuously monitors boundary edge segments during drawing to detect non-endpoint intersection crossovers (e.g. figure-eight or overlapping loop topologies).
+    2. **Instant Scarlet Alert Styling**: Flips polygon fill mesh and boundary contour lines from calm cyan to vivid Scarlet Red (`#ef4444`) upon intersection detection, displaying cautionary feedback on the HUD badge to prevent erroneous area interpretations.
+
+- **三方远端多仓库自动化隔离发布管线 / Plan A Multi-Repo Synchronized Publishing Pipeline**
+  - **中文**:
+    1. **一键三方同步发布脚本 (`publish_all.py`)**: 建立完整的多仓库自动化发布流水线，严格遵循 Windows 凭据管理器账号隔离规范（Plan A）：主工程 Variant A 发布至 `wwbim/BIM-Scope.git` (main)；交付物 Variant B 发布至 `samwoh/SWBIM-Scope.git` (main)；源码库 Variant B 发布至 `Samwoh-WW/SWBIM-Scope.git` (main)。
+    2. **编译校验与 SHA 清单对齐**: 自动执行 A/B 双版本单文件编译、CHANGELOG 工时精算更新、Git 暂存区检查与远端推送，最终输出三方仓库 Commit SHA 校验清单。
+  - **English**:
+    1. **Unified Multi-Repo Publishing Pipeline (`publish_all.py`)**: Established an automated multi-repository publishing suite adhering to Windows Credential Manager account isolation (Plan A): Variant A to `wwbim/BIM-Scope.git` (main), Variant B Deliverables to `samwoh/SWBIM-Scope.git` (main), and Variant B Source to `Samwoh-WW/SWBIM-Scope.git` (main).
+    2. **Compilation Verification & SHA Matrix Summary**: Automates dual-variant single-file compilation, telemetry updates, working tree sanitation, and git push across all remotes, printing a verified 3-way commit SHA summary.
+
+---
+
+## [v1.2610280020] - 2026-10-28 00:20
+
+### 空间两点测距（ΔX, ΔY, ΔZ）、空间三点夹角与几何捕捉引擎加固 / 3D Two-Point Distance (XYZ Offsets), Three-Point Angle & Geometry Snapping Invariants
+- **空间两点测距与正交分量/角度复合解析 / Two-Point Distance with XYZ Offsets & Pitch/Yaw Analysis**
+  - **中文**:
+    1. **三维欧氏距离与正交辅助线框**: 测量两点时，除直接在空间主标注线上呈现斜距（Euclidean 3D Distance）紧凑数值标徽外，自动生成连接两点的三维正交辅助虚线框（Orthogonal Bounding Guide），清晰分解三轴空间投影。
+    2. **ΔX / ΔY / ΔZ 正交分量与高程标差**: 悬浮卡片中实时汇报两点之间的空间坐标差：$\Delta X$（东向距离 / Easting）、$\Delta Y$（垂直高程差 / Height Diff）、$\Delta Z$（北向距离 / Northing），并在正交轴线上以红、绿、蓝专业轴向色标示分量长度。
+    3. **视线空间倾角与水平投影方位角**: 实时解算两点连线与水平基准面的空间俯仰夹角（Pitch / Slope Angle，度数与百分比），以及连线在水平面上相对于正北的真方位角（Yaw / Bearing Angle），全方位满足土木、结构与机电现场测量需求。
+  - **English**:
+    1. **3D Euclidean Distance & Orthogonal Bounding Guides**: Measures spatial distance with a centered numeric badge along the primary dimension line, complemented by automated 3D orthogonal bounding dashed guides decomposing XYZ projections.
+    2. **ΔX, ΔY, ΔZ Offsets & Elevation Deltas**: Reports exact component offsets in the HUD card: $\Delta X$ (Easting), $\Delta Y$ (Vertical Elevation Delta), and $\Delta Z$ (Northing), color-coded with standard red/green/blue axis markers.
+    3. **Sightline Pitch & Compass Bearing (Yaw)**: Calculates spatial sightline pitch/slope angle against the horizontal ground plane (in degrees and grade percentage) and true-north horizontal azimuth bearing (Yaw), addressing structural and civil inspection workflows.
+
+- **空间三点夹角与水平投影角测量 / Three-Point 3D Spatial Angle & Projected Horizontal Angle**
+  - **中文**:
+    1. **三点空间夹角交互标定**: 测量系统新增「Angle（三点夹角）」模式，支持用户依次点选定位点 A、角顶点 B、定位点 C。
+    2. **三维空间角与水平投影角同时解算**: 利用向量点积 $\cos	heta = rac{ec{BA} \cdot ec{BC}}{|ec{BA}||ec{BC}|}$ 解算真实三维空间夹角（$0^\circ \sim 180^\circ$）；同时提取射线在水平投影面上的投影向量解算建筑水平夹角（Projected Angle）。
+    3. **空间圆弧扇区与角度标徽**: 在角顶点 B 处沿 $ec{BA}$ 与 $ec{BC}$ 所在三维平面动态绘制柔和半透明圆弧标注扇区与角中线尺寸标徽，随视角旋转保持抗锯齿 Billboard 面向。
+  - **English**:
+    1. **Three-Point Angle Calibration**: Introduced the "Angle" measurement mode, capturing points A, vertex B, and point C sequentially across 3D surfaces.
+    2. **Spatial Angle & Horizontal Projection Angle**: Solves true 3D spatial angle ($0^\circ \sim 180^\circ$) via vector dot products, alongside horizontal projection angles for architectural layout verification.
+    3. **Spatial Arc Sector & Angle Badge**: Dynamically constructs an anti-aliased coplanar circular arc sector and bisector dimension badge anchored at vertex B.
+
+- **CAD 级几何捕捉引擎算法守则落实 / CAD-Grade Geometric Snapping Invariants**
+  - **中文**:
+    1. **端点/中点/圆心/线上最近点特征捕捉**: 全面标配顶点端点（□ Endpoint）、边线中点（△ Midpoint）、圆/弧圆心（⨁ Center）及边线上最近点（⧗ Nearest）的动态视觉捕捉指示。
+    2. **严禁屏幕空间二次插值守则**: 严格遵循三维几何防错准则，在解算棱线最近点吸附时，严禁在屏幕 2D 像素求插值比例 $t$ 后使用 `p0.lerp(p1, t)`（杜绝透视除法非线性导致的 0.2m 边线吸附漂移），改用空间射线-线段公垂线算法直接解算真实三维最近点。
+    3. **双层背面法线初筛与光线遮挡测试**: 候选点相邻三角面法向背向相机时直接初筛剔除；结合从相机向候选点发射射线测试遮挡（`isPointOccluded`），联动活动剖切面与 5mm~40mm 距离自适应缓冲，杜绝隔墙与背面透视误捕捉。
+  - **English**:
+    1. **Geometric Snapping Glyphs**: Full CAD-standard snap indicators: Endpoint (□), Midpoint (△), Center (⨁), and Nearest on edge (⧗).
+    2. **Elimination of Screen-Space Re-Interpolation**: Strict enforcement of 3D geometric invariants, prohibiting 2D screen-pixel interpolation for edge projection, employing 3D ray-to-segment perpendicular distance solving to prevent 0.2m perspective drift.
+    3. **Normal Culling & Line-of-Sight Occlusion Testing**: Filters backfacing geometry via normal dot products and conducts camera-to-candidate raycast occlusion testing (`isPointOccluded`) with clipping plane awareness and adaptive 5mm-40mm safety buffers.
+
 ---
 
 ## [v1.2610252230] - 2026-10-25 22:30

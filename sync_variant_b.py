@@ -333,6 +333,7 @@ def run_sync(do_push=False):
     root_files = [
         "build_viewer.py",
         "calc_time.py",
+        "historical_telemetry.json",
         "variant_config.json",
         ".gitignore",
         "favicon.ico",
