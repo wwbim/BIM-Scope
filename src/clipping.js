@@ -76,6 +76,9 @@ class ClippingEngine {
     this.pinnedGizmoVisible = false;
     this.defaultBoxFace = 'yPos';
     this.isShiftDown = false;
+    this.isCtrlDown = false;
+    this.boxCentralGizmoGroup = null;
+    this.lastRelativeRotDeg = 0;
     
     // Dynamic Section Capping & Bold Cut Contour State
     this.activeModel = null;
@@ -332,6 +335,203 @@ class ClippingEngine {
       this.faceHandles[cfg.id] = handle;
       this.boxGizmoGroup.add(handle);
     });
+
+    this.initBoxCentralGizmo();
+  }
+
+  // ----------------------------------------------------
+  // SECTION BOX CENTRAL GIZMO SETUP (Ctrl Modifier: 3 Axes + 3 Planes + 270 deg Rotation Arc)
+  // ----------------------------------------------------
+  initBoxCentralGizmo() {
+    this.boxCentralGizmoGroup = new THREE.Group();
+    this.boxCentralGizmoGroup.renderOrder = 9999;
+    this.boxCentralGizmoGroup.visible = false;
+    this.boxCentralGizmoGroup.userData = {
+      isGizmo: true,
+      type: 'box',
+      part: 'boxCentralGroup'
+    };
+    this.boxGroup.add(this.boxCentralGizmoGroup);
+
+    const createAxisArrow = (axisVec, colorHex, partName) => {
+      const group = new THREE.Group();
+      group.renderOrder = 9999;
+      group.userData = {
+        isGizmo: true,
+        type: 'box',
+        part: partName,
+        axis: axisVec.clone(),
+        baseColor: colorHex
+      };
+
+      const arrowMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+        opacity: 1.0,
+        toneMapped: false,
+        clippingPlanes: []
+      });
+
+      // Stem cylinder: length 1.4, radius 0.045
+      const stemGeo = new THREE.CylinderGeometry(0.045, 0.045, 1.4, 16);
+      stemGeo.translate(0, 0.7, 0);
+      const stemMesh = new THREE.Mesh(stemGeo, arrowMat);
+      stemMesh.renderOrder = 9999;
+      stemMesh.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group, _origColor: colorHex };
+
+      // Cone head: length 0.45, radius 0.16
+      const coneGeo = new THREE.ConeGeometry(0.16, 0.45, 16);
+      coneGeo.translate(0, 1.4 + 0.45 / 2, 0);
+      const coneMesh = new THREE.Mesh(coneGeo, arrowMat);
+      coneMesh.renderOrder = 9999;
+      coneMesh.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group, _origColor: colorHex };
+
+      // Invisible hit cylinder for comfortable picking
+      const hitCylGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.8, 8);
+      hitCylGeo.translate(0, 0.95, 0);
+      const hitMat = new THREE.MeshBasicMaterial({ visible: false, clippingPlanes: [] });
+      const hitMesh = new THREE.Mesh(hitCylGeo, hitMat);
+      hitMesh.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group };
+
+      group.add(stemMesh);
+      group.add(coneMesh);
+      group.add(hitMesh);
+
+      const defaultDir = new THREE.Vector3(0, 1, 0);
+      if (axisVec.distanceTo(defaultDir) > 1e-4) {
+        if (axisVec.distanceTo(new THREE.Vector3(0, -1, 0)) < 1e-4) {
+          group.rotation.x = Math.PI;
+        } else {
+          group.quaternion.setFromUnitVectors(defaultDir, axisVec);
+        }
+      }
+      return group;
+    };
+
+    // 1. Axial Arrows:
+    // Red Arrow: +X (Easting in survey)
+    this.boxCenterAxisX = createAxisArrow(new THREE.Vector3(1, 0, 0), 0xff2222, 'boxCenterMoveX');
+    this.boxCentralGizmoGroup.add(this.boxCenterAxisX);
+
+    // Green Arrow: +Z in Three.js (Northing in survey, Y in prompt)
+    this.boxCenterAxisY = createAxisArrow(new THREE.Vector3(0, 0, 1), 0x00d022, 'boxCenterMoveY');
+    this.boxCentralGizmoGroup.add(this.boxCenterAxisY);
+
+    // Blue Arrow: +Y in Three.js (Height in survey, Z in prompt)
+    this.boxCenterAxisZ = createAxisArrow(new THREE.Vector3(0, 1, 0), 0x0088ff, 'boxCenterMoveZ');
+    this.boxCentralGizmoGroup.add(this.boxCenterAxisZ);
+
+    // 2. Planar Squares (S = 0.70, corner at origin):
+    const createPlaneSquare = (partName, planeNormal, colorHex, orientFn) => {
+      const group = new THREE.Group();
+      group.renderOrder = 9999;
+      group.userData = {
+        isGizmo: true,
+        type: 'box',
+        part: partName,
+        planeNormal: planeNormal.clone(),
+        baseColor: colorHex
+      };
+
+      const S = 0.70;
+      const sqGeo = new THREE.PlaneGeometry(S, S);
+      sqGeo.translate(S / 2, S / 2, 0);
+      if (orientFn) orientFn(sqGeo);
+
+      const sqMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+        opacity: 0.62,
+        toneMapped: false,
+        clippingPlanes: []
+      });
+      const sqMesh = new THREE.Mesh(sqGeo, sqMat);
+      sqMesh.renderOrder = 9999;
+      sqMesh.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group, _origColor: colorHex };
+
+      const edgeGeo = new THREE.EdgesGeometry(sqGeo);
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.85
+      });
+      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      edgeLines.renderOrder = 10000;
+      edgeLines.raycast = () => {}; // Visual only, prevent line threshold ghost hits
+
+      group.add(sqMesh);
+      group.add(edgeLines);
+      return group;
+    };
+
+    // Blue Square: Horizontal plane (XY in prompt, between Red +X and Green +Z in Three.js, normal is +Y)
+    this.boxCenterPlaneXY = createPlaneSquare('boxCenterPlaneXY', new THREE.Vector3(0, 1, 0), 0x0088ff, (geo) => {
+      geo.rotateX(Math.PI / 2);
+    });
+    this.boxCentralGizmoGroup.add(this.boxCenterPlaneXY);
+
+    // Red Square: Vertical plane (YZ in prompt, between Green +Z and Blue +Y in Three.js, normal is +X)
+    this.boxCenterPlaneYZ = createPlaneSquare('boxCenterPlaneYZ', new THREE.Vector3(1, 0, 0), 0xff2222, (geo) => {
+      geo.rotateY(-Math.PI / 2);
+    });
+    this.boxCentralGizmoGroup.add(this.boxCenterPlaneYZ);
+
+    // Green Square: Vertical plane (ZX in prompt, between Red +X and Blue +Y in Three.js, normal is +Z)
+    this.boxCenterPlaneZX = createPlaneSquare('boxCenterPlaneZX', new THREE.Vector3(0, 0, 1), 0x00d022, null);
+    this.boxCentralGizmoGroup.add(this.boxCenterPlaneZX);
+
+    // 3. 270 deg Rotation Arc (Blue, Horizontal Plane, Quadrants 2, 3, 4, radius = 1.05, leaves gap so it does not touch arrows)
+    const arcRadius = 1.05;
+    const arcTube = 0.035;
+    const gapAngle = 0.12; // ~6.8 degrees gap from +Z and +X axes
+    const arcSpan = Math.PI * 1.5 - 2 * gapAngle; // ~256.4 degrees
+    const startPhi = Math.PI * 0.5 + gapAngle;
+
+    const rotGeo = new THREE.TorusGeometry(arcRadius, arcTube, 12, 48, arcSpan);
+    rotGeo.rotateZ(startPhi);
+    rotGeo.rotateX(Math.PI / 2);
+
+    const rotGroup = new THREE.Group();
+    rotGroup.renderOrder = 9999;
+    rotGroup.userData = {
+      isGizmo: true,
+      type: 'box',
+      part: 'boxCenterRotZ',
+      axis: new THREE.Vector3(0, 1, 0),
+      baseColor: 0x0088ff
+    };
+
+    const rotMat = new THREE.MeshBasicMaterial({
+      color: 0x0088ff,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 1.0,
+      toneMapped: false,
+      clippingPlanes: []
+    });
+    const rotMesh = new THREE.Mesh(rotGeo, rotMat);
+    rotMesh.renderOrder = 9999;
+    rotMesh.userData = { isGizmo: true, type: 'box', part: 'boxCenterRotZ', parentGroup: rotGroup, _origColor: 0x0088ff };
+
+    // Invisible thicker hit torus for easy grabbing
+    const hitRotGeo = new THREE.TorusGeometry(arcRadius, 0.08, 8, 36, arcSpan);
+    hitRotGeo.rotateZ(startPhi);
+    hitRotGeo.rotateX(Math.PI / 2);
+    const hitRotMat = new THREE.MeshBasicMaterial({ visible: false, clippingPlanes: [] });
+    const hitRotMesh = new THREE.Mesh(hitRotGeo, hitRotMat);
+    hitRotMesh.userData = { isGizmo: true, type: 'box', part: 'boxCenterRotZ', parentGroup: rotGroup };
+
+    rotGroup.add(rotMesh);
+    rotGroup.add(hitRotMesh);
+    this.boxCenterRotZ = rotGroup;
+    this.boxCentralGizmoGroup.add(this.boxCenterRotZ);
   }
   
   createFaceHandle(faceId, normal, colorHex, label) {
@@ -1241,6 +1441,9 @@ class ClippingEngine {
       Object.values(this.faceHandles).forEach(h => {
         h.scale.setScalar(handleScale);
       });
+      if (this.boxCentralGizmoGroup) {
+        this.boxCentralGizmoGroup.scale.setScalar(handleScale);
+      }
     }
   }
 
@@ -1372,6 +1575,9 @@ class ClippingEngine {
         this.planeRotY
       ];
     } else {
+      if ((this.isCtrlDown || (this.activeDragGizmo && this.activeDragGizmo.userData?.part?.startsWith('boxCenter'))) && this.boxCentralGizmoGroup && this.boxCentralGizmoGroup.visible) {
+        return [this.boxCentralGizmoGroup];
+      }
       if (!this.hoveredBoxFace || !this.faceHandles || !this.faceHandles[this.hoveredBoxFace]) return [];
       const h = this.faceHandles[this.hoveredBoxFace];
       if (!h.visible) return [];
@@ -1543,16 +1749,32 @@ class ClippingEngine {
     this.isShiftDown = Boolean(isShift);
   }
 
-  updateHover(raycaster, isShift = undefined) {
+  setCtrlMode(isCtrl) {
+    this.isCtrlDown = Boolean(isCtrl);
+    if (this.activeDragGizmo) return; // Keep drag locked
+    if (this.isCtrlDown) {
+      if (this.boxCentralGizmoGroup) this.boxCentralGizmoGroup.visible = true;
+      this.showOnlyFaceGizmo(null);
+      if (this.boxHoverFaceMesh) this.boxHoverFaceMesh.visible = false;
+    } else {
+      if (this.boxCentralGizmoGroup) this.boxCentralGizmoGroup.visible = false;
+      this.clearHoverGizmo();
+    }
+  }
+
+  updateHover(raycaster, isShift = undefined, isCtrl = undefined) {
     if (isShift !== undefined) {
       this.isShiftDown = Boolean(isShift);
+    }
+    if (isCtrl !== undefined) {
+      this.isCtrlDown = Boolean(isCtrl);
     }
     if (!this.enabled || !this.helpersVisible) {
       this.clearHoverState();
       return false;
     }
     
-    // While actively dragging, keep gizmo and section active (locked to dragged face even if Shift changes)
+    // While actively dragging, keep gizmo and section active (locked to dragged face even if Shift/Ctrl changes)
     if (this.activeDragGizmo) {
       return true;
     }
@@ -1560,7 +1782,7 @@ class ClippingEngine {
     if (this.mode === 'plane') {
       return this.updatePlaneHover(raycaster);
     } else {
-      return this.updateBoxHover(raycaster, this.isShiftDown);
+      return this.updateBoxHover(raycaster, this.isShiftDown, this.isCtrlDown);
     }
   }
 
@@ -1614,10 +1836,39 @@ class ClippingEngine {
     return false;
   }
 
-  updateBoxHover(raycaster, isShift = this.isShiftDown) {
+  updateBoxHover(raycaster, isShift = this.isShiftDown, isCtrl = this.isCtrlDown) {
+    if (isCtrl !== undefined) {
+      this.isCtrlDown = Boolean(isCtrl);
+    }
     if (!this.boxGroup || !this.boxGroup.visible) {
       this.clearHoverState();
       return false;
+    }
+
+    // When Ctrl is held, activate central control gizmo and bypass 6-face gizmos
+    if (this.isCtrlDown) {
+      if (this.boxCentralGizmoGroup) {
+        this.boxCentralGizmoGroup.visible = true;
+      }
+      this.showOnlyFaceGizmo(null);
+      if (this.boxHoverFaceMesh) this.boxHoverFaceMesh.visible = false;
+      this.hoveredBoxFace = null;
+      if (this.boxFillMat) this.boxFillMat.opacity = 0.085;
+      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
+
+      if (this.boxCentralGizmoGroup) {
+        const hits = raycaster.intersectObjects(this.boxCentralGizmoGroup.children, true);
+        if (hits.length > 0) {
+          this.setHoverGizmo(hits[0].object);
+          return true;
+        }
+      }
+      this.clearHoverGizmo();
+      return false;
+    } else {
+      if (this.boxCentralGizmoGroup) {
+        this.boxCentralGizmoGroup.visible = false;
+      }
     }
 
     const shiftActive = Boolean(isShift);
@@ -1727,11 +1978,14 @@ class ClippingEngine {
       });
     }
     this.hoveredBoxFace = null;
+    if (this.boxCentralGizmoGroup) {
+      this.boxCentralGizmoGroup.visible = Boolean(this.isCtrlDown && this.enabled && this.helpersVisible && this.mode === 'box');
+    }
   }
   
   setHoverGizmo(hitObject) {
     if (!hitObject) return;
-    const group = hitObject.userData?.parentGroup || hitObject;
+    const group = hitObject.userData?.parentGroup || (hitObject.parent?.userData?.part ? hitObject.parent : hitObject);
     if (this.hoveredGizmo === group) return;
     this.clearHoverGizmo();
     
@@ -1829,6 +2083,58 @@ class ClippingEngine {
         }
       }
     } else if (data.type === 'box') {
+      if (data.part === 'boxCenterMoveX' || data.part === 'boxCenterMoveY' || data.part === 'boxCenterMoveZ') {
+        const localAxis = data.axis || new THREE.Vector3(1, 0, 0);
+        const worldAxis = localAxis.clone().applyQuaternion(this.boxQuaternion).normalize();
+        const p0 = this.boxCenter.clone();
+
+        const w = new THREE.Vector3().subVectors(camera.position, p0);
+        let m = new THREE.Vector3().subVectors(w, worldAxis.clone().multiplyScalar(w.dot(worldAxis)));
+        if (m.lengthSq() < 1e-5) m = camera.up.clone().cross(worldAxis);
+        m.normalize();
+
+        this.dragPlane.setFromNormalAndCoplanarPoint(m, p0);
+        this.dragStartHit = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(this.dragPlane, this.dragStartHit)) {
+          this.dragStartHit.copy(p0);
+        }
+        this.dragNormal = worldAxis;
+        this.dragStartCenter = this.boxCenter.clone();
+        if (this.boxCentralGizmoGroup) this.boxCentralGizmoGroup.visible = true;
+        return;
+      } else if (data.part === 'boxCenterPlaneXY' || data.part === 'boxCenterPlaneYZ' || data.part === 'boxCenterPlaneZX') {
+        const localNormal = data.planeNormal || new THREE.Vector3(0, 1, 0);
+        const worldNormal = localNormal.clone().applyQuaternion(this.boxQuaternion).normalize();
+        const p0 = this.boxCenter.clone();
+
+        this.dragPlane.setFromNormalAndCoplanarPoint(worldNormal, p0);
+        this.dragStartHit = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(this.dragPlane, this.dragStartHit)) {
+          this.dragStartHit.copy(p0);
+        }
+        this.dragNormal = worldNormal;
+        this.dragStartCenter = this.boxCenter.clone();
+        if (this.boxCentralGizmoGroup) this.boxCentralGizmoGroup.visible = true;
+        return;
+      } else if (data.part === 'boxCenterRotZ') {
+        const localAxis = new THREE.Vector3(0, 1, 0);
+        const worldAxis = localAxis.clone().applyQuaternion(this.boxQuaternion).normalize();
+        const pivot = this.boxCenter.clone();
+
+        this.dragPlane.setFromNormalAndCoplanarPoint(worldAxis, pivot);
+        this.dragStartHit = new THREE.Vector3();
+        if (!raycaster.ray.intersectPlane(this.dragPlane, this.dragStartHit)) {
+          this.dragStartHit.copy(pivot);
+        }
+        this.dragStartVec = new THREE.Vector3().subVectors(this.dragStartHit, pivot).projectOnPlane(worldAxis).normalize();
+        this.dragStartQuat = this.boxQuaternion.clone();
+        this.dragAxis = worldAxis;
+        this.dragStartAzimuth = this.getBoxRotationAzimuth();
+        this.lastRelativeRotDeg = 0;
+        if (this.boxCentralGizmoGroup) this.boxCentralGizmoGroup.visible = true;
+        return;
+      }
+
       const handleGroup = hitObject.userData?.handleGroup || group.parent || group;
       const faceNormalLoc = (data.normal || handleGroup.userData?.normal || new THREE.Vector3(1, 0, 0)).clone();
       const worldNormal = faceNormalLoc.clone().applyQuaternion(this.boxQuaternion).normalize();
@@ -1908,7 +2214,35 @@ class ClippingEngine {
         this.updatePlaneFromState();
       }
     } else if (data.type === 'box') {
-      if (data.part === 'faceArrow') {
+      if (data.part === 'boxCenterMoveX' || data.part === 'boxCenterMoveY' || data.part === 'boxCenterMoveZ') {
+        const delta = new THREE.Vector3().subVectors(hit, this.dragStartHit).dot(this.dragNormal);
+        this.boxCenter.copy(this.dragStartCenter).addScaledVector(this.dragNormal, delta);
+        this.computeBoxRangesFromState();
+        this.updateBoxPlanesAndHelpers();
+      } else if (data.part === 'boxCenterPlaneXY' || data.part === 'boxCenterPlaneYZ' || data.part === 'boxCenterPlaneZX') {
+        const deltaVec = new THREE.Vector3().subVectors(hit, this.dragStartHit);
+        this.boxCenter.copy(this.dragStartCenter).add(deltaVec);
+        this.computeBoxRangesFromState();
+        this.updateBoxPlanesAndHelpers();
+      } else if (data.part === 'boxCenterRotZ') {
+        const pivot = this.boxCenter;
+        const vCur = new THREE.Vector3().subVectors(hit, pivot).projectOnPlane(this.dragAxis).normalize();
+        const cos = Math.max(-1, Math.min(1, this.dragStartVec.dot(vCur)));
+        const cross = new THREE.Vector3().crossVectors(this.dragStartVec, vCur);
+        const sin = cross.dot(this.dragAxis);
+        let angle = Math.atan2(sin, cos);
+        if (this.rotationSnap5Deg) {
+          const totalDeg = (this.dragStartAzimuth || 0) + THREE.MathUtils.radToDeg(angle);
+          const snappedDeg = Math.round(totalDeg / 5) * 5;
+          angle = THREE.MathUtils.degToRad(snappedDeg - (this.dragStartAzimuth || 0));
+        }
+        
+        this.lastRelativeRotDeg = Math.round(THREE.MathUtils.radToDeg(angle));
+        
+        const deltaQ = new THREE.Quaternion().setFromAxisAngle(this.dragAxis, angle);
+        this.boxQuaternion.copy(deltaQ).multiply(this.dragStartQuat);
+        this.updateBoxPlanesAndHelpers();
+      } else if (data.part === 'faceArrow') {
         const delta = new THREE.Vector3().subVectors(hit, this.dragStartHit).dot(this.dragNormal);
         this.applyBoxFaceDelta(this.dragFace, delta);
       } else if (data.part === 'faceRotate') {
@@ -1978,6 +2312,7 @@ class ClippingEngine {
   
   endDrag() {
     this.activeDragGizmo = null;
+    this.lastRelativeRotDeg = 0;
     this.dragFace = null;
     if (this.onGizmoChange) this.onGizmoChange();
   }
@@ -2193,6 +2528,9 @@ class ClippingEngine {
       Object.values(this.faceHandles).forEach(h => {
         h.scale.setScalar(handleScale);
       });
+      if (this.boxCentralGizmoGroup) {
+        this.boxCentralGizmoGroup.scale.setScalar(handleScale);
+      }
     }
     
     if (this.hoveredBoxFace) {

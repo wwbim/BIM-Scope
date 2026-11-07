@@ -93,6 +93,7 @@ class BIMPointCloudManager {
     this.pointColorType = 0; // 0: RGB, 3: ELEVATION, 4: INTENSITY, 8: CLASSIFICATION
     this.opacity = 1.0;
     this.offset = new THREE.Vector3(0, 0, 0);
+    this.clipEdgeThreshold = 0.010; // 10mm (0.01m) minimum floor cut edge red line band with dynamic screen thickness
 
     // Snapping Picker
     this.picker = null;
@@ -102,6 +103,7 @@ class BIMPointCloudManager {
   }
 
   initPotree() {
+    this.patchPointCloudMaterialShader();
     if (this.potree) return;
     if (typeof window.Potree === 'function') {
       this.potree = new window.Potree();
@@ -112,6 +114,72 @@ class BIMPointCloudManager {
     } else {
       console.warn('Potree library not found. Ensure potree-core.min.js is loaded.');
     }
+  }
+
+  patchPointCloudMaterialShader() {
+    if (typeof window === 'undefined' || !window.PointCloudMaterial) return;
+    const proto = window.PointCloudMaterial.prototype;
+    if (proto._clippingEdgePatched) return;
+    proto._clippingEdgePatched = true;
+
+    const origUpdateShaderSource = proto.updateShaderSource;
+    proto.updateShaderSource = function() {
+      origUpdateShaderSource.call(this);
+      if (!this.vertexShader) return;
+
+      // 1. Declare uniform clipEdgeThreshold in vertex shader if not present
+      if (!this.vertexShader.includes('uniform float clipEdgeThreshold;')) {
+        this.vertexShader = this.vertexShader.replace(
+          'uniform float clipPlaneCount;',
+          'uniform float clipPlaneCount;\nuniform float clipEdgeThreshold;'
+        );
+      }
+
+      // 2. Track minimum positive distance to clipping planes
+      const pInside = 'bool insideAllPlanes = true;';
+      if (!this.vertexShader.includes('minClipDist') && this.vertexShader.includes(pInside)) {
+        this.vertexShader = this.vertexShader.replace(
+          pInside,
+          'bool insideAllPlanes = true;\nfloat minClipDist = 999999.0;'
+        );
+        this.vertexShader = this.vertexShader.replace(
+          'if (d < 0.0) { insideAllPlanes = false; break; }',
+          'if (d < 0.0) { insideAllPlanes = false; break; }\nminClipDist = min(minClipDist, d);'
+        );
+      }
+
+      // 3. Highlight boundary points in pure CAD red if within dynamic screen-distance threshold
+      const pHighlight = 'if (insideAnyHighlight) { vColor.r += 0.5; }';
+      if (!this.vertexShader.includes('clipEdgeThreshold > 0.0') && this.vertexShader.includes(pHighlight)) {
+        const edgeHighlightCode = [
+          'if (insideAnyHighlight) { vColor.r += 0.5; }',
+          '#if defined use_clip_plane',
+          '  #if defined clip_outside',
+          '    #if !defined(color_type_point_index)',
+          '      if (insideAllPlanes && clipPlaneCount > 0.0 && clipEdgeThreshold > 0.0) {',
+          '        float zDist = max(-mvPosition.z, 0.1);',
+          '        float pixelWorldSize = useOrthographicCamera ? (orthoHeight / max(screenHeight, 1.0)) : (2.0 * zDist * tanHalfFOV / max(screenHeight, 1.0));',
+          '        float edgeThreshold = max(clipEdgeThreshold, 5.0 * pixelWorldSize);',
+          '        if (minClipDist <= edgeThreshold) {',
+          '          #ifdef new_format',
+          '            vColor = vec4(1.0, 0.0, 0.0, vColor.a);',
+          '          #else',
+          '            vColor = vec3(1.0, 0.0, 0.0);',
+          '          #endif',
+          '        }',
+          '      }',
+          '    #endif',
+          '  #endif',
+          '#endif'
+        ].join('\n');
+        this.vertexShader = this.vertexShader.replace(pHighlight, edgeHighlightCode);
+      }
+
+      // 4. Ensure clipEdgeThreshold uniform exists on material
+      if (this.uniforms && !this.uniforms.clipEdgeThreshold) {
+        this.uniforms.clipEdgeThreshold = { type: 'f', value: 0.010 };
+      }
+    };
   }
 
   checkUrlParameters() {
@@ -697,6 +765,14 @@ class BIMPointCloudManager {
       }
     }
     mat.intensityRange = [intMin, intMax];
+
+    if (mat.uniforms) {
+      if (!mat.uniforms.clipEdgeThreshold) {
+        mat.uniforms.clipEdgeThreshold = { type: 'f', value: this.clipEdgeThreshold || 0.010 };
+      } else {
+        mat.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.010;
+      }
+    }
   }
 
   update(camera, renderer) {
@@ -778,6 +854,13 @@ class BIMPointCloudManager {
         }
         if (typeof pco.material.clipMode !== 'undefined') {
           pco.material.clipMode = activePlanes.length > 0 ? ClipMode.CLIP_OUTSIDE : ClipMode.DISABLED;
+        }
+        if (pco.material.uniforms) {
+          if (!pco.material.uniforms.clipEdgeThreshold) {
+            pco.material.uniforms.clipEdgeThreshold = { type: 'f', value: this.clipEdgeThreshold || 0.010 };
+          } else {
+            pco.material.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.010;
+          }
         }
         if (typeof pco.material.syncClippingPlanes === 'function') {
           pco.material.syncClippingPlanes();
@@ -1205,6 +1288,15 @@ class BIMPointCloudManager {
         </div>
       </div>
 
+      <!-- Cut Edge Red Line Slider -->
+      <div class="pc-control-row" style="margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
+          <span>${isZh ? '剖切断面红线 (Cut Edge)' : 'Cut Edge Red Line'}</span>
+          <span id="pc-val-cutedge" style="font-family:var(--font-mono); color:#ff3333; font-weight:700;">${this.clipEdgeThreshold > 0 ? (this.clipEdgeThreshold * 100).toFixed(1) + ' cm' : (isZh ? '关闭' : 'Off')}</span>
+        </div>
+        <input type="range" id="pc-slider-cutedge" min="0" max="0.10" step="0.005" value="${this.clipEdgeThreshold}" style="width:100%;">
+      </div>
+
       <!-- Point Size Slider -->
       <div class="pc-control-row" style="margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
@@ -1276,6 +1368,18 @@ class BIMPointCloudManager {
     `;
 
     // Hook events (bound to the currently active point cloud pco)
+    const sliderCutEdge = card.querySelector('#pc-slider-cutedge');
+    const valCutEdge = card.querySelector('#pc-val-cutedge');
+    if (sliderCutEdge) {
+      sliderCutEdge.addEventListener('input', (e) => {
+        this.clipEdgeThreshold = parseFloat(e.target.value);
+        if (valCutEdge) {
+          valCutEdge.textContent = this.clipEdgeThreshold > 0 ? `${(this.clipEdgeThreshold * 100).toFixed(1)} cm` : (isZh ? '关闭' : 'Off');
+        }
+        this.syncClippingWithApp();
+      });
+    }
+
     const sliderSize = card.querySelector('#pc-slider-size');
     const valSize = card.querySelector('#pc-val-size');
     if (sliderSize) {
@@ -1414,6 +1518,9 @@ class BIMPointCloudManager {
 
         pco.material.opacity = s.opacity;
         pco.material.transparent = s.opacity < 0.999;
+        if (pco.material.uniforms && pco.material.uniforms.clipEdgeThreshold) {
+          pco.material.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.010;
+        }
       }
     }
     if (this.app._wakeRender) {
@@ -1628,3 +1735,11 @@ class BIMPointCloudManager {
 }
 
 window.BIMPointCloudManager = BIMPointCloudManager;
+
+// Auto-patch PointCloudMaterial shader prototype if loaded
+if (typeof window !== 'undefined' && window.PointCloudMaterial) {
+  try {
+    const tmpMgr = new BIMPointCloudManager(null);
+    tmpMgr.patchPointCloudMaterialShader();
+  } catch (e) {}
+}

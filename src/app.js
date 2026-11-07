@@ -889,11 +889,13 @@ class VirtualBimTree {
         if (this.app.pointCloudManager && f.pco) {
           this.app.pointCloudManager.selectPointCloud(f.pco);
         }
+        if (this.app.updateOffscreenIndicator) this.app.updateOffscreenIndicator();
         this.render();
       } else {
         f.collapsed = !f.collapsed;
         if (f.model) {
           this.app.activeModel = f.model;
+          this.app.selectedModel = f.model;
           if (this.app.modelInfoMap && this.app.modelInfoMap.has(f.model)) {
             this.app.currentModelInfo = this.app.modelInfoMap.get(f.model);
             this.app.updateModelSubtitle(this.app.currentModelInfo);
@@ -905,6 +907,7 @@ class VirtualBimTree {
           this.app.selectedMeshes = [];
           this.app.clearHighlightOverlay();
           if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+          if (this.app.updateOffscreenIndicator) this.app.updateOffscreenIndicator();
         }
         this.computeVisibleRows();
         this.render();
@@ -2597,6 +2600,7 @@ class BIMViewerApp {
     this.initPivotHelper();
     this.initMeasurementSystem();
     this.initSelectionHelper();
+    this.initOffscreenIndicator();
     this.initContextMenu();
     this.initEventListeners();
     this.initUI();
@@ -2963,6 +2967,199 @@ class BIMViewerApp {
   hideMarqueeBox() {
     if (this.marqueeBoxEl) {
       this.marqueeBoxEl.style.display = 'none';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Off-Screen Selection Direction & Distance Indicator
+  // -------------------------------------------------------------
+  initOffscreenIndicator() {
+    if (this.offscreenIndicatorEl) return;
+    let el = document.getElementById('offscreen-indicator');
+    if (!el && this.container) {
+      el = document.createElement('div');
+      el.id = 'offscreen-indicator';
+      el.className = 'offscreen-indicator';
+      el.innerHTML = `
+        <div class="offscreen-target" id="offscreen-target">
+          <div class="offscreen-target-core"></div>
+          <div class="offscreen-pointer" id="offscreen-pointer">
+            <svg class="offscreen-pointer-svg" viewBox="0 0 28 28">
+              <path d="M 4 4 L 20 14 L 4 24 L 9 14 Z" fill="#e2e8f0" stroke="#000000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="offscreen-dist" id="offscreen-dist">0.0m</div>
+      `;
+      this.container.appendChild(el);
+    }
+    this.offscreenIndicatorEl = el;
+    this.offscreenPointerEl = document.getElementById('offscreen-pointer');
+    this.offscreenDistEl = document.getElementById('offscreen-dist');
+  }
+
+  getTargetBoundsAndCenter() {
+    // 1. Multi-selection
+    if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+      const box = new THREE.Box3();
+      let hasValid = false;
+      for (const m of this.selectedMeshes) {
+        if (m && m.visible !== false && m.geometry) {
+          m.updateWorldMatrix(true, false);
+          if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+          if (m.geometry.boundingBox) {
+            const tempBox = m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld);
+            box.union(tempBox);
+            hasValid = true;
+          }
+        }
+      }
+      if (hasValid && !box.isEmpty()) {
+        const center = box.getCenter(new THREE.Vector3());
+        return { box, center };
+      }
+    }
+    // 2. Single mesh
+    if (this.selectedMesh && this.selectedMesh.visible !== false && this.selectedMesh.geometry) {
+      this.selectedMesh.updateWorldMatrix(true, false);
+      if (!this.selectedMesh.geometry.boundingBox) this.selectedMesh.geometry.computeBoundingBox();
+      if (this.selectedMesh.geometry.boundingBox) {
+        const box = this.selectedMesh.geometry.boundingBox.clone().applyMatrix4(this.selectedMesh.matrixWorld);
+        if (!box.isEmpty()) {
+          const center = box.getCenter(new THREE.Vector3());
+          return { box, center };
+        }
+      }
+    }
+    // 3. Point cloud
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected && this.pointCloudManager.activePointCloud) {
+      const pco = this.pointCloudManager.activePointCloud;
+      if (pco.visible !== false) {
+        const box = this.pointCloudManager.getWorldBoundingBox(pco);
+        if (box && !box.isEmpty()) {
+          const center = box.getCenter(new THREE.Vector3());
+          return { box, center };
+        }
+      }
+    }
+    // 4. Whole model node
+    if (this.selectedModel && this.selectedModel.visible !== false) {
+      const box = new THREE.Box3().setFromObject(this.selectedModel);
+      if (!box.isEmpty()) {
+        const center = box.getCenter(new THREE.Vector3());
+        return { box, center };
+      }
+    }
+    return null;
+  }
+
+  updateOffscreenIndicator() {
+    if (!this.offscreenIndicatorEl) {
+      this.initOffscreenIndicator();
+    }
+    if (!this.offscreenIndicatorEl || !this.camera || !this.container) return;
+
+    const target = this.getTargetBoundsAndCenter();
+    if (!target) {
+      this.hideOffscreenIndicator();
+      return;
+    }
+
+    // 1. View frustum test: Is the target box partially or fully in view?
+    if (!this._indicatorFrustum) {
+      this._indicatorFrustum = new THREE.Frustum();
+      this._indicatorProjScreenMatrix = new THREE.Matrix4();
+    }
+    this._indicatorProjScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    this._indicatorFrustum.setFromProjectionMatrix(this._indicatorProjScreenMatrix);
+
+    if (this._indicatorFrustum.intersectsBox(target.box)) {
+      this.hideOffscreenIndicator();
+      return;
+    }
+
+    // Target is COMPLETELY off-screen!
+    // 2. Compute Euclidean distance from camera position to target center
+    const dist = this.camera.position.distanceTo(target.center);
+    if (this.offscreenDistEl) {
+      this.offscreenDistEl.textContent = `${dist.toFixed(1)}m`;
+    }
+
+    // 3. Transform target center to camera view space
+    const vCam = target.center.clone().applyMatrix4(this.camera.matrixWorldInverse);
+
+    // 4. In camera view space:
+    // +X is camera RIGHT, +Y is camera UP.
+    // Screen direction vector:
+    // dirX: positive is screen right
+    // dirY: positive is screen down (so -vCam.y)
+    let dirX = vCam.x;
+    let dirY = -vCam.y;
+    let dirLen = Math.hypot(dirX, dirY);
+    if (dirLen < 1e-4) {
+      dirX = 0;
+      dirY = 1;
+      dirLen = 1;
+    } else {
+      dirX /= dirLen;
+      dirY /= dirLen;
+    }
+
+    // 5. Clamping circle center to container boundary with safe perimeter padding
+    const cw = this.container.clientWidth;
+    const ch = this.container.clientHeight;
+    if (cw <= 0 || ch <= 0) return;
+
+    // Keep circle center safely away from viewport edges to leave room for the orbiting arrow
+    const padX = 70;
+    const padY = 60;
+    const cx = cw / 2;
+    const cy = ch / 2;
+    const hw = Math.max(10, cx - padX);
+    const hh = Math.max(10, cy - padY);
+
+    const sx = Math.abs(dirX) > 1e-6 ? hw / Math.abs(dirX) : Infinity;
+    const sy = Math.abs(dirY) > 1e-6 ? hh / Math.abs(dirY) : Infinity;
+    const s = Math.min(sx, sy);
+
+    const px = Math.round(cx + dirX * s);
+    const py = Math.round(cy + dirY * s);
+
+    // 6. Pointer rotation angle around circle center (0 deg points right)
+    const angleDeg = Math.atan2(dirY, dirX) * (180 / Math.PI);
+    if (this.offscreenPointerEl) {
+      this.offscreenPointerEl.style.transform = `rotate(${angleDeg}deg)`;
+    }
+
+    // 7. Distance label placement:
+    // Place on the inner side of the viewport so it never overflows
+    if (this.offscreenDistEl) {
+      if (px > cx) {
+        this.offscreenDistEl.style.left = 'auto';
+        this.offscreenDistEl.style.right = 'calc(100% + 12px)';
+      } else {
+        this.offscreenDistEl.style.right = 'auto';
+        this.offscreenDistEl.style.left = 'calc(100% + 12px)';
+      }
+    }
+
+    this.offscreenIndicatorEl.style.left = `${px}px`;
+    this.offscreenIndicatorEl.style.top = `${py}px`;
+
+    this.showOffscreenIndicator();
+  }
+
+  showOffscreenIndicator() {
+    if (this.offscreenIndicatorEl && !this.offscreenIndicatorEl.classList.contains('visible')) {
+      this.offscreenIndicatorEl.style.display = 'block';
+      this.offscreenIndicatorEl.classList.add('visible');
+    }
+  }
+
+  hideOffscreenIndicator() {
+    if (this.offscreenIndicatorEl && this.offscreenIndicatorEl.classList.contains('visible')) {
+      this.offscreenIndicatorEl.classList.remove('visible');
+      this.offscreenIndicatorEl.style.display = 'none';
     }
   }
 
@@ -4978,6 +5175,7 @@ class BIMViewerApp {
       return;
     }
 
+    this.selectedModel = null;
     this.selectedMesh = null;
     this.selectedMeshes = meshes;
     if (this.pointCloudManager) {
@@ -5001,6 +5199,7 @@ class BIMViewerApp {
 
     // Render multi-selection inspector
     this.renderMultiSelectionInspector(meshes);
+    this.updateOffscreenIndicator();
   }
 
   computeIntersectedPsets(meshes) {
@@ -5371,6 +5570,7 @@ class BIMViewerApp {
       this.clearSelection();
       return;
     }
+    this.selectedModel = null;
     this.selectedMesh = mesh;
     this.selectedMeshes = [mesh];
     if (this.pointCloudManager) {
@@ -5562,6 +5762,7 @@ class BIMViewerApp {
     }
     const btnInspect = document.getElementById('btn-tool-inspect');
     if (btnInspect) btnInspect.classList.add('active');
+    this.updateOffscreenIndicator();
   }
 
   setElementOpacity(mesh, opacityPercent) {
@@ -6521,6 +6722,7 @@ class BIMViewerApp {
   }
   
   clearSelection(keepPointCloud = false) {
+    this.selectedModel = null;
     this.selectedMesh = null;
     this.selectedMeshes = [];
     this.lastClickPoint = null;
@@ -6547,6 +6749,7 @@ class BIMViewerApp {
         this.renderModelInfoInspector();
       }
     }
+    this.updateOffscreenIndicator();
   }
 
   calculateModelStats(rootObject) {
@@ -9314,13 +9517,13 @@ class BIMViewerApp {
     
     // Mouse Move for Coordinates HUD, Measure, and Gizmo Hover (Throttled with requestAnimationFrame)
     this.canvas.addEventListener('mousemove', (e) => {
-      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY, shiftKey: Boolean(e.shiftKey) };
+      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY, shiftKey: Boolean(e.shiftKey), ctrlKey: Boolean(e.ctrlKey) };
       if (this.hoverRaf) return;
 
       this.hoverRaf = requestAnimationFrame(() => {
         this.hoverRaf = null;
         if (!this.pendingMouseMoveEvt) return;
-        const { clientX, clientY, shiftKey } = this.pendingMouseMoveEvt;
+        const { clientX, clientY, shiftKey, ctrlKey } = this.pendingMouseMoveEvt;
         this.pendingMouseMoveEvt = null;
 
         const rect = this.canvas.getBoundingClientRect();
@@ -9329,20 +9532,23 @@ class BIMViewerApp {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces)
+        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces, Ctrl triggers central box gizmo)
         if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
           const prevHoveredFace = this.clippingEngine.hoveredBoxFace;
           const prevHoveredGizmo = this.clippingEngine.hoveredGizmo;
           const prevPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
           const prevFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(shiftKey));
+          const prevCentralVis = this.clippingEngine.boxCentralGizmoGroup ? this.clippingEngine.boxCentralGizmoGroup.visible : false;
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(shiftKey), Boolean(ctrlKey));
           const nowPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
           const nowFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
+          const nowCentralVis = this.clippingEngine.boxCentralGizmoGroup ? this.clippingEngine.boxCentralGizmoGroup.visible : false;
           if (
             prevHoveredFace !== this.clippingEngine.hoveredBoxFace ||
             prevHoveredGizmo !== this.clippingEngine.hoveredGizmo ||
             prevPlaneVis !== nowPlaneVis ||
-            prevFaceVis !== nowFaceVis
+            prevFaceVis !== nowFaceVis ||
+            prevCentralVis !== nowCentralVis
           ) {
             this.needsRender = true;
             this.requestRender(150);
@@ -9350,7 +9556,15 @@ class BIMViewerApp {
           if (isOverGizmo) {
             this.canvas.style.cursor = 'grab';
             this.clearHoverOverlay();
+            if (this.clippingEngine.hoveredGizmo?.userData?.part === 'boxCenterRotZ') {
+              const curAzimuth = this.clippingEngine.getBoxRotationAzimuth();
+              this.showSectionBoxRotTooltip(clientX, clientY, `${curAzimuth}°`);
+            } else {
+              this.hideSectionBoxRotTooltip();
+            }
             return;
+          } else {
+            this.hideSectionBoxRotTooltip();
           }
         }
 
@@ -9624,9 +9838,9 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Check if clicking Section Gizmo (highest priority; sync Shift state first so Shift+Click hits back-face gizmos)
+        // Check if clicking Section Gizmo (highest priority; sync Shift/Ctrl state first so Shift+Click hits back faces and Ctrl hits central gizmo)
         if (this.clippingEngine && this.clippingEngine.enabled) {
-          this.clippingEngine.updateHover(this.raycaster, Boolean(e.shiftKey));
+          this.clippingEngine.updateHover(this.raycaster, Boolean(e.shiftKey), Boolean(e.ctrlKey));
           const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
           if (gizmoHits.length > 0) {
             this.isGizmoDragging = true;
@@ -9754,6 +9968,14 @@ class BIMViewerApp {
         this.raycaster.setFromCamera(this.mouse, this.camera);
         this.clippingEngine.onDrag(this.raycaster, this.camera, e);
         this.syncSectionUI();
+
+        if (this.clippingEngine.activeDragGizmo?.userData?.part === 'boxCenterRotZ') {
+          const rel = this.clippingEngine.lastRelativeRotDeg || 0;
+          const sign = rel > 0 ? '+' : '';
+          this.showSectionBoxRotTooltip(e.clientX, e.clientY, `${sign}${rel}°`);
+        } else {
+          this.hideSectionBoxRotTooltip();
+        }
         return;
       }
       if (this.isDraggingMeasurePoint && this.draggingMeasureMarker) {
@@ -9906,9 +10128,10 @@ class BIMViewerApp {
       if (this.isGizmoDragging) {
         this.isGizmoDragging = false;
         this.clippingEngine.endDrag();
+        this.hideSectionBoxRotTooltip();
         if (this.clippingEngine && this.clippingEngine.enabled && this.camera) {
           this.raycaster.setFromCamera(this.mouse, this.camera);
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey));
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey), Boolean(e && e.ctrlKey));
           this.canvas.style.cursor = isOverGizmo ? 'grab' : 'default';
         } else {
           this.canvas.style.cursor = 'default';
@@ -11101,10 +11324,13 @@ class BIMViewerApp {
       });
     }
 
-    // 5. Global Keyboard Listener (including Shift keydown/keyup for Section Box back-face pass-through)
+    // 5. Global Keyboard Listener (including Shift for Section Box back-face pass-through and Ctrl for Central Gizmo)
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Shift') {
         this.handleSectionBoxShiftChange(true);
+      }
+      if (e.key === 'Control') {
+        this.handleSectionBoxCtrlChange(true);
       }
       this.handleGlobalKeyDown(e);
     });
@@ -11112,12 +11338,69 @@ class BIMViewerApp {
       if (e.key === 'Shift') {
         this.handleSectionBoxShiftChange(false);
       }
+      if (e.key === 'Control') {
+        this.handleSectionBoxCtrlChange(false);
+      }
     });
     window.addEventListener('blur', () => {
       if (this.clippingEngine && this.clippingEngine.isShiftDown) {
         this.handleSectionBoxShiftChange(false);
       }
+      if (this.clippingEngine && this.clippingEngine.isCtrlDown) {
+        this.handleSectionBoxCtrlChange(false);
+      }
     });
+  }
+
+  handleSectionBoxCtrlChange(isCtrl) {
+    if (!this.clippingEngine) return;
+    this.clippingEngine.setCtrlMode(isCtrl);
+    if (!isCtrl) {
+      this.hideSectionBoxRotTooltip();
+    }
+    if (!this.clippingEngine.enabled || this.clippingEngine.mode !== 'box' || this.isGizmoDragging) {
+      return;
+    }
+    if (this.camera) {
+      this.camera.updateMatrixWorld(true);
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, undefined, isCtrl);
+      if (this.canvas && !this.isOrbiting && !this.isPanning) {
+        this.canvas.style.cursor = isOverGizmo ? 'grab' : '';
+      }
+      this.needsRender = true;
+      this.requestRender(150);
+    }
+  }
+
+  showSectionBoxRotTooltip(clientX, clientY, text) {
+    if (!this.secBoxRotTooltip) {
+      this.secBoxRotTooltip = document.getElementById('sec-box-rot-tooltip');
+      if (!this.secBoxRotTooltip) {
+        this.secBoxRotTooltip = document.createElement('div');
+        this.secBoxRotTooltip.id = 'sec-box-rot-tooltip';
+        this.secBoxRotTooltip.className = 'sec-box-rot-tooltip';
+        (this.container || document.body).appendChild(this.secBoxRotTooltip);
+      }
+    }
+    const container = this.container || document.body;
+    const rect = container.getBoundingClientRect();
+    const leftPx = clientX - rect.left;
+    const topPx = clientY - rect.top;
+
+    this.secBoxRotTooltip.textContent = text;
+    this.secBoxRotTooltip.style.left = `${leftPx}px`;
+    this.secBoxRotTooltip.style.top = `${topPx}px`;
+    this.secBoxRotTooltip.style.display = 'inline-flex';
+  }
+
+  hideSectionBoxRotTooltip() {
+    if (!this.secBoxRotTooltip) {
+      this.secBoxRotTooltip = document.getElementById('sec-box-rot-tooltip');
+    }
+    if (this.secBoxRotTooltip) {
+      this.secBoxRotTooltip.style.display = 'none';
+    }
   }
 
   handleSectionBoxShiftChange(isShift) {
@@ -20042,6 +20325,8 @@ class BIMViewerApp {
         if (this.snapEngine && this.snapEngine.indicatorGroup && this.snapEngine.indicatorGroup.visible) {
           this.snapEngine.updateIndicatorScale(this.camera, this.container);
         }
+
+        this.updateOffscreenIndicator();
       }
     }
 
@@ -20081,6 +20366,8 @@ class BIMViewerApp {
         if (this.snapEngine && this.snapEngine.indicatorGroup && this.snapEngine.indicatorGroup.visible) {
           this.snapEngine.updateIndicatorScale(this.camera, this.container);
         }
+
+        this.updateOffscreenIndicator();
 
         // Live Camera State Readout (updated when Camera tab is visible, cached DOM elements)
         if (!this.cachedCamEls) {

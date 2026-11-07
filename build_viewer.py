@@ -580,6 +580,9 @@ def generate_html(variant_cfg, sources):
           <span class="snap-hud-icon" id="snap-hud-icon">□</span>
           <span class="snap-hud-text" id="snap-hud-text">Endpoint</span>
         </div>
+
+        <!-- Section Box Rotation Floating Angle Badge -->
+        <div id="sec-box-rot-tooltip" class="sec-box-rot-tooltip" style="display:none">0°</div>
         
         <!-- Viewport Watermark Logo (Bottom-Left) -->
         <img class="viewport-watermark-logo" src="{logo_ww_b64}" alt="WW Logo" width="32" height="32" draggable="false">
