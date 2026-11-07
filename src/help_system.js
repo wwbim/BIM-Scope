@@ -52,9 +52,10 @@ class BIMHelpSystem {
             title: "3D Viewport & Mouse Navigation",
             desc: "High-performance WebGL 3D rendering engine. Master viewport camera navigation with simple gestures:",
             items: [
-              "🖱️ <b>Right Mouse Drag</b>: Orbit / rotate camera around cursor surface pivot",
-              "🖱️ <b>Middle Mouse Drag</b>: Pan viewport horizontally / vertically",
-              "🖱️ <b>Shift / Left + Right Drag</b>: Look around in place without moving camera position",
+              "🖱️ <b>Left Mouse Click / Drag Box</b>: Click to select component; drag for CAD dual-direction marquee selection",
+              "🖱️ <b>Middle Mouse Drag</b>: Pan viewport horizontally / vertically (Pan)",
+              "🖱️ <b>Right Mouse Drag</b>: Orbit / rotate camera around cursor surface pivot (Orbit)",
+              "🖱️ <b>Shift + Right Drag</b>: Look around in place without moving camera position (Look Around, also supports Left + Right drag)",
               "🖱️ <b>Scroll Wheel</b>: Smooth zoom along cursor ray; scroll at close limit to pass through into interiors",
               "🖱️ <b>Double-Click on Component</b>: Smoothly approach within 1m; double-click again to pass through behind it"
             ]
@@ -269,7 +270,37 @@ class BIMHelpSystem {
             title: "7. Keyboard Shortcuts & Fast Navigation",
             icon: "⌨️",
             content: `
-              <p>Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback. For two-key combinations, pressing the initial letter displays matching candidate shortcuts directly above the capsule for keyboard or mouse execution.</p>
+              <div class="help-mouse-nav-card">
+                <div class="help-mouse-nav-title">🖱️ 3D Viewport Mouse Controls & Gestures</div>
+                <div class="help-mouse-grid">
+                  <div class="help-mouse-row">
+                    <span class="help-mouse-key">Left Mouse</span>
+                    <span class="help-mouse-desc"><b>Single Click</b>: Select element / click empty canvas to deselect; <b>Drag</b>: CAD dual-direction marquee selection (rightward window / leftward crossing).</span>
+                  </div>
+                  <div class="help-mouse-row">
+                    <span class="help-mouse-key">Middle Mouse</span>
+                    <span class="help-mouse-desc"><b>Hold and Drag (Pan)</b>: Pan viewport camera horizontally and vertically in screen plane.</span>
+                  </div>
+                  <div class="help-mouse-row">
+                    <span class="help-mouse-key">Right Mouse</span>
+                    <span class="help-mouse-desc"><b>Hold and Drag (Orbit)</b>: Rotate view around pointed surface pivot point or model center; <b>Single Click</b>: Open 3D context menu.</span>
+                  </div>
+                  <div class="help-mouse-row">
+                    <span class="help-mouse-key">Shift + Right Drag</span>
+                    <span class="help-mouse-desc"><b>Look Around in Place</b>: Camera world position invariant; rotates orientation smoothly like first-person head turning (also supports chorded Left + Right drag).</span>
+                  </div>
+                  <div class="help-mouse-row">
+                    <span class="help-mouse-key">Scroll Wheel</span>
+                    <span class="help-mouse-desc"><b>Smooth Zoom</b>: Zoom along cursor ray; scrolling forward at close limit (&lt;0.5m) <b>penetrates 1.2m</b> directly into interiors.</span>
+                  </div>
+                  <div class="help-mouse-row">
+                    <span class="help-mouse-key">Double-Click</span>
+                    <span class="help-mouse-desc"><b>Approach to 1m</b>: Smoothly flies camera to 1.0m from clicked component; double-clicking again at close range <b>penetrates through component</b> to 1.0m behind it.</span>
+                  </div>
+                </div>
+              </div>
+
+              <p style="margin-top: 14px;">Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback. For two-key combinations, pressing the initial letter displays matching candidate shortcuts directly above the capsule for keyboard or mouse execution.</p>
               <div class="help-links-group">
                 <span class="help-target-link" data-target="shortcuts-toggle">Shortcuts Scheme Toggle</span>
                 <span class="help-target-link" data-target="shortcuts-hud">Shortcuts Cheatsheet (?)</span>
@@ -304,11 +335,12 @@ class BIMHelpSystem {
           title: "3D 视口及常规鼠标操作",
           desc: "高性能 WebGL 3D 渲染核心。通过简单直观的鼠标手势掌控三维视角：",
           items: [
-            "🖱️ <b>按住鼠标右键拖拽</b>：围绕光标着手点轨道旋转模型 (Orbit)",
+            "🖱️ <b>鼠标左键单击 / 拖拽框选</b>：单击点选构件；从左向右/从右向左拉框执行 CAD 规范双向框选",
             "🖱️ <b>按住鼠标中键拖拽</b>：水平 / 垂直平移视口 (Pan)",
-            "🖱️ <b>Shift 或左键 + 右键拖拽</b>：相机位置不变，原地环顾四周视角 (Look Around)",
+            "🖱️ <b>按住鼠标右键拖拽</b>：围绕光标着手点轨道旋转模型 (Orbit)",
+            "🖱️ <b>Shift + 右键拖拽</b>：相机位置不变，原地环顾四周视角 (Look Around，亦支持左右键同时拖拽)",
             "🖱️ <b>滚动鼠标滚轮</b>：平滑缩放；在靠近极限距离继续推轮可直接穿透物体进入室内",
-            "🖱️ <b>双击任意构件</b>：镜头平滑贴近至距该物件 1 米处；再次双击穿透该构件来到后方" 
+            "🖱️ <b>双击任意构件</b>：镜头平滑贴近至距该物件 1 米处；再次双击穿透该构件来到后方"
           ]
         },
         {
@@ -521,7 +553,37 @@ class BIMHelpSystem {
           title: "7. 键盘快捷键系统与极速导航",
           icon: "⌨️",
           content: `
-            <p>按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈。对于需要组合按键的热键，按下首个按键后会在胶囊上方动态列出所有匹配候选项，支持键盘连击或鼠标点击快捷执行。</p>
+            <div class="help-mouse-nav-card">
+              <div class="help-mouse-nav-title">🖱️ 3D 视口鼠标操作与手势导航</div>
+              <div class="help-mouse-grid">
+                <div class="help-mouse-row">
+                  <span class="help-mouse-key">鼠标左键</span>
+                  <span class="help-mouse-desc"><b>单击选择</b>构件 / 点击空白处清除选择；<b>按住拖拽</b>执行 CAD 双向框选（向右拉实线全包选，向左拉虚线碰选）。</span>
+                </div>
+                <div class="help-mouse-row">
+                  <span class="help-mouse-key">鼠标中键</span>
+                  <span class="help-mouse-desc"><b>按住拖拽平移 (Pan)</b>：在视口屏幕平面内上下左右平移视角。</span>
+                </div>
+                <div class="help-mouse-row">
+                  <span class="help-mouse-key">鼠标右键</span>
+                  <span class="help-mouse-desc"><b>按住拖拽轨道旋转 (Orbit)</b>：围绕光标着手构件表面或模型中心旋转视角；<b>单击</b>调出 3D 上下文菜单。</span>
+                </div>
+                <div class="help-mouse-row">
+                  <span class="help-mouse-key">Shift + 右键</span>
+                  <span class="help-mouse-desc"><b>原地环视 (Look Around)</b>：相机位置绝对静止，镜头如人头部转动般四周环顾视角（亦支持鼠标左右键同时按住拖拽）。</span>
+                </div>
+                <div class="help-mouse-row">
+                  <span class="help-mouse-key">鼠标滚轮</span>
+                  <span class="help-mouse-desc"><b>平滑缩放</b>：沿着光标视线射线缩放；贴近构件极限距离（&lt;0.5m）时继续推轮<b>自动向前穿透 1.2m</b> 进入建筑内部。</span>
+                </div>
+                <div class="help-mouse-row">
+                  <span class="help-mouse-key">双击构件</span>
+                  <span class="help-mouse-desc"><b>视口双击</b>构件平滑贴近至距其 1.0m 处（保持选中态）；极近距离内<b>再次双击穿透构件</b>进入后方 1.0m 处。</span>
+                </div>
+              </div>
+            </div>
+
+            <p style="margin-top: 14px;">按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈。对于需要组合按键的热键，按下首个按键后会在胶囊上方动态列出所有匹配候选项，支持键盘连击或鼠标点击快捷执行。</p>
             <div class="help-links-group">
               <span class="help-target-link" data-target="shortcuts-toggle">快捷键模式切换</span>
               <span class="help-target-link" data-target="shortcuts-hud">快捷键全屏速查 (?)</span>
@@ -587,6 +649,11 @@ class BIMHelpSystem {
           </div>
         </div>
 
+        <!-- Tour Hotkey Demo HUD (Floating indicator above callout) -->
+        <div class="tour-demo-hud" id="tour-demo-hud" style="display:none;">
+          <div class="tour-demo-hud-content" id="tour-demo-hud-content"></div>
+        </div>
+
         <!-- Tour Callout Card -->
         <div class="tour-callout-card" id="tour-callout-card" style="display:none;">
           <div class="tour-callout-header">
@@ -600,6 +667,7 @@ class BIMHelpSystem {
           <div class="tour-callout-footer">
             <div class="tour-callout-dots" id="tour-callout-dots"></div>
             <div class="tour-callout-actions">
+              <button type="button" class="tour-btn-secondary" id="tour-callout-btn-replay" style="display:none;">▶ 重播演示</button>
               <button type="button" class="tour-btn-secondary" id="tour-callout-btn-prev">上一步</button>
               <button type="button" class="tour-btn-primary" id="tour-callout-btn-next">下一步</button>
             </div>
@@ -737,6 +805,10 @@ class BIMHelpSystem {
     const btnCalloutNext = document.getElementById('tour-callout-btn-next');
     if (btnCalloutNext) {
       btnCalloutNext.addEventListener('click', () => this.nextTourStep());
+    }
+    const btnCalloutReplay = document.getElementById('tour-callout-btn-replay');
+    if (btnCalloutReplay) {
+      btnCalloutReplay.addEventListener('click', () => this.runTourGestureDemo());
     }
 
     // 4. Help Dialog Controls
@@ -1089,8 +1161,35 @@ class BIMHelpSystem {
       });
     }
 
+    // Manage Replay button visibility on Step 1 (index 0)
+    const btnReplay = document.getElementById('tour-callout-btn-replay');
+    if (btnReplay) {
+      if (index === 0) {
+        btnReplay.style.display = 'inline-flex';
+        btnReplay.textContent = (window.I18N && window.I18N.currentLang === 'en') ? '▶ Replay Demo' : '▶ 重播演示';
+      } else {
+        btnReplay.style.display = 'none';
+      }
+    }
+
     // Highlight target element with cutout & position callout
     this.updateTourSpotlight();
+
+    // Trigger automated Orbit & Look Around demonstration on Step 1
+    if (this.demoTimer) {
+      clearTimeout(this.demoTimer);
+      this.demoTimer = null;
+    }
+    if (index === 0) {
+      this.stopTourDemoAnimation(true);
+      this.demoTimer = setTimeout(() => {
+        if (this.isTourActive && this.currentTourStep === 0) {
+          this.runTourGestureDemo();
+        }
+      }, 400);
+    } else {
+      this.stopTourDemoAnimation(true);
+    }
   }
 
   updateTourSpotlight() {
@@ -1169,6 +1268,7 @@ class BIMHelpSystem {
 
     // Position Callout Card intelligently
     this.positionCallout(rect);
+    this.positionTourDemoHud();
   }
 
   positionCallout(targetRect) {
@@ -1232,6 +1332,11 @@ class BIMHelpSystem {
   }
 
   exitTour(markCompleted = true) {
+    if (this.demoTimer) {
+      clearTimeout(this.demoTimer);
+      this.demoTimer = null;
+    }
+    this.stopTourDemoAnimation(true);
     this.isTourActive = false;
     const overlay = document.getElementById('tour-overlay-container');
     if (overlay) overlay.style.display = 'none';
@@ -1695,6 +1800,245 @@ class BIMHelpSystem {
       } else {
         this.goToTourStep(this.currentTourStep);
       }
+    }
+  }
+
+  // =========================================================================
+  // 3D VIEWPORT GESTURE DEMONSTRATION (ORBIT 4S -> LOOK AROUND 4S)
+  // =========================================================================
+  runTourGestureDemo() {
+    this.stopTourDemoAnimation(false);
+    if (!this.app || !this.app.camera) return;
+
+    const app = this.app;
+    const camera = app.camera;
+    const controls = app.controls;
+
+    // Save initial camera state for clean restoration
+    this.demoInitialCam = {
+      position: camera.position.clone(),
+      quaternion: camera.quaternion.clone(),
+      target: (controls && controls.target) ? controls.target.clone() : camera.position.clone().add(new THREE.Vector3(0, 0, -10))
+    };
+
+    const pivot = app.pivotPoint ? app.pivotPoint.clone() : ((controls && controls.target) ? controls.target.clone() : new THREE.Vector3(0, 0, 0));
+    const origOffset = new THREE.Vector3().subVectors(this.demoInitialCam.position, pivot);
+    const origCamQuat = this.demoInitialCam.quaternion.clone();
+
+    const hud = document.getElementById('tour-demo-hud');
+    const hudContent = document.getElementById('tour-demo-hud-content');
+    if (!hud || !hudContent) return;
+
+    if (this.hudHideTimer) {
+      clearTimeout(this.hudHideTimer);
+      this.hudHideTimer = null;
+    }
+
+    this.isDemoRunning = true;
+    const startTime = performance.now();
+    const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
+
+    const getMouseSvg = () => `
+      <svg class="tour-demo-mouse-svg" viewBox="0 0 60 80" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="tourRightBtnGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00f0ff" stop-opacity="1" />
+            <stop offset="100%" stop-color="#0284c7" stop-opacity="0.95" />
+          </linearGradient>
+          <filter id="tourNeonGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+        <!-- Mouse Body -->
+        <rect x="2" y="2" width="56" height="76" rx="28" fill="rgba(15, 23, 42, 0.94)" stroke="rgba(255, 255, 255, 0.38)" stroke-width="2.5" />
+        
+        <!-- Left Button (Unpressed) -->
+        <path d="M 2 30 C 2 15 15 2 30 2 L 30 35 L 2 35 Z" fill="rgba(255, 255, 255, 0.05)" stroke="rgba(255, 255, 255, 0.22)" stroke-width="1.5" />
+        <text x="16" y="22" font-size="9" font-family="sans-serif" font-weight="600" fill="rgba(255, 255, 255, 0.4)" text-anchor="middle">${isZh ? '左' : 'L'}</text>
+        
+        <!-- Right Button (Pressed Glow Active) -->
+        <path d="M 30 2 C 45 2 58 15 58 30 L 58 35 L 30 35 Z" fill="url(#tourRightBtnGrad)" stroke="#00e5ff" stroke-width="2.5" filter="url(#tourNeonGlow)" />
+        <text x="44" y="22" font-size="10" font-family="sans-serif" font-weight="800" fill="#ffffff" text-anchor="middle">${isZh ? '右键' : 'R'}</text>
+        
+        <!-- Divider Lines -->
+        <line x1="30" y1="2" x2="30" y2="35" stroke="rgba(255, 255, 255, 0.45)" stroke-width="1.5" />
+        <line x1="2" y1="35" x2="58" y2="35" stroke="rgba(255, 255, 255, 0.45)" stroke-width="1.5" />
+        
+        <!-- Scroll Wheel -->
+        <rect x="27" y="11" width="6" height="16" rx="3" fill="#334155" stroke="#94a3b8" stroke-width="1.5" />
+      </svg>
+    `;
+
+    const showOrbitHud = () => {
+      if (this.hudHideTimer) {
+        clearTimeout(this.hudHideTimer);
+        this.hudHideTimer = null;
+      }
+      hudContent.innerHTML = `
+        <div class="tour-demo-hud-row">
+          ${getMouseSvg()}
+        </div>
+        <div class="tour-demo-hud-label">${isZh ? '按住鼠标右键 · Orbit 轨道旋转 (4秒)' : 'Hold Right Mouse · Orbit Rotate (4s)'}</div>
+      `;
+      hud.style.display = 'flex';
+      this.positionTourDemoHud();
+      void hud.offsetWidth;
+      hud.classList.add('visible');
+    };
+
+    const showLookAroundHud = () => {
+      if (this.hudHideTimer) {
+        clearTimeout(this.hudHideTimer);
+        this.hudHideTimer = null;
+      }
+      hudContent.innerHTML = `
+        <div class="tour-demo-hud-row">
+          <span class="tour-demo-shift-badge">⇧ Shift</span>
+          <span class="tour-demo-plus-sign">+</span>
+          ${getMouseSvg()}
+        </div>
+        <div class="tour-demo-hud-label">${isZh ? 'Shift + 鼠标右键 · 原地环视四周 (4秒)' : 'Shift + Right Mouse · Look Around (4s)'}</div>
+      `;
+      hud.style.display = 'flex';
+      this.positionTourDemoHud();
+      void hud.offsetWidth;
+      hud.classList.add('visible');
+    };
+
+    const hideHud = (delay = 400) => {
+      if (this.hudHideTimer) {
+        clearTimeout(this.hudHideTimer);
+      }
+      hud.classList.remove('visible');
+      this.hudHideTimer = setTimeout(() => {
+        if (!hud.classList.contains('visible')) {
+          hud.style.display = 'none';
+        }
+        this.hudHideTimer = null;
+      }, delay);
+    };
+
+    // 4.0s Orbit -> 0.5s Pause -> 4.0s Look Around (Total ~8.5s)
+    const ORBIT_DUR = 4000;   // 4 seconds orbit
+    const PAUSE_DUR = 500;    // 0.5 seconds transition pause
+    const LOOK_DUR = 4000;    // 4 seconds look around
+    let currentPhase = -1;
+
+    const stepFrame = (now) => {
+      if (!this.isDemoRunning) return;
+      const elapsed = now - startTime;
+
+      if (elapsed < ORBIT_DUR) {
+        if (currentPhase !== 0) {
+          currentPhase = 0;
+          showOrbitHud();
+        }
+        const s = elapsed / ORBIT_DUR;
+        // Orbit curve: turns left 30 deg at s=0.25 (1s), turns right 60 deg (to +30 deg) at s=0.75 (3s), returns to 0 at s=1.0 (4s)
+        const theta = -THREE.MathUtils.degToRad(30) * Math.sin(2 * Math.PI * s);
+        const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), theta);
+
+        const newOffset = origOffset.clone().applyQuaternion(qYaw);
+        camera.position.copy(pivot).add(newOffset);
+
+        const newQuat = qYaw.clone().multiply(origCamQuat);
+        camera.quaternion.copy(newQuat);
+
+        if (controls && controls.target) {
+          controls.target.copy(pivot);
+        }
+        if (app.compass3d) app.compass3d.update();
+        camera.updateMatrixWorld();
+        if (app._wakeRender) app._wakeRender();
+
+        this.demoRaf = requestAnimationFrame(stepFrame);
+      } else if (elapsed < ORBIT_DUR + PAUSE_DUR) {
+        if (currentPhase !== 1) {
+          currentPhase = 1;
+          // Snap back to exact initial camera before lookaround phase
+          camera.position.copy(this.demoInitialCam.position);
+          camera.quaternion.copy(this.demoInitialCam.quaternion);
+          if (controls && controls.target) controls.target.copy(this.demoInitialCam.target);
+          if (app.compass3d) app.compass3d.update();
+          camera.updateMatrixWorld();
+          if (app._wakeRender) app._wakeRender();
+        }
+        this.demoRaf = requestAnimationFrame(stepFrame);
+      } else if (elapsed < ORBIT_DUR + PAUSE_DUR + LOOK_DUR) {
+        if (currentPhase !== 2) {
+          currentPhase = 2;
+          showLookAroundHud();
+        }
+        const s = (elapsed - (ORBIT_DUR + PAUSE_DUR)) / LOOK_DUR;
+        // Look around curve: looks left 15 deg at s=0.25 (1s), looks right 30 deg (to +15 deg) at s=0.75 (3s), returns to 0 at s=1.0 (4s)
+        const phi = -THREE.MathUtils.degToRad(15) * Math.sin(2 * Math.PI * s);
+        const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), phi);
+
+        // Camera position remains strictly stationary!
+        camera.position.copy(this.demoInitialCam.position);
+        const newQuat = qYaw.clone().multiply(origCamQuat);
+        camera.quaternion.copy(newQuat);
+
+        const newFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(newQuat).normalize();
+        const dist = Math.max(2.0, camera.position.distanceTo(pivot));
+        if (controls && controls.target) {
+          controls.target.copy(camera.position).addScaledVector(newFwd, dist);
+        }
+        if (app.compass3d) app.compass3d.update();
+        camera.updateMatrixWorld();
+        if (app._wakeRender) app._wakeRender();
+
+        this.demoRaf = requestAnimationFrame(stepFrame);
+      } else {
+        // Finished: cleanly hide HUD and restore exact original state
+        hideHud(350);
+        this.stopTourDemoAnimation(true);
+      }
+    };
+
+    this.demoRaf = requestAnimationFrame(stepFrame);
+  }
+
+  stopTourDemoAnimation(restoreCamera = true) {
+    if (this.demoRaf) {
+      cancelAnimationFrame(this.demoRaf);
+      this.demoRaf = null;
+    }
+    if (this.hudHideTimer) {
+      clearTimeout(this.hudHideTimer);
+      this.hudHideTimer = null;
+    }
+    this.isDemoRunning = false;
+    const hud = document.getElementById('tour-demo-hud');
+    if (hud) {
+      hud.classList.remove('visible');
+      hud.style.display = 'none';
+    }
+    if (restoreCamera && this.demoInitialCam && this.app && this.app.camera) {
+      this.app.camera.position.copy(this.demoInitialCam.position);
+      this.app.camera.quaternion.copy(this.demoInitialCam.quaternion);
+      if (this.app.controls && this.app.controls.target) {
+        this.app.controls.target.copy(this.demoInitialCam.target);
+      }
+      if (this.app.compass3d) this.app.compass3d.update();
+      this.app.camera.updateMatrixWorld();
+      if (this.app._wakeRender) this.app._wakeRender();
+    }
+    this.demoInitialCam = null;
+  }
+  positionTourDemoHud() {
+    const hud = document.getElementById('tour-demo-hud');
+    const callout = document.getElementById('tour-callout-card');
+    if (!hud) return;
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    hud.style.left = '50%';
+    if (callout && callout.style.display !== 'none') {
+      const cTop = parseInt(callout.style.top, 10) || (winH - 320);
+      hud.style.top = `${Math.max(60, cTop - 180)}px`;
+    } else {
+      hud.style.top = `${Math.round(winH * 0.45)}px`;
     }
   }
 }
