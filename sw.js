@@ -3,7 +3,7 @@
  * Provides offline caching & instant launch capabilities for PWA.
  * Fully decoupled: works silently on HTTPS/localhost, completely ignored on file://
  */
-const CACHE_NAME = 'bimscope-cache-v1';
+const CACHE_NAME = 'bimscope-cache-v2';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -51,6 +51,31 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith('http')) return;
 
+  // Bypass Service Worker for Range requests, point clouds (.bin, metadata.json), and cross-origin streams
+  if (event.request.headers.has('range') || event.request.url.endsWith('.bin') || event.request.url.includes('metadata.json')) {
+    return;
+  }
+
+  // Network-First for Navigation / HTML requests: guarantees updates are served immediately when online
+  if (event.request.mode === 'navigate' || event.request.url.endsWith('.html') || event.request.url.endsWith('/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => {
+            return cached || caches.match('./index.html') || caches.match('./');
+          });
+        })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       // Network fetch with offline cache fallback
@@ -65,10 +90,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Network failed: return cached version (or fallback to index.html for navigation)
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html') || caches.match('./');
-          }
           return cachedResponse;
         });
 

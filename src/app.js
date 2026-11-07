@@ -451,6 +451,7 @@ class VirtualBimTree {
     this.buffer = 8;
     this.rafId = null;
 
+    this.HEIGHT_FILE = 32;
     this.HEIGHT_GROUP = 32;
     this.HEIGHT_OPACITY = 24;
     this.HEIGHT_LEAF = 26;
@@ -553,90 +554,168 @@ class VirtualBimTree {
   computeVisibleRows() {
     this.flattenedRows = [];
     this.rowOffsets = [];
-    let currentOffset = 0;
-    const q = this.filterQuery.toLowerCase().trim();
+    let currentY = 0;
 
-    for (let gIdx = 0; gIdx < this.groups.length; gIdx++) {
-      const g = this.groups[gIdx];
-      const gNameMatches = q === '' || g.name.toLowerCase().includes(q) || (g.localizedName && g.localizedName.toLowerCase().includes(q));
+    const q = (this.filterQuery || '').trim().toLowerCase();
+    const hasFilter = q.length > 0;
 
-      let matchingLeaves = g.leaves;
-      if (q !== '') {
-        matchingLeaves = g.leaves.filter(leaf => {
-          return leaf.name.toLowerCase().includes(q) || gNameMatches;
+    // Check if groups are nested under files
+    const hasFiles = this.groups && this.groups.length > 0 && this.groups[0].fileType !== undefined;
+
+    if (hasFiles) {
+      this.groups.forEach((fileItem) => {
+        let matchingChildGroups = [];
+        if (hasFilter) {
+          const fileMatches = (fileItem.name || '').toLowerCase().includes(q);
+          (fileItem.groups || []).forEach(g => {
+            const gName = (g.localizedName || g.name || '').toLowerCase();
+            const gMatches = gName.includes(q);
+            const mLeaves = (g.leaves || []).filter(l => (l.name || '').toLowerCase().includes(q));
+            if (fileMatches || gMatches || mLeaves.length > 0) {
+              matchingChildGroups.push({
+                group: g,
+                leaves: (fileMatches || gMatches) ? (g.leaves || []) : mLeaves
+              });
+            }
+          });
+          if (!fileMatches && matchingChildGroups.length === 0) return;
+        } else {
+          matchingChildGroups = (fileItem.groups || []).map(g => ({ group: g, leaves: g.leaves || [] }));
+        }
+
+        const isFileCollapsed = hasFilter ? false : Boolean(fileItem.collapsed);
+        this.flattenedRows.push({
+          type: 'file',
+          file: fileItem,
+          isCollapsed: isFileCollapsed,
+          height: this.HEIGHT_FILE
         });
-      }
+        this.rowOffsets.push(currentY);
+        currentY += this.HEIGHT_FILE;
 
-      if (q !== '' && !gNameMatches && matchingLeaves.length === 0) {
-        continue;
-      }
+        if (!isFileCollapsed) {
+          matchingChildGroups.forEach((item) => {
+            const g = item.group;
+            const leaves = item.leaves;
+            const isGroupCollapsed = hasFilter ? false : Boolean(g.collapsed);
+            const isOnlyHeader = isGroupCollapsed || leaves.length === 0;
 
-      const isCollapsed = g.collapsed && q === '';
-      const groupRow = {
-        type: 'group',
-        group: g,
-        isCollapsed: isCollapsed,
-        isOnlyHeader: isCollapsed || matchingLeaves.length === 0,
-        height: isCollapsed ? (this.HEIGHT_GROUP + this.SPACING_BRANCH) : this.HEIGHT_GROUP
-      };
-      this.rowOffsets.push(currentOffset);
-      this.flattenedRows.push(groupRow);
-      currentOffset += groupRow.height;
+            this.flattenedRows.push({
+              type: 'group',
+              file: fileItem,
+              group: g,
+              isCollapsed: isGroupCollapsed,
+              isOnlyHeader,
+              height: this.HEIGHT_GROUP
+            });
+            this.rowOffsets.push(currentY);
+            currentY += this.HEIGHT_GROUP;
 
-      if (!isCollapsed) {
-        if (g.hasOpacitySlider) {
-          const isLast = matchingLeaves.length === 0;
-          const opHeight = isLast ? (this.HEIGHT_OPACITY + this.SPACING_BRANCH) : this.HEIGHT_OPACITY;
-          const opRow = {
-            type: 'opacity',
-            group: g,
-            isLast: isLast,
-            height: opHeight
-          };
-          this.rowOffsets.push(currentOffset);
-          this.flattenedRows.push(opRow);
-          currentOffset += opHeight;
+            if (!isGroupCollapsed) {
+              if (this.type === 'elements' && !g.isPointCloudNode) {
+                this.flattenedRows.push({
+                  type: 'opacity',
+                  file: fileItem,
+                  group: g,
+                  isLast: leaves.length === 0,
+                  height: this.HEIGHT_OPACITY
+                });
+                this.rowOffsets.push(currentY);
+                currentY += this.HEIGHT_OPACITY;
+              }
+
+              for (let i = 0; i < leaves.length; i++) {
+                this.flattenedRows.push({
+                  type: 'leaf',
+                  file: fileItem,
+                  group: g,
+                  leaf: leaves[i],
+                  isLast: i === leaves.length - 1,
+                  height: this.HEIGHT_LEAF
+                });
+                this.rowOffsets.push(currentY);
+                currentY += this.HEIGHT_LEAF;
+              }
+            }
+            currentY += this.SPACING_BRANCH;
+          });
+        }
+        currentY += this.SPACING_BRANCH;
+      });
+    } else {
+      // Flat groups fallback
+      this.groups.forEach((g) => {
+        let visibleLeaves = g.leaves || [];
+        if (hasFilter) {
+          const gName = (g.localizedName || g.name || '').toLowerCase();
+          const gMatches = gName.includes(q);
+          if (!gMatches) {
+            visibleLeaves = visibleLeaves.filter(l => (l.name || '').toLowerCase().includes(q));
+            if (visibleLeaves.length === 0) return;
+          }
         }
 
-        for (let lIdx = 0; lIdx < matchingLeaves.length; lIdx++) {
-          const leaf = matchingLeaves[lIdx];
-          const isLast = (lIdx === matchingLeaves.length - 1);
-          const leafHeight = isLast ? (this.HEIGHT_LEAF + this.SPACING_BRANCH) : this.HEIGHT_LEAF;
-          const leafRow = {
-            type: 'leaf',
-            group: g,
-            leaf: leaf,
-            isLast: isLast,
-            height: leafHeight
-          };
-          this.rowOffsets.push(currentOffset);
-          this.flattenedRows.push(leafRow);
-          currentOffset += leafHeight;
+        const isCollapsed = hasFilter ? false : Boolean(g.collapsed);
+        const isOnlyHeader = isCollapsed || visibleLeaves.length === 0;
+
+        this.flattenedRows.push({
+          type: 'group',
+          group: g,
+          isCollapsed,
+          isOnlyHeader,
+          height: this.HEIGHT_GROUP
+        });
+        this.rowOffsets.push(currentY);
+        currentY += this.HEIGHT_GROUP;
+
+        if (!isCollapsed) {
+          if (this.type === 'elements' && !g.isPointCloudNode) {
+            this.flattenedRows.push({
+              type: 'opacity',
+              group: g,
+              isLast: visibleLeaves.length === 0,
+              height: this.HEIGHT_OPACITY
+            });
+            this.rowOffsets.push(currentY);
+            currentY += this.HEIGHT_OPACITY;
+          }
+
+          for (let i = 0; i < visibleLeaves.length; i++) {
+            this.flattenedRows.push({
+              type: 'leaf',
+              group: g,
+              leaf: visibleLeaves[i],
+              isLast: i === visibleLeaves.length - 1,
+              height: this.HEIGHT_LEAF
+            });
+            this.rowOffsets.push(currentY);
+            currentY += this.HEIGHT_LEAF;
+          }
         }
-      }
+        currentY += this.SPACING_BRANCH;
+      });
     }
 
-    this.totalHeight = currentOffset;
+    this.totalHeight = currentY;
     if (this.phantomEl) {
-      this.phantomEl.style.height = `${Math.max(1, this.totalHeight)}px`;
+      this.phantomEl.style.height = `${this.totalHeight}px`;
     }
   }
 
   findRowIndexAt(offset) {
-    if (this.rowOffsets.length === 0) return 0;
-    let low = 0, high = this.rowOffsets.length - 1;
+    let low = 0;
+    let high = this.rowOffsets.length - 1;
+    let ans = 0;
     while (low <= high) {
       const mid = (low + high) >> 1;
-      const off = this.rowOffsets[mid];
-      if (off < offset) {
+      if (this.rowOffsets[mid] <= offset) {
+        ans = mid;
         low = mid + 1;
-      } else if (off > offset) {
-        high = mid - 1;
       } else {
-        return mid;
+        high = mid - 1;
       }
     }
-    return Math.max(0, low - 1);
+    return ans;
   }
 
   onScroll() {
@@ -656,6 +735,7 @@ class VirtualBimTree {
     label.className = 'toggle-switch';
     const chk = document.createElement('input');
     chk.type = 'checkbox';
+    chk.checked = true;
     const slider = document.createElement('span');
     slider.className = 'slider-switch';
     label.appendChild(chk);
@@ -666,6 +746,37 @@ class VirtualBimTree {
   createSlot() {
     const el = document.createElement('div');
     el.className = 'virtual-tree-slot';
+
+    // 0. File Header Element (Top-level Model or Point Cloud File)
+    const fileEl = document.createElement('div');
+    fileEl.className = 'tree-file-header virtual-file-header';
+
+    const fileLeft = document.createElement('div');
+    fileLeft.className = 'file-left';
+
+    const fileExpander = document.createElement('span');
+    fileExpander.className = 'tree-expander';
+    fileExpander.innerHTML = '&#9660;';
+
+    const fileIcon = document.createElement('span');
+    fileIcon.className = 'file-icon';
+    fileIcon.textContent = '📁';
+
+    const fileTitle = document.createElement('span');
+    fileTitle.className = 'file-name';
+
+    const fileCount = document.createElement('span');
+    fileCount.className = 'file-count';
+
+    fileLeft.appendChild(fileExpander);
+    fileLeft.appendChild(fileIcon);
+    fileLeft.appendChild(fileTitle);
+    fileLeft.appendChild(fileCount);
+
+    const fileToggle = this.createToggleSwitch();
+
+    fileEl.appendChild(fileLeft);
+    fileEl.appendChild(fileToggle.label);
 
     // 1. Group Header Element
     const groupEl = document.createElement('div');
@@ -736,6 +847,7 @@ class VirtualBimTree {
     leafEl.appendChild(leafLeft);
     leafEl.appendChild(leafToggle.label);
 
+    el.appendChild(fileEl);
     el.appendChild(groupEl);
     el.appendChild(opacityEl);
     el.appendChild(leafEl);
@@ -744,6 +856,13 @@ class VirtualBimTree {
 
     const slot = {
       el,
+      fileEl,
+      fileLeft,
+      fileExpander,
+      fileIcon,
+      fileTitle,
+      fileCount,
+      fileToggle,
       groupEl,
       groupLeft,
       expander,
@@ -761,6 +880,78 @@ class VirtualBimTree {
       row: null
     };
 
+    // Event Listeners for File Header
+    fileEl.addEventListener('click', (e) => {
+      if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
+      if (!slot.row || slot.row.type !== 'file') return;
+      const f = slot.row.file;
+      if (f.fileType === 'pointcloud') {
+        if (this.app.pointCloudManager && f.pco) {
+          this.app.pointCloudManager.selectPointCloud(f.pco);
+        }
+        this.render();
+      } else {
+        f.collapsed = !f.collapsed;
+        if (f.model) {
+          this.app.activeModel = f.model;
+          if (this.app.modelInfoMap && this.app.modelInfoMap.has(f.model)) {
+            this.app.currentModelInfo = this.app.modelInfoMap.get(f.model);
+            this.app.updateModelSubtitle(this.app.currentModelInfo);
+          }
+          if (this.app.pointCloudManager) {
+            this.app.pointCloudManager.isPointCloudSelected = false;
+          }
+          this.app.selectedMesh = null;
+          this.app.selectedMeshes = [];
+          this.app.clearHighlightOverlay();
+          if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+        }
+        this.computeVisibleRows();
+        this.render();
+        if (this.app.syncTreeSelection) this.app.syncTreeSelection();
+      }
+    });
+
+    fileEl.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'file') return;
+      const f = slot.row.file;
+      if (f.fileType === 'pointcloud' && f.pco && this.app.pointCloudManager) {
+        this.app.pointCloudManager.selectPointCloud(f.pco);
+        this.app.pointCloudManager.fitPointCloudView(f.pco);
+      } else if (f.model) {
+        this.app.zoomToModel(f.model);
+      }
+    });
+
+    fileEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'file') return;
+      this.app.showFileContextMenu(e.clientX, e.clientY, slot.row.file);
+    });
+
+    fileToggle.chk.addEventListener('change', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'file') return;
+      const f = slot.row.file;
+      const checked = fileToggle.chk.checked;
+      f.visible = checked;
+      if (f.fileType === 'pointcloud' && f.pco) {
+        f.pco.visible = checked;
+      } else if (f.model) {
+        f.model.visible = checked;
+        f.model.traverse(obj => {
+          if (this.app.isModelElementMesh(obj)) {
+            obj.visible = checked;
+          }
+        });
+      }
+      if (this.app.updateStats) this.app.updateStats();
+      if (this.app._wakeRender) this.app._wakeRender(200);
+      this.render();
+    });
+
     groupEl.addEventListener('click', (e) => {
       if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
       if (!slot.row || slot.row.type !== 'group') return;
@@ -774,6 +965,7 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'group') return;
       const g = slot.row.group;
+      if (g.isPointCloudNode) return;
       this.app.showGroupContextMenu(e.clientX, e.clientY, g.localizedName || g.name, g.meshes);
     });
 
@@ -816,6 +1008,7 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       const isCtrl = e.ctrlKey || e.metaKey;
       const isShift = e.shiftKey;
       const current = (this.app.selectedMeshes && this.app.selectedMeshes.length > 0) ?
@@ -847,6 +1040,7 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       const current = this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []);
       if (!current.includes(mesh)) {
         this.app.selectElement(mesh);
@@ -857,12 +1051,21 @@ class VirtualBimTree {
     leafEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
-      this.app.zoomToElement(slot.row.leaf.mesh);
+      if (slot.row.leaf.isInfo) {
+        if (this.app.pointCloudManager && slot.row.leaf.pco) {
+          this.app.pointCloudManager.fitPointCloudView(slot.row.leaf.pco);
+        }
+        return;
+      }
+      if (slot.row.leaf.mesh) {
+        this.app.zoomToElement(slot.row.leaf.mesh);
+      }
     });
 
     leafEl.addEventListener('pointerenter', () => {
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       const isSelected = (this.app.selectedMesh === mesh) || (this.app.selectedMeshes && this.app.selectedMeshes.includes(mesh));
       if (mesh && mesh.visible && !isSelected) {
         this.app.setHoveredElement(mesh);
@@ -880,6 +1083,7 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       mesh.visible = leafToggle.chk.checked;
       if (this.type === 'elements') {
         const catState = this.app.categoryStates.get(slot.row.group.catName);
@@ -888,6 +1092,7 @@ class VirtualBimTree {
           catState.chipEl.classList.toggle('cat-hidden', !anyVis);
         }
       }
+      if (this.app._wakeRender) this.app._wakeRender(200);
       this.render();
     });
 
@@ -897,10 +1102,36 @@ class VirtualBimTree {
   bindSlot(slot, row, selectedSet) {
     slot.row = row;
 
-    if (row.type === 'group') {
+    if (row.type === 'file') {
+      slot.fileEl.style.display = 'flex';
+      slot.groupEl.style.display = 'none';
+      slot.opacityEl.style.display = 'none';
+      slot.leafEl.style.display = 'none';
+
+      const f = row.file;
+      if (f.fileType === 'pointcloud') {
+        slot.fileExpander.style.display = 'none';
+      } else {
+        slot.fileExpander.style.display = '';
+        slot.fileExpander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
+        slot.fileExpander.classList.toggle('collapsed', row.isCollapsed);
+      }
+      slot.fileIcon.textContent = f.icon || (f.fileType === 'pointcloud' ? '☁️' : '📁');
+      slot.fileTitle.textContent = f.name;
+      slot.fileTitle.title = f.name;
+      slot.fileCount.textContent = f.countText || '';
+      slot.fileToggle.chk.checked = f.visible !== false;
+
+      const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
+      const isModelSelected = f.fileType === 'model' && !(this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected) && !this.app.selectedMesh && (!this.app.selectedMeshes || this.app.selectedMeshes.length === 0) && (this.app.activeModel === f.model) && ((this.app.loadedModels && this.app.loadedModels.length > 1) || (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0));
+      slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected || isModelSelected));
+    } else if (row.type === 'group') {
+      slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'flex';
       slot.opacityEl.style.display = 'none';
       slot.leafEl.style.display = 'none';
+
+      slot.groupEl.style.paddingLeft = row.file ? '24px' : '10px';
 
       const g = row.group;
       slot.expander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
@@ -916,7 +1147,9 @@ class VirtualBimTree {
       slot.groupTitle.textContent = g.localizedName || g.name;
       slot.groupTitle.title = g.name;
 
-      if (this.type === 'structures') {
+      if (g.isPointCloudNode) {
+        slot.groupCount.textContent = '';
+      } else if (this.type === 'structures') {
         slot.groupCount.textContent = `${g.meshes.length} items`;
       } else {
         slot.groupCount.textContent = `${g.meshes.length}`;
@@ -927,6 +1160,7 @@ class VirtualBimTree {
 
       slot.groupEl.classList.toggle('is-only-header', row.isOnlyHeader);
     } else if (row.type === 'opacity') {
+      slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'none';
       slot.opacityEl.style.display = 'flex';
       slot.leafEl.style.display = 'none';
@@ -934,23 +1168,23 @@ class VirtualBimTree {
       slot.opSlider.value = String(row.group.opacity !== undefined ? row.group.opacity : 1.0);
       slot.opacityEl.classList.toggle('is-last-row', row.isLast);
     } else if (row.type === 'leaf') {
+      slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'none';
       slot.opacityEl.style.display = 'none';
       slot.leafEl.style.display = 'flex';
 
       const leaf = row.leaf;
       slot.leafEl._mesh = leaf.mesh;
-      slot.leafDot.style.backgroundColor = leaf.colorHex;
+      slot.leafDot.style.backgroundColor = leaf.colorHex || '#38bdf8';
       slot.leafTitle.textContent = leaf.name;
       slot.leafTitle.title = leaf.name;
-      slot.leafToggle.chk.checked = leaf.mesh.visible;
+      slot.leafToggle.chk.checked = leaf.mesh ? leaf.mesh.visible : true;
 
-      const isSel = selectedSet.has(leaf.mesh);
+      const isSel = leaf.mesh ? selectedSet.has(leaf.mesh) : false;
       slot.leafEl.classList.toggle('selected', isSel);
       slot.leafEl.classList.toggle('is-last-row', row.isLast);
     }
   }
-
   render() {
     if (!this.container) return;
 
@@ -996,9 +1230,16 @@ class VirtualBimTree {
     const selectedSet = new Set(this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []));
     for (let i = 0; i < this.pool.length; i++) {
       const slot = this.pool[i];
-      if (slot.el.style.display !== 'none' && slot.row && slot.row.type === 'leaf') {
-        const isSel = selectedSet.has(slot.row.leaf.mesh);
-        slot.leafEl.classList.toggle('selected', isSel);
+      if (slot.el.style.display !== 'none' && slot.row) {
+        if (slot.row.type === 'leaf') {
+          const isSel = selectedSet.has(slot.row.leaf.mesh);
+          slot.leafEl.classList.toggle('selected', isSel);
+        } else if (slot.row.type === 'file') {
+          const f = slot.row.file;
+          const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
+          const isModelSelected = f.fileType === 'model' && !(this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected) && !this.app.selectedMesh && (!this.app.selectedMeshes || this.app.selectedMeshes.length === 0) && (this.app.activeModel === f.model) && ((this.app.loadedModels && this.app.loadedModels.length > 1) || (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0));
+          slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected || isModelSelected));
+        }
       }
     }
   }
@@ -1164,6 +1405,36 @@ class BimSnapEngine {
     });
     this.edgeObj.add(new THREE.Mesh(hgFillGeom, hgFillMat));
     this.indicatorGroup.add(this.edgeObj);
+
+    // 5. Point Cloud Glyph: Target Reticle (⌖) in Cyan (0x00f0ff)
+    this.pointcloudObj = new THREE.Group();
+    const pcCircleGeom = new THREE.RingGeometry(0.38, 0.48, 24);
+    const pcMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.pointcloudObj.add(new THREE.Mesh(pcCircleGeom, pcMat));
+    const pcCrossVerts = new Float32Array([
+      -0.65, 0, 0,  -0.2, 0, 0,
+       0.2,  0, 0,   0.65, 0, 0,
+       0, -0.65, 0,  0, -0.2, 0,
+       0,  0.2,  0,  0,  0.65, 0
+    ]);
+    const pcCrossGeom = new THREE.BufferGeometry();
+    pcCrossGeom.setAttribute('position', new THREE.BufferAttribute(pcCrossVerts, 3));
+    const pcLineMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.pointcloudObj.add(new THREE.LineSegments(pcCrossGeom, pcLineMat));
+    this.indicatorGroup.add(this.pointcloudObj);
 
     // 5. Source Arc/Circle Boundary Highlight Loop
     this.arcHighlightGeom = new THREE.BufferGeometry();
@@ -1604,7 +1875,7 @@ class BimSnapEngine {
     this._occludeRaycaster.near = 0.05;
     this._occludeRaycaster.far = maxDist;
 
-    const searchRoots = this.app.activeModel ? [this.app.activeModel] : this.app.scene.children;
+    const searchRoots = (this.app.loadedModels && this.app.loadedModels.length > 0) ? this.app.loadedModels : ((this.app.loadedModels && this.app.loadedModels.length > 0) ? this.app.loadedModels : (this.app.activeModel ? [this.app.activeModel] : this.app.scene.children));
     const hits = this._occludeRaycaster.intersectObjects(searchRoots, true);
     for (let i = 0; i < hits.length; i++) {
       const h = hits[i];
@@ -1623,6 +1894,48 @@ class BimSnapEngine {
       }
     }
     return false;
+  }
+
+  resolvePointCloudSnapCandidate(localX, localY, cw, ch, camera) {
+    if (!this.app.pointCloudManager || !this.app.pointCloudManager.pointClouds.length) return null;
+    const tol = this.pixelTolerance || 20;
+    const raycaster = this.app.raycaster;
+    if (!raycaster) return null;
+
+    const hit = this.app.pointCloudManager.raycast(raycaster, tol);
+    if (!hit || !hit.point) return null;
+
+    // Check occlusion with clipping planes
+    const clippingPlanes = (this.app.clippingEngine && this.app.clippingEngine.enabled) ? 
+      (this.app.clippingEngine.clippingPlanes || []) : [];
+    for (let p = 0; p < clippingPlanes.length; p++) {
+      if (clippingPlanes[p].distanceToPoint(hit.point) < 0) return null;
+    }
+
+    const proj = hit.point.clone().project(camera);
+    if (proj.z > 1.0 || proj.z < -1.0) return null;
+
+    const sx = (proj.x * 0.5 + 0.5) * cw;
+    const sy = (-proj.y * 0.5 + 0.5) * ch;
+    const dSq = (localX - sx) * (localX - sx) + (localY - sy) * (localY - sy);
+
+    if (dSq <= tol * tol) {
+      return {
+        distSq: dSq,
+        candidate: {
+          type: 'pointcloud',
+          point: hit.point.clone(),
+          normal: new THREE.Vector3(0, 0, 1),
+          targetMesh: hit.pointCloud,
+          pointCloud: hit.pointCloud,
+          screenX: sx,
+          screenY: sy,
+          hudLabel: (window.I18N ? window.I18N.t('pointCloudSnapFeature') : 'Point Cloud Vertex') || 'Point Cloud',
+          hudIcon: '⌖'
+        }
+      };
+    }
+    return null;
   }
 
   resolveSnap(clientX, clientY, camera, hit = null) {
@@ -1645,8 +1958,20 @@ class BimSnapEngine {
       return null;
     }
 
+    // Point Cloud Snapping Candidate Check
+    let pcCandidate = null;
+    if (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0) {
+      pcCandidate = this.resolvePointCloudSnapCandidate(localX, localY, cw, ch, camera);
+    }
+
     let mesh = (hit && hit.object) ? hit.object : this.lastHoveredMesh;
     if (!mesh || !this.app.isPickableElement(mesh)) {
+      if (pcCandidate) {
+        this.lastHoveredMesh = pcCandidate.candidate.targetMesh;
+        this.currentSnap = pcCandidate.candidate;
+        this.showIndicator(pcCandidate.candidate, camera, container);
+        return pcCandidate.candidate;
+      }
       this.hideIndicator();
       return null;
     }
@@ -1916,8 +2241,14 @@ class BimSnapEngine {
       }
     }
 
+    // If point cloud candidate is closer to cursor than mesh features, prioritize point cloud
+    if (pcCandidate && pcCandidate.distSq < bestDistSq) {
+      bestDistSq = pcCandidate.distSq;
+      bestCandidate = pcCandidate.candidate;
+    }
+
     // Final occlusion verification: ensure candidate is not occluded by a front surface
-    if (bestCandidate && this.isPointOccluded(bestCandidate.point, camera)) {
+    if (bestCandidate && bestCandidate.type !== 'pointcloud' && this.isPointOccluded(bestCandidate.point, camera)) {
       bestCandidate = null;
     }
 
@@ -1948,6 +2279,7 @@ class BimSnapEngine {
     this.midpointObj.visible = (snap.type === 'midpoint');
     this.centerObj.visible = (snap.type === 'center');
     this.edgeObj.visible = (snap.type === 'edge');
+    if (this.pointcloudObj) this.pointcloudObj.visible = (snap.type === 'pointcloud');
 
     this.updateIndicatorScale(camera, container, snap.point);
 
@@ -2093,8 +2425,19 @@ class BIMViewerApp {
     this.solarEngine = new SolarEngine(this.scene, this.renderer);
     this.clippingEngine = new ClippingEngine(this.scene, this.renderer);
     this.isGizmoDragging = false;
-    this.clippingEngine.onGizmoChange = () => this.syncSectionUI();
+    this.clippingEngine.onClippingChange = (planes) => {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.updateClipping(planes);
+      }
+    };
+    this.clippingEngine.onGizmoChange = () => {
+      this.syncSectionUI();
+      if (this.pointCloudManager) {
+        this.pointCloudManager.updateClipping(this.clippingEngine.clippingPlanes);
+      }
+    };
     this.ifcParser = new IFCParser();
+    this.pointCloudManager = new BIMPointCloudManager(this);
     
     // Raycasting & Interaction
     this.raycaster = new THREE.Raycaster();
@@ -2180,8 +2523,12 @@ class BIMViewerApp {
     this.draggingMeasureMarker = null;
     this.contextMenuMeasureMarker = null;
     this.contextMenuMeasureSurfaceHit = null;
+    this.contextMenuHitPoint = null;
     
     this.activeModel = null;
+    this.loadedModels = [];
+    this.modelInfoMap = new Map();
+    this._isAppendNextFile = false;
     this.modelOpacity = 1.0;
     this.fps = 60;
     this.lastFrameTime = performance.now();
@@ -3105,16 +3452,17 @@ class BIMViewerApp {
     }
   }
 
-  clearModel() {
+  clearModel(clearPointClouds = true) {
     this.revokeActiveBlobUrls();
-    if (this.activeModel) {
-      this.scene.remove(this.activeModel);
+    const modelsToDispose = (this.loadedModels && this.loadedModels.length > 0) ? [...this.loadedModels] : (this.activeModel ? [this.activeModel] : []);
+    modelsToDispose.forEach(m => {
+      this.scene.remove(m);
       const texturesToDispose = new Set();
-      this.activeModel.traverse(obj => {
+      m.traverse(obj => {
         if (obj.userData && obj.userData.edgeLines) {
           if (obj.userData.edgeLines.geometry) obj.userData.edgeLines.geometry.dispose();
           if (obj.userData.edgeLines.material) {
-            if (Array.isArray(obj.userData.edgeLines.material)) obj.userData.edgeLines.material.forEach(m => m && m.dispose());
+            if (Array.isArray(obj.userData.edgeLines.material)) obj.userData.edgeLines.material.forEach(mat => mat && mat.dispose());
             else obj.userData.edgeLines.material.dispose();
           }
           obj.userData.edgeLines = null;
@@ -3129,22 +3477,31 @@ class BIMViewerApp {
             'emissiveMap', 'lightMap', 'metalnessMap', 'normalMap',
             'roughnessMap', 'specularMap'
           ];
-          mats.forEach(m => {
-            if (!m) return;
+          mats.forEach(mat => {
+            if (!mat) return;
             texSlots.forEach(slot => {
-              if (m[slot] && typeof m[slot].dispose === 'function') {
-                texturesToDispose.add(m[slot]);
+              if (mat[slot] && typeof mat[slot].dispose === 'function') {
+                texturesToDispose.add(mat[slot]);
               }
             });
-            m.dispose();
+            mat.dispose();
           });
         }
       });
       texturesToDispose.forEach(tex => tex.dispose());
-      this.activeModel = null;
+    });
+
+    this.loadedModels = [];
+    if (this.modelInfoMap) this.modelInfoMap.clear();
+    this.activeModel = null;
+
+    if (clearPointClouds && this.pointCloudManager) {
+      this.pointCloudManager.clearPointClouds();
     }
+
     if (this.clippingEngine) {
       this.clippingEngine.clearModel();
+      this.resetSectionState();
     }
     this.categoryStates.clear();
     const container = document.querySelector('.legend-container');
@@ -3159,7 +3516,9 @@ class BIMViewerApp {
       this.snapEngine.clear();
     }
     this.hideAnimationPlayer();
+    this.updateStats();
     this.needsRender = true;
+    this.checkEmptySceneState();
   }
 
   // Robust Architectural Edge Extractor with coplanar multi-triangle elimination
@@ -3398,8 +3757,32 @@ class BIMViewerApp {
     if (slider) slider.value = Math.round(opacity * 100);
   }
   
-  setModel(modelGroup) {
+  setModel(modelGroup, isAppendOverride = null) {
+    const isAppend = isAppendOverride !== null ? Boolean(isAppendOverride) : Boolean(this._isAppendNextFile);
+    this._isAppendNextFile = false;
+
+    if (!isAppend) {
+      this.clearModel();
+    }
+
     this.activeModel = modelGroup;
+    if (!this.loadedModels) this.loadedModels = [];
+    if (!this.loadedModels.includes(modelGroup)) {
+      this.loadedModels.push(modelGroup);
+    }
+
+    if (!this.modelInfoMap) this.modelInfoMap = new Map();
+    if (!this.modelInfoMap.has(modelGroup)) {
+      const fileName = (modelGroup.userData && modelGroup.userData.fileName) || modelGroup.name || "Model";
+      const info = {
+        fileName,
+        elementCount: 0,
+        timestamp: Date.now()
+      };
+      this.modelInfoMap.set(modelGroup, info);
+      this.currentModelInfo = info;
+    }
+
     this.scene.add(this.activeModel);
     
     // Generate clean architectural edge lines
@@ -3408,8 +3791,7 @@ class BIMViewerApp {
     // Compute total bounds and bounding sphere
     const box = new THREE.Box3().setFromObject(this.activeModel);
     if (!box.isEmpty()) {
-      this.clippingEngine.setBounds(box);
-      this.clippingEngine.setModel(this.activeModel);
+      this.updateClippingBounds(Boolean(isAppend));
       
       const center = new THREE.Vector3();
       box.getCenter(center);
@@ -3418,26 +3800,28 @@ class BIMViewerApp {
       box.getBoundingSphere(sphere);
       const radius = sphere.radius || 100;
 
-      // Adapt camera visible distance (default 5,000m, capped at max 10,000m)
-      const autoFar = Math.min(10000, Math.max(5000, Math.ceil(radius * 5)));
+      // Adapt camera visible distance (default 5,000m, capped at max 100,000m)
+      const autoFar = Math.min(100000, Math.max(5000, Math.ceil(radius * 5)));
       if (this.camera.far < autoFar) {
         this.setFarClip(autoFar, true);
       } else {
         this.updateDistanceUI(this.camera.far);
       }
 
-      // Reposition Grid under the model's footprint
-      if (this.grid) {
-        this.grid.position.set(center.x, box.min.y - 0.05, center.z);
-      }
+      if (!isAppend) {
+        // Reposition Grid under the model's footprint
+        if (this.grid) {
+          this.grid.position.set(center.x, box.min.y - 0.05, center.z);
+        }
 
-      // Update Orbit Pivot to the center of the newly loaded model
-      this.pivotPoint.copy(center);
-      this.controls.target.copy(center);
+        // Update Orbit Pivot to the center of the newly loaded model
+        this.pivotPoint.copy(center);
+        this.controls.target.copy(center);
 
-      // Update solar lighting center
-      if (this.solarEngine) {
-        this.solarEngine.setCenter(center, box);
+        // Update solar lighting center
+        if (this.solarEngine) {
+          this.solarEngine.setCenter(center, box);
+        }
       }
     }
     
@@ -3445,10 +3829,215 @@ class BIMViewerApp {
     this.buildHierarchyTree();
     this.updateBottomLegend();
     this.updateStats();
-    this.fitView(true);
-    this.initViewHistory();
-    
-    showToast(I18N.t('loadingTitle') + " - " + I18N.t('solarDayMsg'), 'success');
+
+    if (isAppend) {
+      const fileName = (modelGroup.userData && modelGroup.userData.fileName) || (this.currentModelInfo && this.currentModelInfo.fileName) || "Model";
+      showToast((typeof I18N !== 'undefined' ? I18N.t('fileAppendedToast', { name: fileName }) : `Appended "${fileName}"`) || `Appended "${fileName}"`, 'info', 3500);
+      if (this._wakeRender) this._wakeRender(300);
+    } else {
+      this.fitView(true);
+      this.initViewHistory();
+      showToast(I18N.t('loadingTitle') + " - " + I18N.t('solarDayMsg'), 'success');
+    }
+
+    // Update project title text
+    const titleEl = document.getElementById('project-title-text');
+    if (titleEl) {
+      const totalFiles = this.loadedModels.length + (this.pointCloudManager ? this.pointCloudManager.pointClouds.length : 0);
+      const currentName = (modelGroup.userData && modelGroup.userData.fileName) || (this.currentModelInfo && this.currentModelInfo.fileName) || titleEl.textContent;
+      if (totalFiles > 1) {
+        titleEl.textContent = `${currentName} (+${totalFiles - 1})`;
+      }
+    }
+  }
+
+  getSceneBounds() {
+    const box = new THREE.Box3();
+    if (this.loadedModels && this.loadedModels.length > 0) {
+      this.loadedModels.forEach(m => {
+        if (m.visible) {
+          const b = new THREE.Box3().setFromObject(m);
+          if (!b.isEmpty()) box.union(b);
+        }
+      });
+    } else if (this.activeModel && this.activeModel.visible) {
+      const b = new THREE.Box3().setFromObject(this.activeModel);
+      if (!b.isEmpty()) box.union(b);
+    }
+
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+      this.pointCloudManager.pointClouds.forEach(pco => {
+        if (pco.visible) {
+          const pcBox = this.pointCloudManager.getWorldBoundingBox(pco);
+          if (pcBox && !pcBox.isEmpty()) box.union(pcBox);
+        }
+      });
+    }
+    return box;
+  }
+
+  zoomToModel(model) {
+    if (!model) return;
+    const box = new THREE.Box3().setFromObject(model);
+    if (!box.isEmpty()) {
+      this.zoomToBox(box);
+    }
+  }
+
+  removeModel(model) {
+    if (!model) return;
+    const info = this.modelInfoMap ? this.modelInfoMap.get(model) : null;
+    const modelName = (info && info.fileName) || (model.userData && model.userData.fileName) || model.name || "Model";
+
+    this.scene.remove(model);
+    const texturesToDispose = new Set();
+    model.traverse(obj => {
+      if (obj.userData && obj.userData.edgeLines) {
+        if (obj.userData.edgeLines.geometry) obj.userData.edgeLines.geometry.dispose();
+        if (obj.userData.edgeLines.material) {
+          if (Array.isArray(obj.userData.edgeLines.material)) obj.userData.edgeLines.material.forEach(m => m && m.dispose());
+          else obj.userData.edgeLines.material.dispose();
+        }
+        obj.userData.edgeLines = null;
+      }
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        const texSlots = [
+          'map', 'alphaMap', 'aoMap', 'bumpMap', 'displacementMap',
+          'emissiveMap', 'lightMap', 'metalnessMap', 'normalMap',
+          'roughnessMap', 'specularMap'
+        ];
+        mats.forEach(mat => {
+          if (!mat) return;
+          texSlots.forEach(slot => {
+            if (mat[slot] && typeof mat[slot].dispose === 'function') texturesToDispose.add(mat[slot]);
+          });
+          mat.dispose();
+        });
+      }
+    });
+    texturesToDispose.forEach(t => t.dispose());
+
+    if (this.loadedModels) {
+      const idx = this.loadedModels.indexOf(model);
+      if (idx >= 0) this.loadedModels.splice(idx, 1);
+    }
+    if (this.modelInfoMap) this.modelInfoMap.delete(model);
+
+    if (this.activeModel === model) {
+      this.activeModel = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels[0] : null;
+      this.currentModelInfo = this.activeModel && this.modelInfoMap ? this.modelInfoMap.get(this.activeModel) : null;
+    }
+
+    this.clearSelection();
+    this.updateClippingBounds(true);
+    this.buildHierarchyTree();
+    this.updateStats();
+    this.renderModelInfoInspector();
+
+    const titleEl = document.getElementById('project-title-text');
+    if (titleEl) {
+      if (this.loadedModels.length === 1 && (!this.pointCloudManager || this.pointCloudManager.pointClouds.length === 0)) {
+        const actInfo = this.modelInfoMap.get(this.loadedModels[0]);
+        titleEl.textContent = actInfo?.fileName || 'Model';
+      } else if (this.loadedModels.length > 1) {
+        const actInfo = this.modelInfoMap.get(this.loadedModels[0]);
+        const total = this.loadedModels.length + (this.pointCloudManager ? this.pointCloudManager.pointClouds.length : 0);
+        titleEl.textContent = `${actInfo?.fileName || 'Model'} (+${total - 1})`;
+      }
+    }
+
+    if (this.showToast) {
+      const msg = (typeof I18N !== 'undefined' ? I18N.t('fileRemovedToast', { name: modelName }) : `Removed "${modelName}"`) || `Removed "${modelName}"`;
+      this.showToast(msg, 'info', 3000);
+    }
+
+    this.checkEmptySceneState();
+    if (this._wakeRender) this._wakeRender(200);
+  }
+
+  checkEmptySceneState() {
+    const hasModels = this.loadedModels && this.loadedModels.length > 0;
+    const hasPointClouds = this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0;
+
+    if (!hasModels && !hasPointClouds) {
+      const titleEl = document.getElementById('project-title-text');
+      if (titleEl) titleEl.textContent = typeof I18N !== 'undefined' ? I18N.t('noFileChosen') : 'No file chosen';
+
+      const statsCount = document.getElementById('stats-elements');
+      if (statsCount) statsCount.textContent = '0';
+      const statsTri = document.getElementById('stats-triangles');
+      if (statsTri) statsTri.textContent = '0';
+      const statsVert = document.getElementById('stats-vertices');
+      if (statsVert) statsVert.textContent = '0';
+
+      const inspector = document.getElementById('inspector-content');
+      if (inspector) inspector.innerHTML = `<div class="inspector-empty">${typeof I18N !== 'undefined' ? I18N.t('noModelLoaded') : 'No model loaded'}</div>`;
+
+      const legend = document.getElementById('category-chips');
+      if (legend) legend.innerHTML = '';
+
+      if (this.virtualStructTree) this.virtualStructTree.setGroups([]);
+      if (this.virtualLevelsTree) this.virtualLevelsTree.setGroups([]);
+      if (this.virtualElemTree) this.virtualElemTree.setGroups([]);
+      this.virtualLevelsData = [];
+      this.virtualElemData = [];
+
+      if (this.clippingEngine) {
+        this.resetSectionState();
+      }
+    }
+  }
+
+  resetSectionState() {
+    if (!this.clippingEngine) return;
+    this.clippingEngine.reset();
+    const secActive = document.getElementById('sec-active-chk');
+    if (secActive) secActive.checked = false;
+    const secOffset = document.getElementById('sec-offset-slider');
+    if (secOffset) secOffset.value = 0.5;
+    ['sec-box-minx', 'sec-box-miny', 'sec-box-minz'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = 0;
+    });
+    ['sec-box-maxx', 'sec-box-maxy', 'sec-box-maxz'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = 1;
+    });
+    if (this.pointCloudManager) {
+      this.pointCloudManager.updateClipping([]);
+    }
+    this.syncSectionUI();
+  }
+
+  updateClippingBounds(preserveActive = true) {
+    if (!this.clippingEngine) return;
+    const combinedBox = new THREE.Box3();
+    const models = (this.loadedModels && this.loadedModels.length > 0)
+      ? this.loadedModels
+      : (this.activeModel ? [this.activeModel] : []);
+
+    models.forEach(m => {
+      if (m) {
+        const b = new THREE.Box3().setFromObject(m);
+        if (!b.isEmpty()) combinedBox.union(b);
+      }
+    });
+
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds) {
+      for (const pco of this.pointCloudManager.pointClouds) {
+        if (pco) {
+          const pb = this.pointCloudManager.getWorldBoundingBox(pco);
+          if (pb && !pb.isEmpty()) combinedBox.union(pb);
+        }
+      }
+    }
+
+    if (!combinedBox.isEmpty()) {
+      this.clippingEngine.setBounds(combinedBox, preserveActive);
+    }
+    this.clippingEngine.setModels(models);
   }
 
   // Fit View / Camera Framing
@@ -3509,14 +4098,13 @@ class BIMViewerApp {
 
   // Zoom to Fit (smooth camera animation framing entire active model along current viewing line of sight)
   zoomToFit(immediate = false) {
-    if (!this.activeModel) return;
-    const box = new THREE.Box3().setFromObject(this.activeModel);
+    const box = this.getSceneBounds ? this.getSceneBounds() : (this.activeModel ? new THREE.Box3().setFromObject(this.activeModel) : new THREE.Box3());
     if (box.isEmpty()) return;
 
     const size = new THREE.Vector3();
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 10);
-    const neededFar = Math.min(10000, Math.max(5000, Math.ceil(maxDim * 5)));
+    const neededFar = Math.min(100000, Math.max(5000, Math.ceil(maxDim * 5)));
     if (this.camera && this.camera.far < neededFar) {
       this.setFarClip(neededFar, true);
     }
@@ -3913,91 +4501,189 @@ class BIMViewerApp {
   
   // Build High-Performance Virtual Hierarchy Tree in Left Sidebar
   buildHierarchyTree() {
-    if (!this.activeModel) return;
+    const hasModels = this.loadedModels && this.loadedModels.length > 0;
+    const hasPointClouds = this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0;
 
-    // Group by structures, categories, and levels
-    const structureMap = new Map();
-    const categoryMap = new Map();
-    const levelMap = new Map();
+    if (!hasModels && !hasPointClouds) {
+      if (this.virtualStructTree) this.virtualStructTree.setGroups([]);
+      if (this.virtualLevelsTree) this.virtualLevelsTree.setGroups([]);
+      if (this.virtualElemTree) this.virtualElemTree.setGroups([]);
+      this.virtualLevelsData = [];
+      this.virtualElemData = [];
+      return;
+    }
 
-    this.activeModel.traverse(obj => {
-      if (this.isModelElementMesh(obj) && obj.userData) {
-        const sName = obj.userData.structure || "Model Structure";
-        if (!structureMap.has(sName)) structureMap.set(sName, []);
-        structureMap.get(sName).push(obj);
+    const prevModelFileCollapsedMap = new Map();
+    if (this.virtualStructTree && this.virtualStructTree.groups) {
+      this.virtualStructTree.groups.forEach(fg => {
+        if (fg.key) prevModelFileCollapsedMap.set(fg.key, fg.collapsed);
+      });
+    }
 
-        const cat = obj.userData.rawCategory || obj.userData.category || "Component";
-        if (!categoryMap.has(cat)) categoryMap.set(cat, []);
-        categoryMap.get(cat).push(obj);
+    const structureFiles = [];
+    const levelFiles = [];
+    const elementFiles = [];
 
-        const lvl = obj.userData.level || "Ground Level";
-        if (!levelMap.has(lvl)) levelMap.set(lvl, []);
-        levelMap.get(lvl).push(obj);
-      }
+    // 1. Process 3D CAD/BIM Models
+    const modelsList = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+
+    modelsList.forEach((model, idx) => {
+      const info = (this.modelInfoMap && this.modelInfoMap.get(model)) || {};
+      const fileName = info.fileName || (model.userData && model.userData.fileName) || `Model_${idx + 1}`;
+      const fileKey = `model_${idx}_${fileName}`;
+      const isFileCollapsed = prevModelFileCollapsedMap.has(fileKey) ? prevModelFileCollapsedMap.get(fileKey) : false;
+
+      const structureMap = new Map();
+      const categoryMap = new Map();
+      const levelMap = new Map();
+
+      model.traverse(obj => {
+        if (this.isModelElementMesh(obj) && obj.userData) {
+          const sName = obj.userData.structure || "Model Structure";
+          if (!structureMap.has(sName)) structureMap.set(sName, []);
+          structureMap.get(sName).push(obj);
+
+          const cat = obj.userData.rawCategory || obj.userData.category || "Component";
+          if (!categoryMap.has(cat)) categoryMap.set(cat, []);
+          categoryMap.get(cat).push(obj);
+
+          const lvl = obj.userData.level || "Ground Level";
+          if (!levelMap.has(lvl)) levelMap.set(lvl, []);
+          levelMap.get(lvl).push(obj);
+        }
+      });
+
+      const getElementColor = (m) => {
+        if (m.material) {
+          const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+          if (mat && mat.color) return `#${mat.color.getHexString()}`;
+        }
+        return '#38bdf8';
+      };
+
+      const sortAlpha = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+
+      // Default sub-groups collapsed as requested by user ("默认收起子层级")
+      const buildGroups = (map, isCat = false) => {
+        const list = [];
+        map.forEach((meshes, name) => {
+          let localizedName = name;
+          let colorHex = null;
+          if (isCat) {
+            localizedName = I18N.getCategoryName(name);
+            const cs = this.categoryStates ? this.categoryStates.get(name) : null;
+            if (cs && cs.colorHex) colorHex = cs.colorHex;
+          }
+          const leaves = meshes.map(m => ({
+            name: m.name || m.userData?.name || `Element ${m.id}`,
+            mesh: m,
+            colorHex: getElementColor(m)
+          })).sort(sortAlpha);
+
+          list.push({
+            name,
+            localizedName,
+            meshes,
+            leaves,
+            catName: isCat ? name : null,
+            colorHex,
+            collapsed: true
+          });
+        });
+        return list.sort(sortAlpha);
+      };
+
+      const sGroups = buildGroups(structureMap, false);
+      const lGroups = buildGroups(levelMap, false);
+      const eGroups = buildGroups(categoryMap, true);
+
+      let totalElemCount = 0;
+      categoryMap.forEach(meshes => { totalElemCount += meshes.length; });
+
+      structureFiles.push({
+        key: fileKey,
+        fileType: 'model',
+        model,
+        name: fileName,
+        icon: '📁',
+        countText: `${totalElemCount} elements`,
+        visible: model.visible !== false,
+        collapsed: isFileCollapsed,
+        groups: sGroups
+      });
+
+      levelFiles.push({
+        key: fileKey,
+        fileType: 'model',
+        model,
+        name: fileName,
+        icon: '📁',
+        countText: `${totalElemCount} elements`,
+        visible: model.visible !== false,
+        collapsed: isFileCollapsed,
+        groups: lGroups
+      });
+
+      elementFiles.push({
+        key: fileKey,
+        fileType: 'model',
+        model,
+        name: fileName,
+        icon: '📁',
+        countText: `${totalElemCount} elements`,
+        visible: model.visible !== false,
+        collapsed: isFileCollapsed,
+        groups: eGroups
+      });
     });
 
-    const createGroupData = (map, hasOpacitySlider = false, defaultCollapsed = false, isCategory = false) => {
-      const groups = [];
-      let gId = 0;
-      map.forEach((meshes, name) => {
-        const firstMat = meshes[0] && meshes[0].material;
-        const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
-        const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
-        const localizedName = isCategory && typeof I18N !== 'undefined' ? I18N.getCategoryName(name) : name;
+    // 2. Process Point Clouds
+    if (hasPointClouds) {
+      this.pointCloudManager.pointClouds.forEach((pco, idx) => {
+        const pcName = pco.name || (pco.pcoGeometry && pco.pcoGeometry.url) || `Point Cloud ${idx + 1}`;
+        const rawPts = typeof this.pointCloudManager.getPointCloudPointCount === 'function'
+          ? this.pointCloudManager.getPointCloudPointCount(pco)
+          : (pco.numPoints || (pco.pcoGeometry && pco.pcoGeometry.numPoints) || 0);
+        const numPts = (rawPts || 0).toLocaleString();
+        const fileKey = `pc_${idx}_${pcName}`;
 
-        const leaves = meshes.map(mesh => {
-          const mMat = mesh.material;
-          const mCol = Array.isArray(mMat) ? (mMat[0] && mMat[0].color) : (mMat && mMat.color);
-          const mColorHex = mCol ? '#' + mCol.getHexString() : colorHex;
-          const elemName = mesh.userData.element || mesh.name || "Element";
-          return {
-            mesh,
-            name: elemName,
-            colorHex: mColorHex
-          };
-        });
+        const pcFileItem = {
+          key: fileKey,
+          fileType: 'pointcloud',
+          pco,
+          name: pcName,
+          icon: '☁️',
+          countText: `${numPts} pts`,
+          visible: pco.visible !== false,
+          collapsed: true,
+          groups: []
+        };
 
-        groups.push({
-          id: `group-${gId++}`,
-          name: name,
-          localizedName: localizedName,
-          catName: isCategory ? name : null,
-          meshes: meshes,
-          colorHex: colorHex,
-          collapsed: defaultCollapsed,
-          hasOpacitySlider: hasOpacitySlider,
-          opacity: 1.0,
-          leaves: leaves
-        });
+        structureFiles.push(pcFileItem);
+        levelFiles.push(pcFileItem);
+        elementFiles.push(pcFileItem);
       });
-      return groups;
-    };
+    }
 
-    const structGroups = createGroupData(structureMap, true, false, false);
-    const levelsGroups = createGroupData(levelMap, false, true, false);
-    const elemGroups = createGroupData(categoryMap, false, false, true);
+    this.virtualLevelsData = levelFiles;
+    this.virtualElemData = elementFiles;
 
-    this.virtualLevelsData = levelsGroups;
-    this.virtualElemData = elemGroups;
-
-    // 1. Structures tree is initialized immediately (active tab)
     if (this.virtualStructTree) {
-      this.virtualStructTree.setGroups(structGroups);
+      this.virtualStructTree.setGroups(structureFiles);
     } else {
       this.virtualStructTree = new VirtualBimTree({
         app: this,
         container: document.getElementById('tree-structures'),
         type: 'structures',
-        groups: structGroups
+        groups: structureFiles
       });
     }
 
-    // 2. If other tabs were already initialized in DOM, update their data
     if (this.virtualLevelsTree) {
-      this.virtualLevelsTree.setGroups(levelsGroups);
+      this.virtualLevelsTree.setGroups(levelFiles);
     }
     if (this.virtualElemTree) {
-      this.virtualElemTree.setGroups(elemGroups);
+      this.virtualElemTree.setGroups(elementFiles);
     }
   }
 
@@ -4049,12 +4735,13 @@ class BIMViewerApp {
       curr = curr.parent;
     }
     
-    // If activeModel exists, ensure the element belongs to activeModel
-    if (this.activeModel) {
+    // Ensure the element belongs to any loaded model
+    const modelsList = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+    if (modelsList.length > 0) {
       let isUnderModel = false;
       let currModel = obj;
       while (currModel) {
-        if (currModel === this.activeModel) {
+        if (modelsList.includes(currModel)) {
           isUnderModel = true;
           break;
         }
@@ -4293,6 +4980,9 @@ class BIMViewerApp {
 
     this.selectedMesh = null;
     this.selectedMeshes = meshes;
+    if (this.pointCloudManager) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
 
     // Set virtual orbit pivot to center of bounding box containing all selected objects
     const groupBounds = this.computeBoundsFromTarget(meshes);
@@ -4683,6 +5373,9 @@ class BIMViewerApp {
     }
     this.selectedMesh = mesh;
     this.selectedMeshes = [mesh];
+    if (this.pointCloudManager) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
     this.syncTreeSelection();
     if (clickPoint) {
       this.lastClickPoint = clickPoint.clone();
@@ -5827,7 +6520,7 @@ class BIMViewerApp {
     showToast(`Isolated ${structureName}`, 'warning');
   }
   
-  clearSelection() {
+  clearSelection(keepPointCloud = false) {
     this.selectedMesh = null;
     this.selectedMeshes = [];
     this.lastClickPoint = null;
@@ -5837,8 +6530,23 @@ class BIMViewerApp {
     if (this.compareEngine) {
       this.compareEngine.onSelectionCleared();
     }
+    const hasModels = Boolean(this.loadedModels && this.loadedModels.length > 0);
+    const hasPointClouds = Boolean(this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0);
+    if (!keepPointCloud) {
+      if (hasModels && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+        this.pointCloudManager.isPointCloudSelected = false;
+      } else if (!hasModels && hasPointClouds && this.pointCloudManager) {
+        this.pointCloudManager.isPointCloudSelected = true;
+      }
+    }
     this.syncTreeSelection();
-    this.renderModelInfoInspector();
+    if (!keepPointCloud) {
+      if (!hasModels && hasPointClouds && this.pointCloudManager && this.pointCloudManager.activePointCloud) {
+        this.pointCloudManager.renderInspectorCard();
+      } else {
+        this.renderModelInfoInspector();
+      }
+    }
   }
 
   calculateModelStats(rootObject) {
@@ -6445,12 +7153,158 @@ class BIMViewerApp {
     this.needsRender = true;
   }
   
+  async extractFilesFromDataTransfer(dataTransfer) {
+    if (!dataTransfer) return [];
+    const files = [];
+    const rawFiles = Array.from(dataTransfer.files || []).filter(f => !(f.name || '').toLowerCase().endsWith('log.txt'));
+
+    // CRITICAL: Synchronously capture handles and entries from dataTransfer.items
+    // BEFORE any async await, because browsers purge dataTransfer.items & dataTransfer.files after synchronous event dispatch!
+    const items = dataTransfer.items ? Array.from(dataTransfer.items) : [];
+    const handlePromises = [];
+    const webkitEntries = [];
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        if (typeof item.getAsFileSystemHandle === 'function') {
+          try {
+            handlePromises.push(item.getAsFileSystemHandle());
+          } catch (e) {}
+        }
+        if (typeof item.webkitGetAsEntry === 'function') {
+          try {
+            const entry = item.webkitGetAsEntry();
+            if (entry) webkitEntries.push(entry);
+          } catch (e) {}
+        }
+      }
+    }
+
+    // 1. Try modern File System Access API (works on file:// in Chrome/Edge for both folders & files)
+    if (handlePromises.length > 0) {
+      try {
+        const handles = await Promise.all(handlePromises);
+        const validHandles = handles.filter(Boolean);
+        if (validHandles.length > 0) {
+          const readHandle = async (handle, path = '') => {
+            if (!handle) return;
+            if (handle.kind === 'file') {
+              const file = await handle.getFile();
+              if ((file.name || '').toLowerCase().endsWith('log.txt')) return;
+              if (path) {
+                try {
+                  Object.defineProperty(file, 'webkitRelativePath', {
+                    value: path + '/' + file.name,
+                    writable: true,
+                    configurable: true
+                  });
+                } catch (e) {}
+              }
+              files.push(file);
+            } else if (handle.kind === 'directory') {
+              const dirPath = path ? (path + '/' + handle.name) : handle.name;
+              for await (const entry of handle.values()) {
+                await readHandle(entry, dirPath);
+              }
+            }
+          };
+
+          for (const handle of validHandles) {
+            await readHandle(handle);
+          }
+
+          if (files.length > 0) return files;
+        }
+      } catch (err) {
+        console.warn('[BIMScope] getAsFileSystemHandle traversal failed, falling back:', err);
+      }
+    }
+
+    // 2. Fallback to webkitGetAsEntry
+    if (webkitEntries.length > 0) {
+      const readEntry = (entry, path = '') => new Promise((resolve) => {
+        if (!entry) return resolve();
+        if (entry.isFile) {
+          entry.file((f) => {
+            if (!(f.name || '').toLowerCase().endsWith('log.txt')) {
+              const relPath = path ? (path + '/' + f.name) : f.name;
+              try {
+                Object.defineProperty(f, 'webkitRelativePath', {
+                  value: relPath,
+                  writable: true,
+                  configurable: true
+                });
+              } catch (e) {}
+              files.push(f);
+            }
+            resolve();
+          }, () => resolve());
+        } else if (entry.isDirectory) {
+          const dirPath = path ? (path + '/' + entry.name) : entry.name;
+          const reader = entry.createReader();
+          const readAll = () => {
+            reader.readEntries(async (entries) => {
+              if (!entries || entries.length === 0) {
+                resolve();
+              } else {
+                for (const child of entries) {
+                  await readEntry(child, dirPath);
+                }
+                readAll();
+              }
+            }, () => resolve());
+          };
+          readAll();
+        } else {
+          resolve();
+        }
+      });
+
+      for (const entry of webkitEntries) {
+        await readEntry(entry);
+      }
+      if (files.length > 0) return files;
+      if (webkitEntries.some(e => e && e.isDirectory)) {
+        dataTransfer._blockedDirectoryDrop = true;
+        return [];
+      }
+    }
+
+    // 3. Fallback to pre-captured standard DataTransfer.files
+    return rawFiles;
+  }
+
   // Performance Safeguard & File Handling
-  handleFileInput(fileOrFiles) {
+  handleFileInput(fileOrFiles, isAppend = false) {
     if (!fileOrFiles) return;
-    const fileList = (fileOrFiles instanceof FileList || Array.isArray(fileOrFiles)) ? 
+    const rawList = (fileOrFiles instanceof FileList || Array.isArray(fileOrFiles)) ? 
       Array.from(fileOrFiles) : [fileOrFiles];
+    const fileList = rawList.filter(f => !(f.name || '').toLowerCase().endsWith('log.txt'));
     if (fileList.length === 0) return;
+
+    // Check if raw point cloud (.las, .laz) dropped
+    const lasFile = fileList.find(f => {
+      const ext = (f.name || '').split('.').pop().toLowerCase();
+      return ext === 'las' || ext === 'laz';
+    });
+    if (lasFile) {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.showLasConverterModal(lasFile.name);
+      }
+      return;
+    }
+
+    // Check if converted Potree folder/files (metadata.json, octree.bin, or hierarchy.bin)
+    const isPointCloudInput = fileList.some(f => {
+      const name = (f.name || '').split('/').pop().split('\\').pop().toLowerCase();
+      return name === 'metadata.json' || name === 'octree.bin' || name === 'hierarchy.bin';
+    });
+    if (isPointCloudInput) {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.loadFromLocalFiles(fileList, isAppend);
+      }
+      return;
+    }
 
     // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae, .obj)
     const primaryFile = fileList.find(f => {
@@ -6462,15 +7316,15 @@ class BIMViewerApp {
     
     // Performance Guard Check
     if (primaryFile.size > 150 * 1024 * 1024) {
-      this.showSafetyWarning(primaryFile, sizeMB, 'critical', fileList);
+      this.showSafetyWarning(primaryFile, sizeMB, 'critical', fileList, isAppend);
     } else if (primaryFile.size > 50 * 1024 * 1024) {
-      this.showSafetyWarning(primaryFile, sizeMB, 'moderate', fileList);
+      this.showSafetyWarning(primaryFile, sizeMB, 'moderate', fileList, isAppend);
     } else {
-      this.processFiles(primaryFile, fileList);
+      this.processFiles(primaryFile, fileList, false, isAppend);
     }
   }
   
-  showSafetyWarning(primaryFile, sizeMB, level, allFiles = []) {
+  showSafetyWarning(primaryFile, sizeMB, level, allFiles = [], isAppend = false) {
     const modal = document.getElementById('safety-modal');
     const msgEl = document.getElementById('safety-modal-msg');
     const optBtn = document.getElementById('safety-btn-optimize');
@@ -6488,11 +7342,11 @@ class BIMViewerApp {
     
     forceBtn.onclick = () => {
       modal.classList.remove('active');
-      this.processFiles(primaryFile, allFiles, false);
+      this.processFiles(primaryFile, allFiles, false, isAppend);
     };
     optBtn.onclick = () => {
       modal.classList.remove('active');
-      this.processFiles(primaryFile, allFiles, true);
+      this.processFiles(primaryFile, allFiles, true, isAppend);
     };
     document.getElementById('safety-btn-cancel').onclick = () => {
       modal.classList.remove('active');
@@ -7058,7 +7912,8 @@ class BIMViewerApp {
     classifyNode(model);
   }
 
-  processFiles(mainFile, allFiles = [], optimize = false) {
+  processFiles(mainFile, allFiles = [], optimize = false, isAppend = false) {
+    this._isAppendNextFile = Boolean(isAppend);
     const ext = mainFile.name.split('.').pop().toLowerCase();
     this.showProgressModal(true, I18N.t('stageReading'), 10);
     
@@ -7121,11 +7976,13 @@ class BIMViewerApp {
         
         loader.parse(arrayBuffer, '', (gltf) => {
           this.updateProgress(I18N.t('stageMeshing'), 80);
-          this.clearModel();
+          if (!isAppend) this.clearModel();
           registerPendingBlobs();
           
           const model = gltf.scene;
           model.name = mainFile.name;
+          model.userData = model.userData || {};
+          model.userData.fileName = mainFile.name;
           
           this.classifySceneGraphNodes(model, mainFile.name, {
             formatFlag: 'isGLTF',
@@ -7134,7 +7991,7 @@ class BIMViewerApp {
           });
           
           document.getElementById('project-title-text').textContent = mainFile.name;
-          this.setModel(model);
+          this.setModel(model, isAppend);
 
           const stats = this.calculateModelStats(model);
           const sizeStr = mainFile.size > 1048576 ? 
@@ -7159,6 +8016,7 @@ class BIMViewerApp {
             originalSoftware: gltfSoftware,
             stats: stats
           };
+          if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
           this.updateModelSubtitle();
           this.renderModelInfoInspector();
 
@@ -7200,12 +8058,15 @@ class BIMViewerApp {
             return;
           }
           
-          this.clearModel();
+          if (!isAppend) this.clearModel();
+          rootGroup.name = mainFile.name;
+          rootGroup.userData = rootGroup.userData || {};
+          rootGroup.userData.fileName = mainFile.name;
           const titleEl = document.getElementById('project-title-text');
           titleEl.textContent = mainFile.name;
           titleEl.title = mainFile.name;
           
-          this.setModel(rootGroup);
+          this.setModel(rootGroup, isAppend);
 
           const stats = this.calculateModelStats(rootGroup);
           const meta = this.ifcParser.fileMetadata || {};
@@ -7252,6 +8113,7 @@ class BIMViewerApp {
             projectPhase: meta.projectPhase || null,
             stats: stats
           };
+          if (this.modelInfoMap) this.modelInfoMap.set(rootGroup, this.currentModelInfo);
           this.updateModelSubtitle();
           this.renderModelInfoInspector();
 
@@ -7297,14 +8159,14 @@ class BIMViewerApp {
             this.showTextureModal(fbxInfo, blobMap, (skipTextures) => {
               this.showProgressModal(true, I18N.t('stageMeshing'), 60);
               setTimeout(() => {
-                this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, skipTextures, mainFile);
+                this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, skipTextures, mainFile, isAppend);
               }, 40);
             });
           } else {
             // All textures are embedded or already provided in blobMap
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, false, mainFile);
+              this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, false, mainFile, isAppend);
             }, 40);
           }
         } catch (err) {
@@ -7344,14 +8206,14 @@ class BIMViewerApp {
             this.showTextureModal({ textures: missingTextures }, blobMap, (skipTextures) => {
               this.showProgressModal(true, I18N.t('stageMeshing'), 60);
               setTimeout(() => {
-                this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, skipTextures, mainFile);
+                this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, skipTextures, mainFile, isAppend);
               }, 40);
             });
           } else {
             // All textures are provided or no external textures required
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, false, mainFile);
+              this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, false, mainFile, isAppend);
             }, 40);
           }
         } catch (err) {
@@ -7378,7 +8240,7 @@ class BIMViewerApp {
             const objText = oe.target.result;
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadOBJModel(objText, mtlText, manager, mainFile.name, blobMap, false, mainFile);
+              this.loadOBJModel(objText, mtlText, manager, mainFile.name, blobMap, false, mainFile, isAppend);
             }, 40);
           };
           reader.onerror = (err) => {
@@ -7391,7 +8253,7 @@ class BIMViewerApp {
           console.warn("MTL read error, continuing with standalone OBJ:", err);
           reader.onload = (oe) => {
             const objText = oe.target.result;
-            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile, isAppend);
           };
           reader.readAsText(mainFile);
         };
@@ -7401,7 +8263,7 @@ class BIMViewerApp {
           const objText = e.target.result;
           this.updateProgress(I18N.t('stageMeshing'), 60);
           setTimeout(() => {
-            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile, isAppend);
           }, 40);
         };
         reader.onerror = (err) => {
@@ -7413,7 +8275,7 @@ class BIMViewerApp {
 
     } else {
       this.showProgressModal(false);
-      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, .DAE, or .OBJ", "danger");
+      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, .DAE, .OBJ, or Point Cloud (metadata.json + octree.bin)", "danger");
     }
   }
 
@@ -7637,7 +8499,7 @@ class BIMViewerApp {
     renderChecklist();
   }
 
-  loadFBXModel(arrayBuffer, fbxInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+  loadFBXModel(arrayBuffer, fbxInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null, isAppend = false) {
     try {
       const loader = new THREE.FBXLoader(manager);
       loader.skipTextures = skipTextures;
@@ -7694,12 +8556,14 @@ class BIMViewerApp {
         hasBIMKeywords
       });
 
-      this.clearModel();
+      if (!isAppend) this.clearModel();
+      model.userData = model.userData || {};
+      model.userData.fileName = modelName;
       if (blobMap && this._activeBlobUrls) {
         blobMap.forEach(url => this._activeBlobUrls.add(url));
       }
       document.getElementById('project-title-text').textContent = modelName;
-      this.setModel(model);
+      this.setModel(model, isAppend);
 
       const stats = this.calculateModelStats(model);
       const fileObj = primaryFile || (fbxInfo && fbxInfo.file) || null;
@@ -7727,6 +8591,8 @@ class BIMViewerApp {
         originalSoftware: fbxCreator,
         stats: stats
       };
+      if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
+      if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
       this.updateModelSubtitle();
       this.renderModelInfoInspector();
 
@@ -7837,7 +8703,7 @@ class BIMViewerApp {
     };
   }
 
-  loadDAEModel(daeText, daeInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+  loadDAEModel(daeText, daeInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null, isAppend = false) {
     try {
       this.updateProgress(I18N.t('stageMeshing'), 70);
       const loader = new THREE.ColladaLoader(manager);
@@ -7885,12 +8751,14 @@ class BIMViewerApp {
         skipTextures
       });
 
-      this.clearModel();
+      if (!isAppend) this.clearModel();
+      model.userData = model.userData || {};
+      model.userData.fileName = modelName;
       if (blobMap && this._activeBlobUrls) {
         blobMap.forEach(url => this._activeBlobUrls.add(url));
       }
       document.getElementById('project-title-text').textContent = modelName;
-      this.setModel(model);
+      this.setModel(model, isAppend);
 
       const stats = this.calculateModelStats(model);
       const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
@@ -7951,7 +8819,7 @@ class BIMViewerApp {
     }
   }
 
-  loadOBJModel(objText, mtlText, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+  loadOBJModel(objText, mtlText, manager, modelName, blobMap, skipTextures = false, primaryFile = null, isAppend = false) {
     try {
       this.updateProgress(I18N.t('stageMeshing'), 60);
       let materialsCreator = null;
@@ -8053,12 +8921,14 @@ class BIMViewerApp {
         hasBIMKeywords
       });
 
-      this.clearModel();
+      if (!isAppend) this.clearModel();
+      model.userData = model.userData || {};
+      model.userData.fileName = modelName;
       if (blobMap && this._activeBlobUrls) {
         blobMap.forEach(url => this._activeBlobUrls.add(url));
       }
       document.getElementById('project-title-text').textContent = modelName;
-      this.setModel(model);
+      this.setModel(model, isAppend);
 
       const stats = this.calculateModelStats(model);
       const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
@@ -8081,6 +8951,7 @@ class BIMViewerApp {
         isOBJ: true
       };
 
+      if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
       this.initOBJTuningState(model);
       this.updateModelSubtitle();
       this.renderModelInfoInspector();
@@ -8186,8 +9057,7 @@ class BIMViewerApp {
     this.activeModel.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(this.activeModel);
     if (!box.isEmpty()) {
-      this.clippingEngine.setBounds(box);
-      this.clippingEngine.setModel(this.activeModel);
+      this.updateClippingBounds(false);
       const center = new THREE.Vector3();
       box.getCenter(center);
       const sphere = new THREE.Sphere();
@@ -8234,9 +9104,11 @@ class BIMViewerApp {
   updateStats() {
     let triCount = 0;
     let vertCount = 0;
-    if (this.activeModel) {
-      this.activeModel.traverse(obj => {
-        if (this.isModelElementMesh(obj) && obj.geometry) {
+    const models = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+    models.forEach(m => {
+      if (!m || m.visible === false) return;
+      m.traverse(obj => {
+        if (obj.visible !== false && this.isModelElementMesh(obj) && obj.geometry) {
           const geom = obj.geometry;
           if (geom.index) {
             triCount += geom.index.count / 3;
@@ -8248,9 +9120,11 @@ class BIMViewerApp {
           }
         }
       });
-    }
-    document.getElementById('stat-triangles-val').textContent = triCount.toLocaleString();
-    document.getElementById('stat-vertices-val').textContent = vertCount.toLocaleString();
+    });
+    const triEl = document.getElementById('stat-triangles-val');
+    const vertEl = document.getElementById('stat-vertices-val');
+    if (triEl) triEl.textContent = Math.round(triCount).toLocaleString();
+    if (vertEl) vertEl.textContent = Math.round(vertCount).toLocaleString();
   }
   
   // Window Responsive Adaptive Layout:
@@ -8440,13 +9314,13 @@ class BIMViewerApp {
     
     // Mouse Move for Coordinates HUD, Measure, and Gizmo Hover (Throttled with requestAnimationFrame)
     this.canvas.addEventListener('mousemove', (e) => {
-      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY };
+      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY, shiftKey: Boolean(e.shiftKey) };
       if (this.hoverRaf) return;
 
       this.hoverRaf = requestAnimationFrame(() => {
         this.hoverRaf = null;
         if (!this.pendingMouseMoveEvt) return;
-        const { clientX, clientY } = this.pendingMouseMoveEvt;
+        const { clientX, clientY, shiftKey } = this.pendingMouseMoveEvt;
         this.pendingMouseMoveEvt = null;
 
         const rect = this.canvas.getBoundingClientRect();
@@ -8455,9 +9329,24 @@ class BIMViewerApp {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover)
+        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces)
         if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster);
+          const prevHoveredFace = this.clippingEngine.hoveredBoxFace;
+          const prevHoveredGizmo = this.clippingEngine.hoveredGizmo;
+          const prevPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
+          const prevFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(shiftKey));
+          const nowPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
+          const nowFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
+          if (
+            prevHoveredFace !== this.clippingEngine.hoveredBoxFace ||
+            prevHoveredGizmo !== this.clippingEngine.hoveredGizmo ||
+            prevPlaneVis !== nowPlaneVis ||
+            prevFaceVis !== nowFaceVis
+          ) {
+            this.needsRender = true;
+            this.requestRender(150);
+          }
           if (isOverGizmo) {
             this.canvas.style.cursor = 'grab';
             this.clearHoverOverlay();
@@ -8492,7 +9381,7 @@ class BIMViewerApp {
         }
 
         // Target activeModel children instead of entire scene to skip auxiliary cameras/lights/compass
-        const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+        const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
         const intersects = this.raycaster.intersectObjects(searchRoots, true);
         const valid = intersects.filter(hit => this.isPickableElement(hit.object));
 
@@ -8549,20 +9438,31 @@ class BIMViewerApp {
           this.isSnappedToClosurePoint = false;
         }
 
+        let pcHoverHit = null;
+        if (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) {
+          pcHoverHit = this.pointCloudManager.raycast(this.raycaster, 25);
+        }
+
         if (this.isMeasureMode) {
           this.clearHoverOverlay();
           this.canvas.style.cursor = 'crosshair';
           let effectiveHit = snapResult ? {
             point: snapResult.point,
             normal: snapResult.normal,
-            object: snapResult.targetMesh,
+            object: snapResult.targetMesh || snapResult.pointCloud,
+            pointCloud: snapResult.pointCloud || snapResult.targetMesh,
             face: { normal: snapResult.normal },
             isClosureSnap: !!(snapResult && snapResult.isClosureSnap)
-          } : (valid.length > 0 ? valid[0] : null);
+          } : (pcHoverHit ? {
+            point: pcHoverHit.point,
+            normal: pcHoverHit.normal,
+            object: pcHoverHit.pointCloud,
+            pointCloud: pcHoverHit.pointCloud,
+            face: { normal: pcHoverHit.normal }
+          } : (valid.length > 0 ? valid[0] : null));
 
           if (effectiveHit) {
             const p = effectiveHit.point;
-            const northing = Math.abs(p.z);
             if (!this.cachedCoordEls) {
               this.cachedCoordEls = {
                 x: document.getElementById('coord-x'),
@@ -8570,9 +9470,10 @@ class BIMViewerApp {
                 rl: document.getElementById('coord-rl')
               };
             }
-            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(-p.z) < 0.05 ? "0.0" : Math.abs(-p.z).toFixed(1);
-            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+            const c = this.formatMeasurePointCoords(p, effectiveHit.pointCloud);
+            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
+            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
+            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
 
             if (this.measureMode === 'point') {
               this.updateMeasurePointPreview(effectiveHit);
@@ -8613,9 +9514,10 @@ class BIMViewerApp {
           return;
         }
 
-        if (valid.length > 0 || snapResult) {
-          const hitMesh = snapResult ? snapResult.targetMesh : valid[0].object;
-          const p = snapResult ? snapResult.point : (valid.length > 0 ? valid[0].point : null);
+        if (valid.length > 0 || snapResult || pcHoverHit) {
+          const hitMesh = snapResult ? (snapResult.targetMesh || snapResult.pointCloud) : (pcHoverHit ? pcHoverHit.pointCloud : valid[0].object);
+          const p = snapResult ? snapResult.point : (pcHoverHit ? pcHoverHit.point : (valid.length > 0 ? valid[0].point : null));
+          const pco = (snapResult && (snapResult.pointCloud || snapResult.targetMesh)) || (pcHoverHit && pcHoverHit.pointCloud) || (valid.length > 0 && valid[0].object && (valid[0].object.isPointCloud || valid[0].object.isPointCloudOctree) ? valid[0].object : null);
           
           if (!this.cachedCoordEls) {
             this.cachedCoordEls = {
@@ -8625,10 +9527,10 @@ class BIMViewerApp {
             };
           }
           if (p) {
-            const northing = Math.abs(p.z);
-            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
-            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+            const c = this.formatMeasurePointCoords(p, pco);
+            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
+            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
+            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
           }
 
           // Subtle hover highlight on current pointed element
@@ -8722,8 +9624,9 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Check if clicking Section Gizmo (highest priority)
+        // Check if clicking Section Gizmo (highest priority; sync Shift state first so Shift+Click hits back-face gizmos)
         if (this.clippingEngine && this.clippingEngine.enabled) {
+          this.clippingEngine.updateHover(this.raycaster, Boolean(e.shiftKey));
           const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
           if (gizmoHits.length > 0) {
             this.isGizmoDragging = true;
@@ -8810,11 +9713,20 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         let hitPoint = null;
-        if (this.activeModel) {
-          const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
+        let hitDist = Infinity;
+        const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+        if (searchRoots.length > 0) {
+          const intersects = this.raycaster.intersectObjects(searchRoots, true);
           const valid = intersects.filter(h => this.isPickableElement(h.object));
           if (valid.length > 0) {
             hitPoint = valid[0].point;
+            hitDist = valid[0].distance;
+          }
+        }
+        if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+          const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+          if (pcHit && pcHit.point && pcHit.distance < hitDist) {
+            hitPoint = pcHit.point;
           }
         }
         if (hitPoint) {
@@ -8849,7 +9761,7 @@ class BIMViewerApp {
         this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+        const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
         const intersects = this.raycaster.intersectObjects(searchRoots, true);
         const valid = intersects.filter(hit => this.isPickableElement(hit.object));
         let effectiveHit = valid.length > 0 ? valid[0] : null;
@@ -8994,8 +9906,15 @@ class BIMViewerApp {
       if (this.isGizmoDragging) {
         this.isGizmoDragging = false;
         this.clippingEngine.endDrag();
-        this.canvas.style.cursor = 'default';
+        if (this.clippingEngine && this.clippingEngine.enabled && this.camera) {
+          this.raycaster.setFromCamera(this.mouse, this.camera);
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey));
+          this.canvas.style.cursor = isOverGizmo ? 'grab' : 'default';
+        } else {
+          this.canvas.style.cursor = 'default';
+        }
         this.syncSectionUI();
+        this.requestRender(100);
         return;
       }
       if (this.isDraggingMeasurePoint) {
@@ -9181,7 +10100,15 @@ class BIMViewerApp {
     }, { passive: false });
     
     // Drag & Drop
+    // Drag & Drop Dual Mode (Single when empty, Split into Top/Bottom when files present)
     const dropzone = document.getElementById('dropzone-overlay');
+    const dropSingle = document.getElementById('dropzone-single');
+    const dropSplit = document.getElementById('dropzone-split-container');
+    const zoneTop = document.getElementById('dropzone-zone-top');
+    const zoneBottom = document.getElementById('dropzone-zone-bottom');
+
+    let isSplitDropMode = false;
+
     ['dragenter', 'dragover'].forEach(evt => {
       window.addEventListener(evt, (e) => {
         e.preventDefault();
@@ -9198,7 +10125,37 @@ class BIMViewerApp {
           return;
         }
 
-        if (dropzone) dropzone.classList.add('active');
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy';
+        }
+
+        if (!dropzone) return;
+
+        const hasContent = (this.loadedModels && this.loadedModels.length > 0) || 
+                           (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) ||
+                           Boolean(this.activeModel);
+
+        dropzone.classList.add('active');
+
+        if (hasContent && dropSplit && dropSingle) {
+          isSplitDropMode = true;
+          dropSingle.style.display = 'none';
+          dropSplit.style.display = 'flex';
+
+          const rect = dropzone.getBoundingClientRect();
+          const midY = (rect && rect.height > 0) ? (rect.top + rect.height / 2) : (window.innerHeight / 2);
+          if (e.clientY < midY) {
+            if (zoneTop) zoneTop.classList.add('active-zone');
+            if (zoneBottom) zoneBottom.classList.remove('active-zone');
+          } else {
+            if (zoneTop) zoneTop.classList.remove('active-zone');
+            if (zoneBottom) zoneBottom.classList.add('active-zone');
+          }
+        } else {
+          isSplitDropMode = false;
+          if (dropSingle) dropSingle.style.display = 'flex';
+          if (dropSplit) dropSplit.style.display = 'none';
+        }
       });
     });
 
@@ -9206,22 +10163,49 @@ class BIMViewerApp {
       window.addEventListener(evt, (e) => {
         if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
           if (dropzone) dropzone.classList.remove('active');
+          if (zoneTop) zoneTop.classList.remove('active-zone');
+          if (zoneBottom) zoneBottom.classList.remove('active-zone');
         }
       });
     });
 
-    window.addEventListener('drop', (e) => {
+    window.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
+
+      const rect = dropzone ? dropzone.getBoundingClientRect() : null;
+      const midY = (rect && rect.height > 0) ? (rect.top + rect.height / 2) : (window.innerHeight / 2);
+      const hasContent = (this.loadedModels && this.loadedModels.length > 0) || 
+                         (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) ||
+                         Boolean(this.activeModel);
+      const isAppend = Boolean((isSplitDropMode || hasContent) && (e.clientY >= midY));
+
       if (dropzone) dropzone.classList.remove('active');
+      if (zoneTop) zoneTop.classList.remove('active-zone');
+      if (zoneBottom) zoneBottom.classList.remove('active-zone');
 
       // If compare modal or texture modal is open, do not load into main viewport
       if (this.compareEngine && this.compareEngine.isModalOpen()) return;
       const texModal = document.getElementById('texture-modal');
       if (texModal && texModal.classList.contains('active')) return;
 
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        this.handleFileInput(e.dataTransfer.files);
+      if (e.dataTransfer) {
+        // Synchronously snapshot dataTransfer.files BEFORE any await!
+        const rawFiles = Array.from(e.dataTransfer.files || []).filter(f => !(f.name || '').toLowerCase().endsWith('log.txt'));
+        let extractedFiles = [];
+        try {
+          extractedFiles = await this.extractFilesFromDataTransfer(e.dataTransfer);
+        } catch (err) {
+          console.warn('[BIMScope] Directory extraction failed, falling back to files:', err);
+        }
+        if (e.dataTransfer._blockedDirectoryDrop) {
+          if (this.pointCloudManager) this.pointCloudManager.showMissingBinModal(isAppend);
+          return;
+        }
+        const finalFiles = (extractedFiles && extractedFiles.length > 0) ? extractedFiles : rawFiles;
+        if (finalFiles && finalFiles.length > 0) {
+          this.handleFileInput(finalFiles, isAppend);
+        }
       }
     });
   }
@@ -9233,14 +10217,17 @@ class BIMViewerApp {
     // If no element is selected, it displays the root/global context menu.
     this.clearHoverOverlay();
 
-    // Detect if right-clicking on a measurement point marker or on a model surface in Point Measure mode
+    // Detect if right-clicking on a measurement point marker or on a model / point cloud surface
     this.contextMenuMeasureMarker = null;
     this.contextMenuMeasureSurfaceHit = null;
+    this.contextMenuHitPoint = null;
     if (this.canvas && this.camera) {
+      this.camera.updateMatrixWorld(true);
       const rect = this.canvas.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
+      this.contextMenuHitPoint = this.pick3DPointAtRay(this.raycaster);
 
       if (this.measureMarkers && this.measureMarkers.length > 0) {
         const markerHits = this.intersectMeasureMarkers(this.raycaster);
@@ -9298,7 +10285,7 @@ class BIMViewerApp {
       }
 
       if (!this.contextMenuMeasureMarker && this.isMeasureMode && this.measureMode === 'point') {
-        const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+        const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
         const intersects = this.raycaster.intersectObjects(searchRoots, true);
         const valid = intersects.filter(hit => this.isPickableElement(hit.object));
         if (valid.length > 0) {
@@ -9328,18 +10315,27 @@ class BIMViewerApp {
     const itemIsolate = document.getElementById('menu-isolate');
     const itemZoomTo = document.getElementById('menu-zoom-to');
     const itemSectionBox = document.getElementById('menu-section-box');
+    const itemEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
+    const itemEnableSecPlaneHereText = document.getElementById('menu-enable-sec-plane-here-text');
+    const itemEnableSecBoxHere = document.getElementById('menu-enable-sec-box-here');
+    const itemEnableSecBoxHereText = document.getElementById('menu-enable-sec-box-here-text');
     const itemMoveSecHere = document.getElementById('menu-move-sec-here');
     const itemMoveSecHereText = document.getElementById('menu-move-sec-here-text');
     const itemDivider = document.getElementById('menu-selected-divider');
 
-    // Group items - hide on single selection context menu
-    ['menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box'].forEach(id => {
+    // Group items and file items - hide on single selection context menu
+    ['menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
+     'menu-file-divider', 'menu-file-zoom', 'menu-file-isolate', 'menu-file-hide', 'menu-file-remove'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
 
-    const isSecEnabled = this.clippingEngine && this.clippingEngine.enabled;
+    const isSecEnabled = Boolean(this.clippingEngine && this.clippingEngine.enabled);
     const isSecBox = isSecEnabled && this.clippingEngine.mode === 'box';
+    const hasHitPoint = Boolean(this.contextMenuHitPoint);
+
+    if (itemEnableSecPlaneHereText) itemEnableSecPlaneHereText.textContent = I18N.t('menuEnableSectionPlaneHere');
+    if (itemEnableSecBoxHereText) itemEnableSecBoxHereText.textContent = I18N.t('menuEnableSectionBoxHere');
 
     if (hasSelection) {
       if (itemShowAll) itemShowAll.style.display = 'none';
@@ -9353,6 +10349,8 @@ class BIMViewerApp {
 
       if (isSecEnabled) {
         if (itemSectionBox) itemSectionBox.style.display = 'none';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
         if (itemMoveSecHere) {
           itemMoveSecHere.style.display = 'flex';
           if (itemMoveSecHereText) {
@@ -9362,19 +10360,48 @@ class BIMViewerApp {
         }
       } else {
         if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
-        if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        if (hasHitPoint) {
+          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'flex';
+          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
+          if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        } else {
+          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
+          if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        }
       }
     } else {
       if (itemShowAll) itemShowAll.style.display = 'flex';
       if (itemZoomGlobal) itemZoomGlobal.style.display = 'flex';
       if (itemResetView) itemResetView.style.display = 'flex';
-      if (itemDivider) itemDivider.style.display = 'none';
 
       if (itemHide) itemHide.style.display = 'none';
       if (itemIsolate) itemIsolate.style.display = 'none';
       if (itemZoomTo) itemZoomTo.style.display = 'none';
       if (itemSectionBox) itemSectionBox.style.display = 'none';
-      if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+
+      if (isSecEnabled && hasHitPoint) {
+        if (itemDivider) itemDivider.style.display = 'block';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
+        if (itemMoveSecHere) {
+          itemMoveSecHere.style.display = 'flex';
+          if (itemMoveSecHereText) {
+            itemMoveSecHereText.textContent = isSecBox ? 
+              I18N.t('menuMoveSectionBoxToHere') : I18N.t('menuMoveSectionPlaneToHere');
+          }
+        }
+      } else if (!isSecEnabled && hasHitPoint) {
+        if (itemDivider) itemDivider.style.display = 'block';
+        if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'flex';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
+      } else {
+        if (itemDivider) itemDivider.style.display = 'none';
+        if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
+      }
     }
 
     // Sectioning Context Menu Items
@@ -9405,6 +10432,13 @@ class BIMViewerApp {
 
     if (itemResetSecRot) {
       itemResetSecRot.style.display = isSecEnabled ? 'flex' : 'none';
+    }
+
+    const itemDisableSec = document.getElementById('menu-disable-sectioning');
+    const itemDisableSecText = document.getElementById('menu-disable-sectioning-text');
+    if (itemDisableSec) {
+      itemDisableSec.style.display = isSecEnabled ? 'flex' : 'none';
+      if (itemDisableSecText) itemDisableSecText.textContent = I18N.t('menuDisableSectioning');
     }
 
     if (itemSecDivider) {
@@ -9464,14 +10498,71 @@ class BIMViewerApp {
     menu.style.top = `${Math.max(8, top)}px`;
   }
 
+  showFileContextMenu(clientX, clientY, fileItem) {
+    const menu = document.getElementById('context-menu');
+    if (!menu || !fileItem) return;
+
+    this.activeContextMenuFile = fileItem;
+
+    // Hide all element / group / section / measure items
+    const allOtherIds = [
+      'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box',
+      'menu-enable-sec-plane-here', 'menu-enable-sec-box-here', 'menu-move-sec-here', 'menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
+      'menu-sectioning-divider', 'menu-toggle-section-box', 'menu-reset-sec-rot', 'menu-disable-sectioning',
+      'menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point', 'menu-measure-delete-measurement',
+      'menu-measure-insert-point', 'menu-measure-prepend-point', 'menu-measure-append-point', 'menu-measure-break-closure'
+    ];
+    allOtherIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    // Show file action items
+    ['menu-file-divider', 'menu-file-zoom', 'menu-file-isolate', 'menu-file-hide', 'menu-file-remove'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'flex';
+    });
+
+    const isVis = fileItem.visible !== false;
+    const hideTextEl = document.getElementById('menu-file-hide-text') || document.getElementById('menu-file-hide');
+    if (hideTextEl) {
+      hideTextEl.textContent = isVis ? (typeof I18N !== 'undefined' ? I18N.t('menuFileHide') : 'Hide File') : (typeof I18N !== 'undefined' ? I18N.t('showAll') : 'Show File');
+    }
+
+    const container = document.getElementById('viewport-container') || document.body;
+    const vRect = container.getBoundingClientRect();
+    let left = clientX - vRect.left;
+    let top = clientY - vRect.top;
+
+    menu.style.display = 'flex';
+    const mWidth = menu.offsetWidth || 190;
+    const mHeight = menu.offsetHeight || 160;
+
+    if (left + mWidth > vRect.width - 12) {
+      left = vRect.width - mWidth - 12;
+    }
+    if (top + mHeight > vRect.height - 12) {
+      top = vRect.height - mHeight - 12;
+    }
+
+    menu.style.left = `${Math.max(8, left)}px`;
+    menu.style.top = `${Math.max(8, top)}px`;
+  }
+
   showGroupContextMenu(clientX, clientY, groupName, meshes) {
     const menu = document.getElementById('context-menu');
     if (!menu || !meshes || !meshes.length) return;
 
     this.contextGroupMeshes = meshes;
 
+    // Hide file actions
+    ['menu-file-divider', 'menu-file-zoom', 'menu-file-isolate', 'menu-file-hide', 'menu-file-remove'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
     // Hide single-element and root empty selection items
-    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box'].forEach(id => {
+    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box', 'menu-enable-sec-plane-here', 'menu-enable-sec-box-here'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -9534,6 +10625,12 @@ class BIMViewerApp {
     }
 
     if (itemResetSecRot) itemResetSecRot.style.display = isSecEnabled ? 'flex' : 'none';
+    const itemDisableSec = document.getElementById('menu-disable-sectioning');
+    const itemDisableSecText = document.getElementById('menu-disable-sectioning-text');
+    if (itemDisableSec) {
+      itemDisableSec.style.display = isSecEnabled ? 'flex' : 'none';
+      if (itemDisableSecText) itemDisableSecText.textContent = I18N.t('menuDisableSectioning');
+    }
     if (itemSecDivider) itemSecDivider.style.display = (isSecBox || isSecEnabled) ? 'block' : 'none';
 
     ['menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point'].forEach(id => {
@@ -9658,10 +10755,34 @@ class BIMViewerApp {
       };
     }
 
+    const btnEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
+    if (btnEnableSecPlaneHere) {
+      btnEnableSecPlaneHere.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextMenuHitPoint) {
+          this.enableSectionPlaneAtPoint(this.contextMenuHitPoint);
+        }
+      };
+    }
+
+    const btnEnableSecBoxHere = document.getElementById('menu-enable-sec-box-here');
+    if (btnEnableSecBoxHere) {
+      btnEnableSecBoxHere.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextMenuHitPoint) {
+          this.enableSectionBoxAtPoint(this.contextMenuHitPoint);
+        }
+      };
+    }
+
     const btnMoveSecHere = document.getElementById('menu-move-sec-here');
     if (btnMoveSecHere) {
       btnMoveSecHere.onclick = () => {
         this.hideContextMenu();
+        if (this.contextMenuHitPoint) {
+          this.moveSectionToPoint(this.contextMenuHitPoint);
+          return;
+        }
         const target = (this.selectedMeshes && this.selectedMeshes.length > 1) ? 
           this.selectedMeshes : 
           (this.selectedMesh || this.contextGroupMeshes);
@@ -9731,6 +10852,30 @@ class BIMViewerApp {
           this.clippingEngine.resetSectionRotation();
           this.syncSectionUI();
           showToast(I18N.t('secRotResetMsg'), 'success');
+        }
+      };
+    }
+
+    const btnDisableSec = document.getElementById('menu-disable-sectioning');
+    if (btnDisableSec) {
+      btnDisableSec.onclick = () => {
+        this.hideContextMenu();
+        if (this.clippingEngine && this.clippingEngine.enabled) {
+          this.clippingEngine.enabled = false;
+          this.clippingEngine.update();
+          const chkActive = document.getElementById('sec-active-chk');
+          if (chkActive) chkActive.checked = false;
+          if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+            const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
+            if (remaining.length === 0) this.clearSelection();
+            else if (remaining.length !== this.selectedMeshes.length) this.selectElements(remaining);
+          } else if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
+            this.clearSelection();
+          }
+          this.syncSectionUI();
+          this.needsRender = true;
+          this.requestRender(150);
+          showToast(I18N.t('secDisabledMsg'), 'info');
         }
       };
     }
@@ -9813,6 +10958,82 @@ class BIMViewerApp {
         }
       };
     }
+
+    // File Context Menu Event Handlers
+    const btnFileZoom = document.getElementById('menu-file-zoom');
+    if (btnFileZoom) {
+      btnFileZoom.onclick = () => {
+        this.hideContextMenu();
+        const f = this.activeContextMenuFile;
+        if (!f) return;
+        if (f.fileType === 'pointcloud' && f.pco && this.pointCloudManager) {
+          this.pointCloudManager.fitPointCloudView(f.pco);
+        } else if (f.model) {
+          this.zoomToModel(f.model);
+        }
+      };
+    }
+
+    const btnFileIsolate = document.getElementById('menu-file-isolate');
+    if (btnFileIsolate) {
+      btnFileIsolate.onclick = () => {
+        this.hideContextMenu();
+        const target = this.activeContextMenuFile;
+        if (!target) return;
+        if (this.loadedModels) {
+          this.loadedModels.forEach(m => {
+            const isTarget = (m === target.model);
+            m.visible = isTarget;
+            m.traverse(obj => {
+              if (this.isModelElementMesh(obj)) obj.visible = isTarget;
+            });
+          });
+        }
+        if (this.pointCloudManager && this.pointCloudManager.pointClouds) {
+          this.pointCloudManager.pointClouds.forEach(pco => {
+            pco.visible = (pco === target.pco);
+          });
+        }
+        this.buildHierarchyTree();
+        if (this._wakeRender) this._wakeRender(200);
+      };
+    }
+
+    const btnFileHide = document.getElementById('menu-file-hide');
+    if (btnFileHide) {
+      btnFileHide.onclick = () => {
+        this.hideContextMenu();
+        const f = this.activeContextMenuFile;
+        if (!f) return;
+        const newVis = !(f.visible !== false);
+        f.visible = newVis;
+        if (f.fileType === 'pointcloud' && f.pco) {
+          f.pco.visible = newVis;
+        } else if (f.model) {
+          f.model.visible = newVis;
+          f.model.traverse(obj => {
+            if (this.isModelElementMesh(obj)) obj.visible = newVis;
+          });
+        }
+        this.buildHierarchyTree();
+        if (this._wakeRender) this._wakeRender(200);
+      };
+    }
+
+    const btnFileRemove = document.getElementById('menu-file-remove');
+    if (btnFileRemove) {
+      btnFileRemove.onclick = () => {
+        this.hideContextMenu();
+        const f = this.activeContextMenuFile;
+        if (!f) return;
+        if (f.fileType === 'pointcloud' && f.pco && this.pointCloudManager) {
+          this.pointCloudManager.removePointCloud(f.pco);
+        } else if (f.model) {
+          this.removeModel(f.model);
+        }
+        this.activeContextMenuFile = null;
+      };
+    }
   }
 
   // ==========================================
@@ -9880,8 +11101,40 @@ class BIMViewerApp {
       });
     }
 
-    // 5. Global Keyboard Listener
-    window.addEventListener('keydown', (e) => this.handleGlobalKeyDown(e));
+    // 5. Global Keyboard Listener (including Shift keydown/keyup for Section Box back-face pass-through)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') {
+        this.handleSectionBoxShiftChange(true);
+      }
+      this.handleGlobalKeyDown(e);
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') {
+        this.handleSectionBoxShiftChange(false);
+      }
+    });
+    window.addEventListener('blur', () => {
+      if (this.clippingEngine && this.clippingEngine.isShiftDown) {
+        this.handleSectionBoxShiftChange(false);
+      }
+    });
+  }
+
+  handleSectionBoxShiftChange(isShift) {
+    if (!this.clippingEngine) return;
+    this.clippingEngine.setShiftPassThrough(isShift);
+    if (!this.clippingEngine.enabled || this.clippingEngine.mode !== 'box' || this.isGizmoDragging) {
+      return;
+    }
+    if (this.camera) {
+      this.camera.updateMatrixWorld(true);
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, isShift);
+      if (this.canvas && !this.isOrbiting && !this.isPanning) {
+        this.canvas.style.cursor = isOverGizmo ? 'grab' : '';
+      }
+      this.requestRender(150);
+    }
   }
 
   toggleShortcutsMode() {
@@ -10042,6 +11295,10 @@ class BIMViewerApp {
   }
 
   zoomToSelected() {
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected && this.pointCloudManager.activePointCloud) {
+      this.pointCloudManager.fitPointCloudView(this.pointCloudManager.activePointCloud);
+      return;
+    }
     if (this.selectedMeshes && this.selectedMeshes.length > 1) {
       this.zoomToGroup(this.selectedMeshes);
     } else if (this.selectedMesh) {
@@ -10128,13 +11385,16 @@ class BIMViewerApp {
   toggleSectionPlane() {
     if (!this.clippingEngine) return;
     this.openFloatingTools('tab-section-content');
+    this.updateClippingBounds(true);
     const secActive = document.getElementById('sec-active-chk');
     if (!this.clippingEngine.enabled) {
       this.clippingEngine.enabled = true;
       if (secActive) secActive.checked = true;
     }
     this.clippingEngine.mode = 'plane';
+    this.ensureSectionInCurrentView('plane', false);
     this.clippingEngine.update();
+    this.clippingEngine.ensureVisibleGizmo(this.camera);
     this.syncSectionUI();
     this.requestRender(100);
   }
@@ -10142,13 +11402,16 @@ class BIMViewerApp {
   toggleSectionBox() {
     if (!this.clippingEngine) return;
     this.openFloatingTools('tab-section-content');
+    this.updateClippingBounds(true);
     const secActive = document.getElementById('sec-active-chk');
     if (!this.clippingEngine.enabled) {
       this.clippingEngine.enabled = true;
       if (secActive) secActive.checked = true;
     }
     this.clippingEngine.mode = 'box';
+    this.ensureSectionInCurrentView('box', false);
     this.clippingEngine.update();
+    this.clippingEngine.ensureVisibleGizmo(this.camera);
     this.syncSectionUI();
     this.requestRender(100);
   }
@@ -10698,6 +11961,338 @@ class BIMViewerApp {
     showToast(I18N.t('menuHideGroup'), 'info');
   }
 
+  pick3DPointAtRay(raycaster) {
+    if (!raycaster || !this.camera) return null;
+    let bestPt = null;
+    let bestDist = Infinity;
+
+    // 1. Check visible mesh models
+    const searchRoots = (this.loadedModels && this.loadedModels.length > 0)
+      ? this.loadedModels.filter(m => m && m.visible !== false)
+      : (this.activeModel && this.activeModel.visible !== false ? [this.activeModel] : []);
+
+    if (searchRoots.length > 0) {
+      const intersects = raycaster.intersectObjects(searchRoots, true);
+      const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+      if (valid.length > 0) {
+        bestPt = valid[0].point.clone();
+        bestDist = valid[0].distance;
+      }
+    }
+
+    // 2. Check visible point clouds (with CPU & box fallback so right-clicking anywhere on a point cloud succeeds)
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) {
+      const pcHit = this.pointCloudManager.raycast(raycaster, 25, true);
+      if (pcHit && pcHit.point && pcHit.distance < bestDist) {
+        bestPt = pcHit.point.clone();
+        bestDist = pcHit.distance;
+      }
+    }
+
+    return bestPt;
+  }
+
+  isPointInViewport(pt, ndcMargin = 0.84) {
+    if (!pt || !this.camera) return false;
+    this.camera.updateMatrixWorld(true);
+    const ndc = pt.clone().project(this.camera);
+    return (
+      Number.isFinite(ndc.x) &&
+      Number.isFinite(ndc.y) &&
+      Number.isFinite(ndc.z) &&
+      Math.abs(ndc.x) <= ndcMargin &&
+      Math.abs(ndc.y) <= ndcMargin &&
+      ndc.z >= -1.0 &&
+      ndc.z <= 1.0
+    );
+  }
+
+  isAnyBoxGizmoInViewport(ndcMargin = 0.86) {
+    if (!this.clippingEngine || !this.camera) return false;
+    const ce = this.clippingEngine;
+    const hx = ce.boxHalfSizes.x;
+    const hy = ce.boxHalfSizes.y;
+    const hz = ce.boxHalfSizes.z;
+    const faceOffsets = [
+      new THREE.Vector3(hx, 0, 0),
+      new THREE.Vector3(-hx, 0, 0),
+      new THREE.Vector3(0, hy, 0),
+      new THREE.Vector3(0, -hy, 0),
+      new THREE.Vector3(0, 0, hz),
+      new THREE.Vector3(0, 0, -hz)
+    ];
+    for (const off of faceOffsets) {
+      const worldPos = off.clone().applyQuaternion(ce.boxQuaternion).add(ce.boxCenter);
+      if (this.isPointInViewport(worldPos, ndcMargin)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getVisibleViewBounds(ndcLimit = 0.72) {
+    this.updateClippingBounds(true);
+    const fullBounds = (this.clippingEngine && this.clippingEngine.bounds && !this.clippingEngine.bounds.isEmpty())
+      ? this.clippingEngine.bounds.clone()
+      : new THREE.Box3(new THREE.Vector3(-25, -5, -25), new THREE.Vector3(25, 25, 25));
+
+    if (!this.camera) return fullBounds;
+    this.camera.updateMatrixWorld(true);
+
+    const visibleBox = new THREE.Box3();
+    const tmpPt = new THREE.Vector3();
+    const tmpLocal = new THREE.Vector3();
+
+    // A. Sample visible mesh bounding boxes / vertices inside current camera NDC
+    const models = (this.loadedModels && this.loadedModels.length > 0)
+      ? this.loadedModels.filter(m => m && m.visible !== false)
+      : (this.activeModel && this.activeModel.visible !== false ? [this.activeModel] : []);
+
+    models.forEach(model => {
+      model.traverse(obj => {
+        if (!obj.isMesh || !obj.visible) return;
+        const mBox = (obj.userData && obj.userData._cachedWorldBox) || new THREE.Box3().setFromObject(obj);
+        if (!mBox || mBox.isEmpty()) return;
+        mBox.getCenter(tmpPt);
+        if (this.isPointInViewport(tmpPt, ndcLimit)) {
+          visibleBox.expandByPoint(tmpPt);
+        }
+        const corners = [
+          new THREE.Vector3(mBox.min.x, mBox.min.y, mBox.min.z),
+          new THREE.Vector3(mBox.max.x, mBox.min.y, mBox.min.z),
+          new THREE.Vector3(mBox.min.x, mBox.max.y, mBox.min.z),
+          new THREE.Vector3(mBox.max.x, mBox.max.y, mBox.min.z),
+          new THREE.Vector3(mBox.min.x, mBox.min.y, mBox.max.z),
+          new THREE.Vector3(mBox.max.x, mBox.min.y, mBox.max.z),
+          new THREE.Vector3(mBox.min.x, mBox.max.y, mBox.max.z),
+          new THREE.Vector3(mBox.max.x, mBox.max.y, mBox.max.z)
+        ];
+        for (const c of corners) {
+          if (this.isPointInViewport(c, ndcLimit)) {
+            visibleBox.expandByPoint(c);
+          }
+        }
+      });
+    });
+
+    // B. Sample visible point cloud octree points inside current camera NDC
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds) {
+      for (const pco of this.pointCloudManager.pointClouds) {
+        if (!pco || !pco.visible) continue;
+        pco.updateMatrixWorld(true);
+        const rootNode = (pco.pcoGeometry && pco.pcoGeometry.root) || pco.root;
+        const nodes = [];
+        if (Array.isArray(pco.visibleNodes) && pco.visibleNodes.length > 0) {
+          for (const vn of pco.visibleNodes) {
+            if (vn) nodes.push(vn);
+          }
+        }
+        if (rootNode && !nodes.includes(rootNode)) nodes.push(rootNode);
+
+        for (const node of nodes) {
+          const geo = node.geometry || (node.geometryNode && node.geometryNode.geometry);
+          if (!geo || !geo.attributes || !geo.attributes.position || !geo.attributes.position.array) continue;
+          const pos = geo.attributes.position;
+          const count = pos.count || Math.floor(pos.array.length / 3);
+          if (count <= 0) continue;
+          const arr = pos.array;
+          const nodeMin = (node.boundingBox && node.boundingBox.min) ? node.boundingBox.min : { x: 0, y: 0, z: 0 };
+          const stride = count > 800 ? Math.ceil(count / 800) : 1;
+          for (let i = 0; i < count; i += stride) {
+            tmpLocal.set(
+              arr[i * 3] + nodeMin.x,
+              arr[i * 3 + 1] + nodeMin.y,
+              arr[i * 3 + 2] + nodeMin.z
+            );
+            tmpPt.copy(tmpLocal).applyMatrix4(pco.matrixWorld);
+            if (this.isPointInViewport(tmpPt, ndcLimit)) {
+              visibleBox.expandByPoint(tmpPt);
+            }
+          }
+        }
+      }
+    }
+
+    // C. Fallback if zoomed super close where only a surface/target is in view
+    if (visibleBox.isEmpty()) {
+      const centerRay = new THREE.Raycaster();
+      centerRay.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+      const centerHit = this.pick3DPointAtRay(centerRay);
+      const refCenter = centerHit
+        || (this.controls && this.controls.target && this.isPointInViewport(this.controls.target, 0.85) ? this.controls.target.clone() : null)
+        || fullBounds.getCenter(new THREE.Vector3());
+      fullBounds.clampPoint(refCenter, tmpPt);
+      const dist = Math.max(2.0, this.camera.position.distanceTo(tmpPt));
+      const span = Math.max(1.0, dist * 0.32);
+      visibleBox.setFromCenterAndSize(tmpPt, new THREE.Vector3(span * 2, span * 2, span * 2));
+      visibleBox.intersect(fullBounds);
+      if (visibleBox.isEmpty()) {
+        visibleBox.setFromCenterAndSize(tmpPt, new THREE.Vector3(span * 2, span * 2, span * 2));
+      }
+    }
+
+    // Ensure non-zero thickness along all 3 axes
+    const vSize = new THREE.Vector3();
+    visibleBox.getSize(vSize);
+    const vCenter = new THREE.Vector3();
+    visibleBox.getCenter(vCenter);
+    const minThickness = Math.max(0.6, Math.max(vSize.x, vSize.y, vSize.z) * 0.08);
+    if (vSize.x < minThickness || vSize.y < minThickness || vSize.z < minThickness) {
+      visibleBox.setFromCenterAndSize(
+        vCenter,
+        new THREE.Vector3(
+          Math.max(vSize.x, minThickness),
+          Math.max(vSize.y, minThickness),
+          Math.max(vSize.z, minThickness)
+        )
+      );
+    }
+    return visibleBox;
+  }
+
+  computeVisibleBoxHalfSizesAtPoint(centerPt, refViewBox = null) {
+    const viewBox = refViewBox || this.getVisibleViewBounds(0.68);
+    const viewSize = new THREE.Vector3();
+    viewBox.getSize(viewSize);
+
+    let maxHalfSpan = 15.0;
+    if (this.camera) {
+      this.camera.updateMatrixWorld(true);
+      const dist = Math.max(1.5, this.camera.position.distanceTo(centerPt));
+      let halfH;
+      let halfW;
+      if (this.camera.isPerspectiveCamera) {
+        halfH = dist * Math.tan(THREE.MathUtils.degToRad((this.camera.fov || 45) * 0.5));
+        halfW = halfH * (this.camera.aspect || 1.0);
+      } else {
+        const zoom = this.camera.zoom || 1.0;
+        halfH = Math.abs(this.camera.top - this.camera.bottom) * 0.5 / zoom;
+        halfW = Math.abs(this.camera.right - this.camera.left) * 0.5 / zoom;
+      }
+      const ndc = centerPt.clone().project(this.camera);
+      const marginX = Math.max(0.28, 0.88 - Math.min(0.60, Math.abs(ndc.x)));
+      const marginY = Math.max(0.28, 0.88 - Math.min(0.60, Math.abs(ndc.y)));
+      const availSpan = Math.min(halfW * marginX, halfH * marginY);
+      // Divide by sqrt(3) (~1.75) so all 8 corners of an axis-aligned box stay inside the current viewport
+      maxHalfSpan = Math.max(0.5, availSpan / 1.75);
+    }
+
+    const hx = Math.max(0.4, Math.min(maxHalfSpan, (viewSize.x * 0.36) || maxHalfSpan));
+    const hy = Math.max(0.4, Math.min(maxHalfSpan, (viewSize.y * 0.36) || maxHalfSpan));
+    const hz = Math.max(0.4, Math.min(maxHalfSpan, (viewSize.z * 0.36) || maxHalfSpan));
+    return new THREE.Vector3(hx, hy, hz);
+  }
+
+  ensureSectionInCurrentView(mode = (this.clippingEngine ? this.clippingEngine.mode : 'plane'), forceInit = false) {
+    if (!this.clippingEngine) return;
+    const ce = this.clippingEngine;
+    this.updateClippingBounds(true);
+
+    if (mode === 'plane') {
+      const needsInit = forceInit || !ce._planeInitialized || !this.isPointInViewport(ce.planeGroup.position, 0.82);
+      if (needsInit) {
+        const viewBox = this.getVisibleViewBounds(0.70);
+        const targetCenter = new THREE.Vector3();
+        viewBox.getCenter(targetCenter);
+        // Prefer direct surface hit at screen center if it lies within the visible viewBox
+        const centerRay = new THREE.Raycaster();
+        if (this.camera) {
+          centerRay.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+          const centerHit = this.pick3DPointAtRay(centerRay);
+          if (centerHit && this.isPointInViewport(centerHit, 0.75)) {
+            targetCenter.copy(centerHit);
+          }
+        }
+        ce._planeInitialized = true;
+        ce.planeGroup.position.copy(targetCenter);
+        ce.setPlaneAxis(ce.planeAxis || 'Z', true);
+      }
+      ce.ensureVisibleGizmo(this.camera);
+    } else if (mode === 'box') {
+      const needsInit = forceInit || !ce._boxInitialized || !this.isAnyBoxGizmoInViewport(0.86);
+      if (needsInit) {
+        const viewBox = this.getVisibleViewBounds(0.68);
+        const targetCenter = new THREE.Vector3();
+        viewBox.getCenter(targetCenter);
+        const halfSizes = this.computeVisibleBoxHalfSizesAtPoint(targetCenter, viewBox);
+        ce._boxInitialized = true;
+        ce.boxQuaternion.identity();
+        ce.boxCenter.copy(targetCenter);
+        ce.boxHalfSizes.copy(halfSizes);
+        ce.computeBoxRangesFromState();
+        ce.updateBoxPlanesAndHelpers();
+      }
+      ce.ensureVisibleGizmo(this.camera);
+    }
+  }
+
+  moveSectionToPoint(point) {
+    if (!this.clippingEngine || !point) return;
+    this.updateClippingBounds(true);
+    const ce = this.clippingEngine;
+    if (!ce.enabled) {
+      ce.enabled = true;
+      const secActive = document.getElementById('sec-active-chk');
+      if (secActive) secActive.checked = true;
+    }
+    if (ce.mode === 'plane') {
+      ce.movePlaneToPoint(point);
+    } else {
+      ce.moveBoxCenterToPoint(point);
+    }
+    ce.update();
+    ce.ensureVisibleGizmo(this.camera);
+    this.syncSectionUI();
+    this.requestRender(200);
+  }
+
+  enableSectionPlaneAtPoint(point) {
+    if (!this.clippingEngine || !point) return;
+    this.updateClippingBounds(true);
+    const ce = this.clippingEngine;
+    ce.enabled = true;
+    ce.mode = 'plane';
+    ce.helpersVisible = true;
+    ce.boxHelpersVisible = true;
+    ce.planeAxis = 'Z';
+    ce.planeInvert = false;
+    ce._planeInitialized = true;
+    ce.planeGroup.position.copy(point);
+    ce.planeGroup.rotation.set(Math.PI / 2, 0, 0);
+    ce.update();
+    ce.ensureVisibleGizmo(this.camera);
+
+    const secActive = document.getElementById('sec-active-chk');
+    if (secActive) secActive.checked = true;
+    this.syncSectionUI();
+    this.requestRender(200);
+  }
+
+  enableSectionBoxAtPoint(point) {
+    if (!this.clippingEngine || !point) return;
+    this.updateClippingBounds(true);
+    const ce = this.clippingEngine;
+    const viewBox = this.getVisibleViewBounds(0.68);
+    const halfSizes = this.computeVisibleBoxHalfSizesAtPoint(point, viewBox);
+
+    ce.enabled = true;
+    ce.mode = 'box';
+    ce.helpersVisible = true;
+    ce.boxHelpersVisible = true;
+    ce._boxInitialized = true;
+    ce.boxQuaternion.identity();
+    ce.boxCenter.copy(point);
+    ce.boxHalfSizes.copy(halfSizes);
+    ce.computeBoxRangesFromState();
+    ce.update();
+    ce.ensureVisibleGizmo(this.camera);
+
+    const secActive = document.getElementById('sec-active-chk');
+    if (secActive) secActive.checked = true;
+    this.syncSectionUI();
+    this.requestRender(200);
+  }
+
   moveSectionToTarget(target) {
     if (!this.clippingEngine || !this.clippingEngine.enabled) return;
     const box = this.computeBoundsFromTarget(target);
@@ -10706,8 +12301,11 @@ class BIMViewerApp {
     if (this.clippingEngine.mode === 'plane') {
       this.clippingEngine.movePlaneToTarget(box);
     } else {
-      this.clippingEngine.setBoxFromBounds(box, 0.08);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      this.clippingEngine.moveBoxCenterToPoint(center);
     }
+    this.clippingEngine.ensureVisibleGizmo(this.camera);
 
     if (!this.isBoxInFrustum(box)) {
       this.zoomToBox(box);
@@ -10912,7 +12510,7 @@ class BIMViewerApp {
       if (this.clippingEngine.intersectGizmos(this.raycaster).length > 0) return;
     }
 
-    const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+    const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
     const intersects = this.raycaster.intersectObjects(searchRoots, true);
     const valid = intersects.filter(hit => this.isPickableElement(hit.object));
     
@@ -10922,10 +12520,23 @@ class BIMViewerApp {
         const snap = this.snapEngine.currentSnap || this.snapEngine.resolveSnap(e.clientX, e.clientY, this.camera, hit);
         if (snap) {
           hit = {
-            object: snap.targetMesh,
+            object: snap.targetMesh || snap.pointCloud,
             point: snap.point,
             normal: snap.normal,
-            face: { normal: snap.normal }
+            face: { normal: snap.normal },
+            pointCloud: snap.pointCloud || snap.targetMesh
+          };
+        }
+      }
+      if (!hit && this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+        const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+        if (pcHit && pcHit.point) {
+          hit = {
+            object: pcHit.pointCloud,
+            point: pcHit.point,
+            normal: pcHit.normal || new THREE.Vector3(0, 1, 0),
+            face: { normal: pcHit.normal || new THREE.Vector3(0, 1, 0) },
+            pointCloud: pcHit.pointCloud
           };
         }
       }
@@ -11051,12 +12662,23 @@ class BIMViewerApp {
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
     let hitPoint = null;
+    let hitDist = Infinity;
 
-    if (this.activeModel) {
-      const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
+    const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+    if (searchRoots.length > 0) {
+      const intersects = this.raycaster.intersectObjects(searchRoots, true);
       const valid = intersects.filter(h => this.isPickableElement(h.object));
       if (valid.length > 0) {
         hitPoint = valid[0].point;
+        hitDist = valid[0].distance;
+      }
+    }
+
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+      const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+      if (pcHit && pcHit.point && pcHit.distance < hitDist) {
+        hitPoint = pcHit.point;
+        hitDist = pcHit.distance;
       }
     }
 
@@ -11064,8 +12686,12 @@ class BIMViewerApp {
       // Intersect plane facing camera passing through current pivotPoint
       const camDir = new THREE.Vector3();
       this.camera.getWorldDirection(camDir);
-      const pivotRef = this.pivotPoint || this.controls.target;
-      const refPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.negate(), pivotRef);
+      let pivotRef = this.pivotPoint || this.controls.target;
+      const toPiv = new THREE.Vector3().subVectors(pivotRef, this.camera.position);
+      if (toPiv.dot(camDir) < 0.5) {
+        pivotRef = this.camera.position.clone().addScaledVector(camDir, 15.0);
+      }
+      const refPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.clone().negate(), pivotRef);
       const targetPoint = new THREE.Vector3();
       if (this.raycaster.ray.intersectPlane(refPlane, targetPoint)) {
         hitPoint = targetPoint;
@@ -11167,10 +12793,28 @@ class BIMViewerApp {
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+    const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
     const intersects = this.raycaster.intersectObjects(searchRoots, true);
     const valid = intersects.filter(hit => this.isPickableElement(hit.object));
-    if (valid.length === 0) return;
+    if (valid.length === 0) {
+      if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+        const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+        if (pcHit && pcHit.point) {
+          const hitPoint = pcHit.point;
+          const currentDist = this.camera.position.distanceTo(hitPoint);
+          const viewDir = new THREE.Vector3().subVectors(this.camera.position, hitPoint).normalize();
+          if (viewDir.lengthSq() < 0.001) {
+            this.camera.getWorldDirection(viewDir).negate();
+          }
+          const targetDist = Math.max(1.5, Math.min(currentDist * 0.4, 8.0));
+          const targetCam = hitPoint.clone().addScaledVector(viewDir, targetDist);
+          this.pivotPoint.copy(hitPoint);
+          this.showPivotIndicator(hitPoint);
+          this.tweenCamera(targetCam, hitPoint, 400);
+        }
+      }
+      return;
+    }
 
     const hit = valid[0];
     const hitMesh = hit.object;
@@ -13548,17 +15192,37 @@ class BIMViewerApp {
     this.requestRender(200);
   }
 
-  formatMeasurePointCoords(point) {
+  formatMeasurePointCoords(point, pco = null) {
     const unit = this.measureUnit || 'm';
     const scale = unit === 'mm' ? 1000 : 1;
     const decimals = unit === 'mm' ? 0 : 3;
-    // BIM Engineering Coordinate Convention: X = Easting (point.x), Y = Northing (-point.z), Z = Elevation (point.y)
-    const rawX = point.x * scale;
-    const rawY = -point.z * scale;
-    const rawZ = point.y * scale;
+
+    const targetPco = pco || (this.pointCloudManager && this.pointCloudManager.activePointCloud);
+    const mapping = (targetPco && targetPco.userData && targetPco.userData.coordinateMapping) || 'auto';
+
+    // BIM Engineering Coordinate Convention (Y-up world):
+    // World X = Easting (point.x)
+    // World Y = Elevation / RL (point.y)
+    // World Z = -Northing (-point.z)
+    let eastingM = point.x;
+    let northingM = -point.z;
+    let elevationM = point.y;
+
+    if (mapping === 'swap_yz') {
+      const tmp = northingM;
+      northingM = elevationM;
+      elevationM = tmp;
+    }
+
+    const rawX = eastingM * scale;
+    const rawY = northingM * scale;
+    const rawZ = elevationM * scale;
     const cleanZero = (v) => (Math.abs(v) < 1e-5 ? 0 : v);
     return {
       unit,
+      x: cleanZero(eastingM),
+      y: cleanZero(northingM),
+      z: cleanZero(elevationM),
       xStr: `${cleanZero(rawX).toFixed(decimals)} ${unit}`,
       yStr: `${cleanZero(rawY).toFixed(decimals)} ${unit}`,
       zStr: `${cleanZero(rawZ).toFixed(decimals)} ${unit}`
@@ -13586,7 +15250,7 @@ class BIMViewerApp {
     const svgEl = document.getElementById('measure-leader-svg');
     if (!listEl || !svgEl) return;
 
-    const coords = this.formatMeasurePointCoords(marker.point);
+    const coords = this.formatMeasurePointCoords(marker.point, marker.pointCloud);
     const slopeStr = this.formatSlopeString(marker.slopeData);
     const copyTooltip = I18N.t('measureCopyTooltip');
     const slopeLabel = I18N.t('measureMaxSlope');
@@ -13646,7 +15310,7 @@ class BIMViewerApp {
         copyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
-          const c = this.formatMeasurePointCoords(marker.point);
+          const c = this.formatMeasurePointCoords(marker.point, marker.pointCloud);
           const s = this.formatSlopeString(marker.slopeData);
           const text = `X: ${c.xStr}\nY: ${c.yStr}\nZ: ${c.zStr}\n${I18N.t('measureMaxSlope')}: ${s}`;
           copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -16256,7 +17920,7 @@ class BIMViewerApp {
     const ptSlopeEl = document.getElementById('measure-res-pt-slope');
 
     if (activePt) {
-      const c = this.formatMeasurePointCoords(activePt.point);
+      const c = this.formatMeasurePointCoords(activePt.point, activePt.pointCloud);
       const slopeExp = this.formatSlopeExpressions(activePt.slopeData);
       if (elevEl) elevEl.textContent = c.zStr;
       if (ptXEl) ptXEl.textContent = c.xStr;
@@ -16682,14 +18346,82 @@ class BIMViewerApp {
       }
     });
     
-    // 2. Open File Input
+    // 2. Open File & Folder Input with Split Button & Append Menu
     const fileInput = document.getElementById('file-input');
-    document.getElementById('btn-open-file').addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        this.handleFileInput(e.target.files);
-      }
-    });
+    const folderInput = document.getElementById('folder-input');
+    const btnOpenFile = document.getElementById('btn-open-file');
+    const btnOpenDropdown = document.getElementById('btn-open-dropdown');
+    const openMenu = document.getElementById('open-file-dropdown');
+    const menuOpenFolder = document.getElementById('menu-open-folder');
+    const menuAppend = document.getElementById('menu-append-file') || document.getElementById('menu-item-append-file');
+    const menuAppendFolder = document.getElementById('menu-append-folder');
+
+    if (btnOpenFile) {
+      btnOpenFile.addEventListener('click', () => {
+        this._isAppendNextFile = false;
+        if (fileInput) fileInput.click();
+      });
+    }
+
+    if (btnOpenDropdown && openMenu) {
+      btnOpenDropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isShown = openMenu.style.display === 'block';
+        openMenu.style.display = isShown ? 'none' : 'block';
+      });
+      document.addEventListener('click', () => {
+        if (openMenu) openMenu.style.display = 'none';
+      });
+    }
+
+    if (menuOpenFolder) {
+      menuOpenFolder.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (openMenu) openMenu.style.display = 'none';
+        this._isAppendNextFile = false;
+        if (folderInput) folderInput.click();
+      });
+    }
+
+    if (menuAppend) {
+      menuAppend.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (openMenu) openMenu.style.display = 'none';
+        this._isAppendNextFile = true;
+        if (fileInput) fileInput.click();
+      });
+    }
+
+    if (menuAppendFolder) {
+      menuAppendFolder.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (openMenu) openMenu.style.display = 'none';
+        this._isAppendNextFile = true;
+        if (folderInput) folderInput.click();
+      });
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const isAppend = Boolean(this._isAppendNextFile);
+          this._isAppendNextFile = false;
+          this.handleFileInput(e.target.files, isAppend);
+          e.target.value = '';
+        }
+      });
+    }
+
+    if (folderInput) {
+      folderInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const isAppend = Boolean(this._isAppendNextFile);
+          this._isAppendNextFile = false;
+          this.handleFileInput(e.target.files, isAppend);
+          e.target.value = '';
+        }
+      });
+    }
     
     // 3. Demo Model Button
     document.getElementById('btn-load-demo').addEventListener('click', () => {
@@ -17330,8 +19062,13 @@ class BIMViewerApp {
     const secActive = document.getElementById('sec-active-chk');
     secActive.onchange = () => {
       this.clippingEngine.enabled = secActive.checked;
+      if (this.clippingEngine.enabled) {
+        this.ensureSectionInCurrentView(this.clippingEngine.mode, false);
+      }
       this.clippingEngine.update();
-      if (!this.clippingEngine.enabled) {
+      if (this.clippingEngine.enabled) {
+        this.clippingEngine.ensureVisibleGizmo(this.camera);
+      } else {
         if (this.selectedMeshes && this.selectedMeshes.length > 0) {
           const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
           if (remaining.length === 0) this.clearSelection();
@@ -17346,7 +19083,9 @@ class BIMViewerApp {
     const ensureSectioningActive = () => {
       if (!this.clippingEngine.enabled) {
         this.clippingEngine.enabled = true;
+        this.ensureSectionInCurrentView(this.clippingEngine.mode, false);
         this.clippingEngine.update();
+        this.clippingEngine.ensureVisibleGizmo(this.camera);
         if (secActive) secActive.checked = true;
       }
     };
@@ -17370,9 +19109,14 @@ class BIMViewerApp {
     }
     
     const setClippingMode = (mode) => {
-      ensureSectioningActive();
       this.clippingEngine.mode = mode;
+      if (!this.clippingEngine.enabled) {
+        this.clippingEngine.enabled = true;
+        if (secActive) secActive.checked = true;
+      }
+      this.ensureSectionInCurrentView(mode, false);
       this.clippingEngine.update();
+      this.clippingEngine.ensureVisibleGizmo(this.camera);
       if (this.selectedMeshes && this.selectedMeshes.length > 0) {
         const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
         if (remaining.length === 0) this.clearSelection();
@@ -17415,17 +19159,9 @@ class BIMViewerApp {
     if (boxResetBtn) {
       boxResetBtn.onclick = () => {
         ensureSectioningActive();
-        this.clippingEngine.boxQuaternion.identity();
-        this.clippingEngine.boxRanges = { minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1 };
-        ['sec-box-minx', 'sec-box-miny', 'sec-box-minz'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.value = 0;
-        });
-        ['sec-box-maxx', 'sec-box-maxy', 'sec-box-maxz'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.value = 1;
-        });
-        this.clippingEngine.setFromBoxRanges(this.clippingEngine.boxRanges);
+        this.ensureSectionInCurrentView('box', true);
+        this.clippingEngine.update();
+        this.clippingEngine.ensureVisibleGizmo(this.camera);
         this.syncSectionUI();
       };
     }
@@ -17530,8 +19266,7 @@ class BIMViewerApp {
     if (secOffset) {
       secOffset.oninput = () => {
         ensureSectioningActive();
-        this.clippingEngine.planeOffset = parseFloat(secOffset.value);
-        this.clippingEngine.setPlaneAxis(this.clippingEngine.planeAxis);
+        this.clippingEngine.setPlaneOffset(parseFloat(secOffset.value));
         this.syncSectionUI();
       };
     }
@@ -18335,6 +20070,9 @@ class BIMViewerApp {
         if (this.solarEngine && this.solarEngine.setCamera) {
           this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
         }
+        if (this.clippingEngine && this.clippingEngine.enabled && this.clippingEngine.updateGizmoScaleForCamera) {
+          this.clippingEngine.updateGizmoScaleForCamera(this.camera);
+        }
 
         if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
           this.updateMeasureMarkersAndCallouts();
@@ -18374,6 +20112,10 @@ class BIMViewerApp {
       this.isRightDragging ||
       this.isGizmoDragging ||
       this.isDraggingMeasurePoint;
+
+    if (this.pointCloudManager) {
+      this.pointCloudManager.update(this.camera, this.renderer);
+    }
 
     if (shouldRender) {
       this.needsRender = false;

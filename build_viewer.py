@@ -93,6 +93,10 @@ def load_sources(base_dir=BASE_DIR):
         mtl_loader_js = f.read()
     with open(os.path.join(lib_dir, "OBJLoader.js"), "r", encoding="utf-8") as f:
         obj_loader_js = f.read()
+    with open(os.path.join(lib_dir, "potree-core.min.js"), "r", encoding="utf-8") as f:
+        potree_core_js = f.read()
+    with open(os.path.join(src_dir, "point_cloud_manager.js"), "r", encoding="utf-8") as f:
+        point_cloud_manager_js = f.read()
 
     with open(os.path.join(src_dir, "styles.css"), "r", encoding="utf-8") as f:
         styles_css = f.read()
@@ -128,6 +132,8 @@ def load_sources(base_dir=BASE_DIR):
         "collada_loader_js": collada_loader_js,
         "mtl_loader_js": mtl_loader_js,
         "obj_loader_js": obj_loader_js,
+        "potree_core_js": potree_core_js,
+        "point_cloud_manager_js": point_cloud_manager_js,
         "styles_css": styles_css,
         "i18n_js": i18n_js,
         "solar_js": solar_js,
@@ -190,6 +196,8 @@ def generate_html(variant_cfg, sources):
     collada_loader_js = sources["collada_loader_js"]
     mtl_loader_js = sources["mtl_loader_js"]
     obj_loader_js = sources["obj_loader_js"]
+    potree_core_js = sources["potree_core_js"]
+    point_cloud_manager_js = sources["point_cloud_manager_js"]
     i18n_js = sources["i18n_js"]
     solar_js = sources["solar_js"]
     clipping_js = sources["clipping_js"]
@@ -207,7 +215,7 @@ def generate_html(variant_cfg, sources):
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; connect-src 'self' blob: data: http://127.0.0.1:* http://localhost:* https:; worker-src 'self' blob: data:; object-src 'none'; frame-src 'none'; base-uri 'none';">
   <meta name="author" content="{owner}">
   <meta name="creator" content="{owner}">
   <!-- {author_comment} -->
@@ -402,10 +410,28 @@ def generate_html(variant_cfg, sources):
           </svg>
           <span data-i18n="toolCompare">Compare</span>
         </button>
-        <button class="btn-primary" id="btn-open-file" title="Open Model" data-i18n-title="openFile">
-          <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
-          <span data-i18n="openFile">Open Model</span>
-        </button>
+        <div class="split-btn-group" id="open-file-group">
+          <button class="btn-primary split-main-btn" id="btn-open-file" title="Open Model" data-i18n-title="openFile">
+            <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+            <span data-i18n="openFile">Open Model</span>
+          </button>
+          <button class="btn-primary split-arrow-btn" id="btn-open-dropdown" title="File Options" aria-haspopup="true">▾</button>
+          <div class="open-file-dropdown" id="open-file-dropdown" style="display:none">
+            <div class="open-dropdown-item" id="menu-open-folder">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              <span data-i18n="openFolder">Open Folder (Point Cloud / Model)...</span>
+            </div>
+            <div style="height:1px;background:rgba(255,255,255,0.1);margin:4px 0;"></div>
+            <div class="open-dropdown-item" id="menu-append-file">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+              <span data-i18n="appendFile">Append File to Scene...</span>
+            </div>
+            <div class="open-dropdown-item" id="menu-append-folder">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+              <span data-i18n="appendFolder">Append Folder to Scene...</span>
+            </div>
+          </div>
+        </div>
         <button class="tool-btn icon-circle-btn" id="btn-top-shortcuts-hud" title="Keyboard Shortcuts (?)" data-i18n-title="shortcutsViewHudBtn" aria-label="Shortcuts">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
@@ -426,7 +452,8 @@ def generate_html(variant_cfg, sources):
             <circle class="help-question-dot" cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"></circle>
           </svg>
         </button>
-        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.bin,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
+        <input type="file" id="file-input" accept=".ifc,.glb,.gltf,.fbx,.dae,.obj,.mtl,.json,.bin,.las,.laz,.png,.jpg,.jpeg,.webp,.bmp,.tga" multiple style="display:none">
+        <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none">
       </div>
     </header>
 
@@ -562,10 +589,28 @@ def generate_html(variant_cfg, sources):
           <canvas id="compass-canvas3d" width="110" height="110"></canvas>
         </div>
 
-        <!-- Drag & Drop Overlay -->
+        <!-- Drag & Drop Overlay (Single full-screen when empty, Split halves when models exist) -->
         <div id="dropzone-overlay">
-          <svg class="drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-          <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX, DAE or OBJ file to view</div>
+          <div class="dropzone-single" id="dropzone-single">
+            <svg class="drop-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+            <div style="font-size:16px;font-weight:700" data-i18n="dropText">Drop IFC, GLTF/GLB, FBX, DAE, OBJ or Point Cloud to view</div>
+          </div>
+          <div class="dropzone-split-container" id="dropzone-split-container" style="display:none">
+            <div class="dropzone-half dropzone-top" id="dropzone-zone-top">
+              <svg class="drop-icon-sm" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+              <div class="dropzone-zone-text">
+                <div class="dropzone-title" data-i18n="dropNewTitle">在新场景中打开</div>
+                <div class="dropzone-subtitle" data-i18n="dropNewDesc">清空当前内容，作为新项目重新加载</div>
+              </div>
+            </div>
+            <div class="dropzone-half dropzone-bottom" id="dropzone-zone-bottom">
+              <svg class="drop-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+              <div class="dropzone-zone-text">
+                <div class="dropzone-title" data-i18n="dropAppendTitle">追加到当前场景</div>
+                <div class="dropzone-subtitle" data-i18n="dropAppendDesc">保留现有模型与点云，同时在场景中显示</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- FLOATING TOOLS PANEL (Sectioning, Sun & Light, Camera, Measure) -->
@@ -1219,6 +1264,14 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
             <span data-i18n="menuSectionBox">Section Box</span>
           </div>
+          <div class="context-menu-item" id="menu-enable-sec-plane-here" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M3 11h18v2H3v-2zm9-7l-4 4h3v2h2V8h3l-4-4zm0 16l4-4h-3v-2h-2v2H8l4 4z"/></svg>
+            <span id="menu-enable-sec-plane-here-text" data-i18n="menuEnableSectionPlaneHere">Enable Section Plane Here</span>
+          </div>
+          <div class="context-menu-item" id="menu-enable-sec-box-here" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
+            <span id="menu-enable-sec-box-here-text" data-i18n="menuEnableSectionBoxHere">Enable Section Box Here</span>
+          </div>
           <div class="context-menu-item" id="menu-move-sec-here" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
             <span id="menu-move-sec-here-text" data-i18n="menuMoveSectionPlaneToHere">Move Section Plane to Here</span>
@@ -1248,6 +1301,10 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
             <span data-i18n="menuResetSecRot">Reset Sectioning Rotation</span>
           </div>
+          <div class="context-menu-item" id="menu-disable-sectioning" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <span id="menu-disable-sectioning-text" data-i18n="menuDisableSectioning">Turn Off Sectioning</span>
+          </div>
           <div class="context-menu-divider" id="menu-measure-divider" style="display:none"></div>
           <div class="context-menu-item" id="menu-measure-create-point" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:var(--accent)"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>
@@ -1276,6 +1333,23 @@ def generate_html(variant_cfg, sources):
           <div class="context-menu-item" id="menu-measure-break-closure" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="6" y1="9" x2="6" y2="15"></line><line x1="9" y1="18" x2="15" y2="18"></line></svg>
             <span data-i18n="menuBreakClosure">Break Closed Polyline</span>
+          </div>
+          <div class="context-menu-divider" id="menu-file-divider" style="display:none"></div>
+          <div class="context-menu-item" id="menu-file-zoom" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <span id="menu-file-zoom-text" data-i18n="menuFileZoom">Zoom to File</span>
+          </div>
+          <div class="context-menu-item" id="menu-file-isolate" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span id="menu-file-isolate-text" data-i18n="menuFileIsolate">Isolate File</span>
+          </div>
+          <div class="context-menu-item" id="menu-file-hide" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+            <span id="menu-file-hide-text" data-i18n="menuFileHide">Hide File</span>
+          </div>
+          <div class="context-menu-item menu-danger" id="menu-file-remove" style="display:none">
+            <svg viewBox="0 0 24 24" style="fill:#ef4444"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            <span id="menu-file-remove-text" data-i18n="menuFileRemove" style="color:#ef4444;font-weight:600">Remove from Scene</span>
           </div>
         </div>
 
@@ -1395,9 +1469,9 @@ def generate_html(variant_cfg, sources):
       <div class="bottom-status-right">
         <!-- Edge Shadow casting leftwards from the left border of status HUD -->
         <div class="bottom-bar-edge-shadow" id="bottom-bar-edge-shadow"></div>
-        <div class="status-metric">X: <span id="coord-x">697.2</span></div>
-        <div class="status-metric">Y: <span id="coord-y">170.0</span></div>
-        <div class="status-metric">RL: <span id="coord-rl">50.96</span></div>
+        <div class="status-metric">X: <span id="coord-x">0.0</span></div>
+        <div class="status-metric">Y: <span id="coord-y">0.0</span></div>
+        <div class="status-metric">RL: <span id="coord-rl">0.00</span></div>
         <div class="divider"></div>
         <div class="status-metric"><span data-i18n="statTriangles">Triangles</span>: <span id="stat-triangles-val">0</span></div>
         <div class="status-metric"><span data-i18n="statVertices">Vertices</span>: <span id="stat-vertices-val">0</span></div>
@@ -1896,6 +1970,9 @@ def generate_html(variant_cfg, sources):
 {obj_loader_js}
   </script>
   <script>
+{potree_core_js}
+  </script>
+  <script>
 {i18n_js}
   </script>
   <script>
@@ -1903,6 +1980,9 @@ def generate_html(variant_cfg, sources):
   </script>
   <script>
 {clipping_js}
+  </script>
+  <script>
+{point_cloud_manager_js}
   </script>
   <script>
 {ifc_parser_js}

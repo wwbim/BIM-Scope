@@ -1398,26 +1398,169 @@ svg.help-btn-svg {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(10, 14, 22, 0.88);
-  border: 2px dashed var(--accent);
+  background: rgba(10, 14, 22, 0.90);
   display: none;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   z-index: 200;
   color: #fff;
-  gap: 12px;
   pointer-events: none;
+  box-sizing: border-box;
 }
 
 #dropzone-overlay.active {
   display: flex;
 }
 
+.dropzone-single {
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  box-sizing: border-box;
+  padding: 24px;
+}
+
+.dropzone-split-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.dropzone-half {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+
+.dropzone-half.dropzone-top.active-zone {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+  box-shadow: inset 0 0 28px rgba(56, 189, 248, 0.25);
+}
+
+.dropzone-half.dropzone-top.active-zone .drop-icon-sm,
+.dropzone-half.dropzone-top.active-zone .dropzone-title {
+  color: #38bdf8;
+  fill: #38bdf8;
+}
+
+.dropzone-half.dropzone-bottom.active-zone {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.14);
+  box-shadow: inset 0 0 28px rgba(16, 185, 129, 0.25);
+}
+
+.dropzone-half.dropzone-bottom.active-zone .drop-icon-sm,
+.dropzone-half.dropzone-bottom.active-zone .dropzone-title {
+  color: #10b981;
+  stroke: #10b981;
+}
+
+.dropzone-zone-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.dropzone-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.dropzone-subtitle {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
 .drop-icon {
   width: 48px;
   height: 48px;
   fill: var(--accent);
+}
+
+.drop-icon-sm {
+  width: 36px;
+  height: 36px;
+  fill: rgba(255, 255, 255, 0.75);
+}
+
+/* SPLIT BUTTON GROUP (Open File) */
+.split-btn-group {
+  display: inline-flex;
+  align-items: stretch;
+  position: relative;
+}
+
+.split-btn-group .split-main-btn {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.split-btn-group .split-arrow-btn {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  padding: 0 7px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.open-file-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #181d28;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  min-width: 175px;
+  z-index: 1000;
+}
+
+.open-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.open-dropdown-item:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+}
+
+.open-dropdown-item svg {
+  flex-shrink: 0;
 }
 
 /* SIDEBARS */
@@ -1642,6 +1785,65 @@ svg.help-btn-svg {
   width: 100%;
   box-sizing: border-box;
   pointer-events: auto;
+}
+
+.virtual-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-panel-header);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  height: 34px;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.virtual-file-header:hover {
+  background: var(--bg-hover);
+}
+
+.virtual-file-header.selected {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: var(--accent);
+}
+
+.virtual-file-header .file-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.virtual-file-header .file-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.virtual-file-header .file-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.virtual-file-header .file-count {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
 }
 
 .virtual-group-header {
@@ -6762,4 +6964,344 @@ mark.help-match-highlight {
 [data-theme="light"] #pref-shortcuts-segmented .segment-btn.active {
   background: #0284c7;
   color: #ffffff;
+}
+
+
+/* ========================================================================= */
+/* POINT CLOUD & LAS2WEB PREPROCESSING GUIDANCE MODAL (v2)                   */
+/* ========================================================================= */
+.las-converter-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 29, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 10070;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.las-converter-modal-overlay.visible {
+  display: flex;
+  opacity: 1;
+}
+
+.las-modal-card {
+  width: 100%;
+  max-width: 580px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid var(--accent-glow);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), 0 0 30px var(--accent-glow);
+  padding: 24px;
+  transform: translateY(20px) scale(0.97);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+[data-theme="light"] .las-modal-card {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(2, 132, 199, 0.25);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2), 0 0 25px rgba(2, 132, 199, 0.15);
+}
+
+.las-converter-modal-overlay.visible .las-modal-card {
+  transform: translateY(0) scale(1);
+}
+
+.las-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.las-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.las-modal-subtitle {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.las-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.las-modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.las-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.las-file-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.las-reason-box {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+[data-theme="light"] .las-reason-box {
+  background: rgba(241, 245, 249, 0.7);
+}
+
+.las-reason-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.las-reason-desc {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.las-steps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.las-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.las-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.las-step-content {
+  flex: 1;
+}
+
+.las-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.las-step-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.las-tip-hint {
+  font-size: 11.5px;
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.06);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  line-height: 1.45;
+}
+
+.las-modal-footer {
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 14px;
+}
+
+.las-btn-download {
+  flex: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.las-btn-download:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.las-btn-dismiss {
+  flex: 1;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.las-btn-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* POINT CLOUD INSPECTOR CONTROLS */
+.pointcloud-card {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+[data-theme="light"] .pointcloud-card {
+  background: rgba(241, 245, 249, 0.75);
+}
+
+.pc-color-btn, .pc-axis-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.pc-color-btn:hover, .pc-axis-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.pc-color-btn.active, .pc-axis-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+
+/* Point Cloud Hierarchy Tree Item */
+.tree-pointcloud-section {
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.pc-tree-item {
+  transition: all 0.15s ease;
+}
+
+.pc-tree-item:hover {
+  background: rgba(56, 189, 248, 0.16) !important;
+  border-color: rgba(56, 189, 248, 0.5) !important;
+}
+
+.pc-tree-item.selected {
+  background: rgba(56, 189, 248, 0.22) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+
+.pc-tree-focus-btn:hover {
+  background: var(--accent) !important;
+  color: #000000 !important;
+}
+
+/* Tree File Level Header & Rows */
+.tree-file-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  background: var(--bg-surface-2, rgba(255,255,255,0.03));
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+.tree-file-header:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+}
+.tree-file-header.selected {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-left: 3px solid #38bdf8;
+}
+.file-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.file-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.file-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-count {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 4px;
+  flex-shrink: 0;
 }

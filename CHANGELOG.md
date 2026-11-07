@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **76 小时 50 分钟 (76.85 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **38 天 14 小时 04 分钟** (2026-09-29 22:17 至 2026-11-07 12:21)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **30,441 Steps** (跨 38 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **86 小时 30 分钟 (86.51 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **39 天 0 小时 50 分钟** (2026-09-29 22:17 至 2026-11-07 23:07)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **34,994 Steps** (跨 39 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -42,7 +42,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | 多点连续折线测量与闭合多边形面积解算（自相交猩红警示与 Earcut 剖分）、3方多仓库隔离发布管线确立 / Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
 | **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | 双模式快捷键系统（单键/Revit双键）、动态候选列表、平滑飞入导航与帮助手册重构 / Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
 | **2026-11-06** | 19:47~20:39, 22:52~03:19 | 5h 18m (5.32h) | 变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul |
-| **2026-11-07** | 10:25~12:21 | 1h 56m (1.94h) | 功能迭代与持续优化 / Feature development |
+| **2026-11-07** | 10:25~19:17, 20:23~23:07 | 11h 36m (11.60h) | 功能迭代与持续优化 / Feature development |
 ---
 
 ## [v1.2611070315] - 2026-11-07 03:15
