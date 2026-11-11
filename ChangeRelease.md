@@ -11,42 +11,6 @@ This document records all formal version iterations and major changes of BIMScop
 
 ---
 
-## 项目开发耗时统计 / Development Time Metrics
-
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **92 小时 37 分钟 (92.62 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **43 天 2 小时 32 分钟** (2026-09-29 22:17 至 2026-11-12 00:49)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **36,959 Steps** (跨 41 个活跃开发会话 Sprint)  
-> 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
-
-### 阶段与每日工时分解 / Daily Breakdown
-| 日期 / Date | 活跃开发时段 / Active Sprints | 有效工时 / Active Hours | 核心迭代内容 / Milestones |
-| :--- | :--- | :---: | :--- |
-| **2026-09-29** | 22:17\~00:53 | 2h 36m (2.60h) | 项目脚手架初始化、Three.js 单文件离线引擎搭建 / Project scaffold & Three.js engine setup |
-| **2026-09-30** | 23:51\~01:56 | 2h 05m (2.08h) | 3D 罗盘、标高指示、图钉系统与演示模型初始构建 / 3D compass, elevation readouts, pin labels & demo model |
-| **2026-10-01** | 23:28\~01:06 | 1h 38m (1.64h) | 剖切手柄（Gizmo）、着色与材质系统初版 / Section gizmo controls, shader & material styling |
-| **2026-10-02** | 22:04\~01:38 | 3h 34m (3.57h) | FBX 格式扩展、中大型 IFC 流式解析器研发 / FBX format integration, streaming IFC parsing |
-| **2026-10-03** | 09:55\~10:39, 23:11\~03:24 (共 6 个时段) | 9h 07m (9.13h) | 墙体门窗洞口 CSG 布尔减运算、栏杆几何修正、检查器手风琴与层级树重构 / Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02\~10:34, 19:23\~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04\~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
-| **2026-10-06** | 20:29\~21:12 | 0h 43m (0.72h) | 双版本参数化构建系统（BIM Scope / SWBIM Scope）、品牌所有权隔离、多格式元数据档案联动 / Dual-variant parametric build, branding isolation, multi-format metadata sync |
-| **2026-10-07** | 18:43\~22:04, 23:03\~23:05 | 3h 23m (3.39h) | 多版本 IFC 深度对比模式研发、四色工程着色与幽灵体叠加 / Multi-version IFC comparison engine, 4-color diff & ghost mesh |
-| **2026-10-08** | 13:25\~13:42, 21:37\~21:46 (共 3 个时段) | 0h 46m (0.77h) | 模型对比双态差异树、属性差异表与边界熔断优化 / Difference tree, property diff table & comparison safety guards |
-| **2026-10-09** | 22:06\~01:14 | 3h 07m (3.13h) | IFC 几何解析优化、复杂构件平滑折角法线重构 / IFC geometry optimizations & smooth creased normal reconstruction |
-| **2026-10-10** | 19:58\~22:21 | 2h 23m (2.39h) | IFC 递归映射堆栈多层屋檐复原与深层属性提取 / IFC recursive mapped item multi-tier roof fixes & deep pset extraction |
-| **2026-10-11** | 00:31\~01:54, 19:41\~19:55 (共 5 个时段) | 5h 34m (5.58h) | PWA 渐进式应用离线部署、Service Worker 缓存集成 / Progressive Web App (PWA) offline deployment & Service Worker caching |
-| **2026-10-12** | 22:26\~01:18 | 2h 51m (2.85h) | 文档精准校准与多格式元数据档案治理 / Comprehensive documentation alignment & multi-format metadata governance |
-| **2026-10-16** | 23:32\~00:20 | 0h 47m (0.80h) | 代码架构深度体检与安全执行效率评估 / Architecture & codebase health audit, security & performance review |
-| **2026-10-25** | 17:41\~22:51 | 5h 10m (5.18h) | 智能半径/圆弧/球面测量体系与 CAD 级尺寸箭头、单点测量与最大坡度 / Smart radius, arc & sphere measurement, CAD-grade badges, 3D point & slope |
-| **2026-10-26** | 21:24\~21:27 | 0h 02m (0.04h) | 开发规程沉淀与 3D 几何防错准则确立 / Development guidelines & 3D geometry snapping invariants established |
-| **2026-10-27** | 19:50\~20:35, 21:25\~00:21 | 3h 40m (3.67h) | 空间两点测距（ΔX, ΔY, ΔZ, 俯仰角/方位角）、三点空间夹角与水平投影角测量 / 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
-| **2026-10-28** | 21:15\~01:33 | 4h 18m (4.31h) | 多点连续折线测量与闭合多边形面积解算（自相交猩红警示与 Earcut 剖分）、3方多仓库隔离发布管线确立 / Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
-| **2026-11-05** | 20:40\~23:30 | 2h 50m (2.83h) | 双模式快捷键系统（单键/Revit双键）、动态候选列表、平滑飞入导航与帮助手册重构 / Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
-| **2026-11-06** | 19:47\~20:39, 22:52\~03:19 | 5h 18m (5.32h) | 变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul |
-| **2026-11-07** | 10:25\~19:17, 20:23\~01:47 | 14h 16m (14.27h) | 原地环视/极限穿透/穿墙漫游，海量点云渲染与工程分析引擎 (v2 架构确立) / In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
-| **2026-11-09** | 22:24\~22:26 | 0h 01m (0.03h) | 点云着色模型微调与构建管线优化 / Point cloud shader tuning & build pipeline optimization |
-| **2026-11-11** | 21:25\~00:49 | 3h 24m (3.42h) | 双区拖拽追加加载、国际化、多次点击穿透选择与点云 10M 4 档预算滑条 / Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget |
----
-
 ## [v2.2611112245] - 2026-11-11 22:45
 
 ### 双区拖拽追加加载、穿透选择与点云 10M 4 档预算滑条 / Dual-Zone Split Drag Loading, Cycle Pick & Point Cloud 10M Stepped Budget Slider

@@ -111,4 +111,4 @@ This document systematically organizes all features and UI elements of BIMScope 
 当您直接在对话中提出新的功能想法、交互优化或问题改进建议时：
 1. **即时追加**：本表将自动追加对应条目，并赋予 `📋 待办需求 / Backlog` 或 `💡 想法建议 / Idea` 状态；
 2. **状态推进**：当需求开始开发时标记为 `🟡 优化中 / In Progress`，开发完成并通过全量回归验证后标记为 `✅ 已上线 / Released`，同时记录引入的具体版本号（如 `v1.<YYMMDDHHMM>`）；
-3. **版本日志联动**：在 [`CHANGELOG.md`](file:///H:/我的云端硬盘/Software%20Develop/BIM%20Scope/Project/CHANGELOG.md) 中同步沉淀正式的更新日志说明。
+3. **版本日志联动**：在 [`ChangeRelease.md`](./ChangeRelease.md) 中同步沉淀正式的更新日志说明。

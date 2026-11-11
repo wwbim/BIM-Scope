@@ -55,3 +55,6 @@ Thumbs.db
 # Local-only AI handover and internal development documents (DO NOT PUBLISH)
 AI_HANDOVER.md
 *_HANDOVER.md
+
+# Local-only development logs and telemetry metrics (DO NOT PUBLISH; use ChangeRelease.md for release)
+CHANGELOG.md

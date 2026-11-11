@@ -2132,11 +2132,13 @@ def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliver
     except Exception as e:
         print(f"Notice: dev time metrics update skipped: {e}")
 
-    # Generate simplified ChangeRelease.md in Deliverables (without telemetry metrics)
+    # Generate simplified ChangeRelease.md in both Project and Deliverables (without telemetry metrics)
     try:
         import calc_time
         calc_time.generate_change_release(target_changelog, os.path.join(deliv_dir, "ChangeRelease.md"))
-        print(f"[{variant_key}] Generated simplified ChangeRelease.md: {os.path.join(deliv_dir, 'ChangeRelease.md')}")
+        calc_time.generate_change_release(target_changelog, os.path.join(proj_dir, "ChangeRelease.md"))
+        print(f"[{variant_key}] Generated simplified ChangeRelease.md: {os.path.join(proj_dir, 'ChangeRelease.md')}")
+        print(f"[{variant_key}] Exported simplified ChangeRelease.md: {os.path.join(deliv_dir, 'ChangeRelease.md')}")
     except Exception as e:
         print(f"Notice: ChangeRelease.md generation error: {e}")
 

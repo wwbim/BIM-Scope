@@ -161,7 +161,7 @@ python sync_variant_b.py
 ├── variant_config.json      # 双版本参数化发行配置与所有权规则 / Multi-variant config
 ├── BIMScope.html            # 编译生成的单文件便携离线查看器 / Standalone single-file distribution
 ├── index.html               # 镜像入口与 GitHub Pages 根文件 / Mirror entrypoint & Pages root
-├── CHANGELOG.md             # 正式版本演进与工时统计记录 / Release changelog & time metrics
+├── ChangeRelease.md         # 正式版本演进与发布日志 / Release changelog & version history
 ├── FEATURES.md              # 软件功能矩阵与待办需求池 / Features matrix & backlog pool
 ├── .gitignore               # Git 忽略配置 / Git ignore rules
 └── README.md                # 项目综合说明文档 / Project documentation

@@ -173,7 +173,7 @@ def generate_swbim_features(src_features_path, dst_features_path):
     out.append('When you suggest new feature ideas, UX refinements, or enhancements:')
     out.append('1. **Instant Addition**: Added to this matrix with `📋 Backlog` or `💡 Idea` status;')
     out.append('2. **Lifecycle Tracking**: Marked as `🟡 In Progress` during active development, and `✅ Released` upon full verification with version number (`v1.<YYMMDDHHMM>`);')
-    out.append('3. **Release Notes Sync**: Formally documented in [`CHANGELOG.md`](./CHANGELOG.md).\n')
+    out.append('3. **Release Notes Sync**: Formally documented in [`ChangeRelease.md`](./ChangeRelease.md).\n')
 
     res = '\n'.join(out)
     swbim_content = replace_branding_to_swbim(res)
@@ -367,9 +367,17 @@ def run_sync(do_push=False):
     src_changelog = os.path.join(BASE_DIR, "CHANGELOG.md")
     dst_changelog = os.path.join(target_proj_dir, "CHANGELOG.md")
     generate_swbim_changelog(src_changelog, dst_changelog)
-    print("  - Generated tailored CHANGELOG.md for SWBIM Scope (branch history hidden)")
-    shutil.copy2(dst_changelog, os.path.join(target_deliv_dir, "ChangeRelease.md"))
-    print("  - Exported tailored ChangeRelease.md to Deliverables B")
+    print("  - Generated tailored CHANGELOG.md for SWBIM Scope (local only)")
+
+    # Generate clean ChangeRelease.md for Variant B Project and Deliverables (without telemetry)
+    try:
+        import calc_time
+        calc_time.generate_change_release(dst_changelog, os.path.join(target_proj_dir, "ChangeRelease.md"))
+        calc_time.generate_change_release(dst_changelog, os.path.join(target_deliv_dir, "ChangeRelease.md"))
+        print("  - Exported tailored ChangeRelease.md to Project B and Deliverables B")
+    except Exception as e:
+        print(f"  - Notice: ChangeRelease.md generation error: {e}")
+
     old_b_deliv = os.path.join(target_deliv_dir, "CHANGELOG.md")
     if os.path.exists(old_b_deliv):
         try:
