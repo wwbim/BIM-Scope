@@ -602,15 +602,15 @@ def generate_html(variant_cfg, sources):
             <div class="dropzone-half dropzone-top" id="dropzone-zone-top">
               <svg class="drop-icon-sm" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
               <div class="dropzone-zone-text">
-                <div class="dropzone-title" data-i18n="dropNewTitle">在新场景中打开</div>
-                <div class="dropzone-subtitle" data-i18n="dropNewDesc">清空当前内容，作为新项目重新加载</div>
+                <div class="dropzone-title" data-i18n="dropNewTitle">Open in New Scene</div>
+                <div class="dropzone-subtitle" data-i18n="dropNewDesc">Clear current scene and load as a new project</div>
               </div>
             </div>
             <div class="dropzone-half dropzone-bottom" id="dropzone-zone-bottom">
               <svg class="drop-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
               <div class="dropzone-zone-text">
-                <div class="dropzone-title" data-i18n="dropAppendTitle">追加到当前场景</div>
-                <div class="dropzone-subtitle" data-i18n="dropAppendDesc">保留现有模型与点云，同时在场景中显示</div>
+                <div class="dropzone-title" data-i18n="dropAppendTitle">Append to Current Scene</div>
+                <div class="dropzone-subtitle" data-i18n="dropAppendDesc">Keep existing models & point clouds, display together</div>
               </div>
             </div>
           </div>
@@ -2104,30 +2104,42 @@ def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliver
     print(f"[{variant_key}] Exported to Deliverables: {deliv_dir}")
 
     # Sync documentation files if available
-    changelog_src = os.path.join(proj_dir, "CHANGELOG.md")
-    if not os.path.exists(changelog_src):
-        changelog_src = os.path.join(BASE_DIR, "CHANGELOG.md")
-
     features_src = os.path.join(proj_dir, "FEATURES.md")
     if not os.path.exists(features_src):
         features_src = os.path.join(BASE_DIR, "FEATURES.md")
 
-    if os.path.exists(changelog_src):
-        shutil.copy2(changelog_src, os.path.join(deliv_dir, "CHANGELOG.md"))
-    if os.path.exists(features_src):
-        shutil.copy2(features_src, os.path.join(deliv_dir, "FEATURES.md"))
+    # Auto-calculate and update project development time in CHANGELOG.md (Project only)
+    target_changelog = os.path.join(proj_dir, "CHANGELOG.md")
+    if not os.path.exists(target_changelog):
+        target_changelog = os.path.join(BASE_DIR, "CHANGELOG.md")
 
-    # Auto-calculate and update project development time in CHANGELOG.md
     try:
         import calc_time
-        target_changelog = os.path.join(proj_dir, "CHANGELOG.md")
         if os.path.exists(target_changelog):
             calc_time.update_changelog(target_changelog)
-            shutil.copy2(target_changelog, os.path.join(deliv_dir, "CHANGELOG.md"))
         else:
             calc_time.update_changelog()
     except Exception as e:
         print(f"Notice: dev time metrics update skipped: {e}")
+
+    # Generate simplified ChangeRelease.md in Deliverables (without telemetry metrics)
+    try:
+        import calc_time
+        calc_time.generate_change_release(target_changelog, os.path.join(deliv_dir, "ChangeRelease.md"))
+        print(f"[{variant_key}] Generated simplified ChangeRelease.md: {os.path.join(deliv_dir, 'ChangeRelease.md')}")
+    except Exception as e:
+        print(f"Notice: ChangeRelease.md generation error: {e}")
+
+    # Ensure Deliverables does not retain old full CHANGELOG.md
+    old_deliv_changelog = os.path.join(deliv_dir, "CHANGELOG.md")
+    if os.path.exists(old_deliv_changelog):
+        try:
+            os.remove(old_deliv_changelog)
+        except Exception:
+            pass
+
+    if os.path.exists(features_src):
+        shutil.copy2(features_src, os.path.join(deliv_dir, "FEATURES.md"))
 
     return {
         "variant": variant_key,

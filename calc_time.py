@@ -35,7 +35,11 @@ MILESTONES_A = {
     "2026-10-27": "空间两点测距（ΔX, ΔY, ΔZ, 俯仰角/方位角）、三点空间夹角与水平投影角测量 / 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing",
     "2026-10-28": "多点连续折线测量与闭合多边形面积解算（自相交猩红警示与 Earcut 剖分）、3方多仓库隔离发布管线确立 / Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline",
     "2026-11-05": "双模式快捷键系统（单键/Revit双键）、动态候选列表、平滑飞入导航与帮助手册重构 / Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor",
-    "2026-11-06": "变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul"
+    "2026-11-06": "变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul",
+    "2026-11-07": "原地环视/极限穿透/穿墙漫游，海量点云渲染与工程分析引擎 (v2 架构确立) / In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established)",
+    "2026-11-08": "视口边缘离屏指示雷达指针与测距提示 / Off-screen selection radar indicator & distance tracking",
+    "2026-11-09": "点云着色模型微调与构建管线优化 / Point cloud shader tuning & build pipeline optimization",
+    "2026-11-11": "双区拖拽追加加载、国际化、多次点击穿透选择与点云 10M 4 档预算滑条 / Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget"
 }
 
 MILESTONES_B = {
@@ -139,7 +143,7 @@ def calculate_time_metrics(base_dir=BASE_DIR):
         if d not in daily_sessions:
             daily_sessions[d] = {"sec": 0, "intervals": []}
         daily_sessions[d]["sec"] += dur.total_seconds()
-        daily_sessions[d]["intervals"].append(f"{st.strftime('%H:%M')}~{en.strftime('%H:%M')}")
+        daily_sessions[d]["intervals"].append(f"{st.strftime('%H:%M')}\\~{en.strftime('%H:%M')}")
 
     breakdown = []
     for d in sorted(daily_sessions.keys()):
@@ -230,13 +234,14 @@ def update_changelog(changelog_path=None):
     new_section = format_metrics_markdown(metrics, is_swbim=is_swbim)
 
     # Check if section already exists in CHANGELOG.md
-    pattern = r"## (项目开发耗时统计 / )?Development Time Metrics.*?(?=\n---\n\n## \[v1\.|\Z)"
+    pattern = r"## (项目开发耗时统计 / )?Development Time Metrics.*?(?=\n---\n\n## \[(?:v1|v2)\.|\Z)"
     if re.search(pattern, content, flags=re.DOTALL):
         updated_content = re.sub(pattern, new_section.rstrip(), content, flags=re.DOTALL)
     else:
-        # Insert before the first version header "## [v1."
-        first_version_pos = content.find("## [v1.")
-        if first_version_pos != -1:
+        # Insert before the first version header "## [v1." or "## [v2."
+        m_pos = re.search(r"## \[(?:v1|v2)\.", content)
+        if m_pos:
+            first_version_pos = m_pos.start()
             updated_content = (
                 content[:first_version_pos]
                 + new_section
@@ -250,6 +255,20 @@ def update_changelog(changelog_path=None):
         f.write(updated_content)
 
     print(f"Successfully updated {target_path} with total development time: {metrics['active_hrs']}h {metrics['active_mins']:02d}m ({metrics['active_hrs_dec']:.2f}h)")
+    return True
+
+def generate_change_release(src_changelog_path, dst_change_release_path):
+    """Generates a simplified ChangeRelease.md without development time metrics or daily breakdown."""
+    if not os.path.exists(src_changelog_path):
+        return False
+    with open(src_changelog_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    pattern = r"\n## (?:项目开发耗时统计 / )?Development Time Metrics.*?\n---\n(?=\n## \[(?:v1|v2)\.)"
+    simplified = re.sub(pattern, "", content, flags=re.DOTALL)
+
+    with open(dst_change_release_path, "w", encoding="utf-8") as f:
+        f.write(simplified)
     return True
 
 if __name__ == '__main__':

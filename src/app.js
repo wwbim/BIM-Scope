@@ -2982,10 +2982,41 @@ class BIMViewerApp {
       el.className = 'offscreen-indicator';
       el.innerHTML = `
         <div class="offscreen-target" id="offscreen-target">
-          <div class="offscreen-target-core"></div>
+          <svg class="offscreen-target-svg" viewBox="0 0 54 54">
+            <defs>
+              <linearGradient id="offscreen-ring-grad" x1="20%" y1="0%" x2="80%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="35%" stop-color="#eaedf2"/>
+                <stop offset="75%" stop-color="#cbd1db"/>
+                <stop offset="100%" stop-color="#9aa0ad"/>
+              </linearGradient>
+              <radialGradient id="offscreen-dome-grad" cx="42%" cy="32%" r="65%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="45%" stop-color="#eaedf2"/>
+                <stop offset="80%" stop-color="#c6ccd6"/>
+                <stop offset="100%" stop-color="#939ba8"/>
+              </radialGradient>
+              <linearGradient id="offscreen-chev-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="60%" stop-color="#e2e6eb"/>
+                <stop offset="100%" stop-color="#c8ced8"/>
+              </linearGradient>
+            </defs>
+            <circle cx="27" cy="27" r="26" fill="#202226" stroke="#000000" stroke-width="2"/>
+            <circle cx="27" cy="27" r="23" fill="none" stroke="url(#offscreen-ring-grad)" stroke-width="4.5"/>
+            <circle cx="27" cy="27" r="18.5" fill="#202226" stroke="#000000" stroke-width="1.8"/>
+            <circle cx="27" cy="27" r="11" fill="url(#offscreen-dome-grad)" stroke="#2b303a" stroke-width="1"/>
+          </svg>
           <div class="offscreen-pointer" id="offscreen-pointer">
-            <svg class="offscreen-pointer-svg" viewBox="0 0 28 28">
-              <path d="M 4 4 L 20 14 L 4 24 L 9 14 Z" fill="#e2e8f0" stroke="#000000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg class="offscreen-pointer-svg" viewBox="0 0 54 54">
+              <path d="M 82.5 25.5 
+                       Q 82.5 27 82.5 28.5
+                       L 68 41
+                       Q 63 43.5 62.5 38.5
+                       Q 66.5 27 62.5 15.5
+                       Q 63 10.5 68 13
+                       Z"
+                    fill="url(#offscreen-chev-grad)" stroke="#000000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
             </svg>
           </div>
         </div>
@@ -3111,8 +3142,8 @@ class BIMViewerApp {
     if (cw <= 0 || ch <= 0) return;
 
     // Keep circle center safely away from viewport edges to leave room for the orbiting arrow
-    const padX = 70;
-    const padY = 60;
+    const padX = 75;
+    const padY = 65;
     const cx = cw / 2;
     const cy = ch / 2;
     const hw = Math.max(10, cx - padX);
@@ -3136,10 +3167,10 @@ class BIMViewerApp {
     if (this.offscreenDistEl) {
       if (px > cx) {
         this.offscreenDistEl.style.left = 'auto';
-        this.offscreenDistEl.style.right = 'calc(100% + 12px)';
+        this.offscreenDistEl.style.right = 'calc(100% + 14px)';
       } else {
         this.offscreenDistEl.style.right = 'auto';
-        this.offscreenDistEl.style.left = 'calc(100% + 12px)';
+        this.offscreenDistEl.style.left = 'calc(100% + 14px)';
       }
     }
 
@@ -6722,6 +6753,8 @@ class BIMViewerApp {
   }
   
   clearSelection(keepPointCloud = false) {
+    this._penetrateState = null;
+    this.hidePenetratePickBadge();
     this.selectedModel = null;
     this.selectedMesh = null;
     this.selectedMeshes = [];
@@ -12795,7 +12828,35 @@ class BIMViewerApp {
 
     const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
     const intersects = this.raycaster.intersectObjects(searchRoots, true);
-    const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+    
+    // Filter and deduplicate unique meshes, excluding clipped intersections
+    const candidateHits = [];
+    const seenMeshes = new Set();
+    const clippingPlanes = (this.clippingEngine && this.clippingEngine.enabled && this.clippingEngine.clippingPlanes) 
+      ? this.clippingEngine.clippingPlanes 
+      : [];
+
+    for (let i = 0; i < intersects.length; i++) {
+      const hit = intersects[i];
+      const mesh = hit.object;
+      if (!this.isPickableElement(mesh)) continue;
+      if (seenMeshes.has(mesh)) continue;
+
+      if (clippingPlanes.length > 0) {
+        let isClipped = false;
+        for (let p = 0; p < clippingPlanes.length; p++) {
+          if (clippingPlanes[p].distanceToPoint(hit.point) < 0) {
+            isClipped = true;
+            break;
+          }
+        }
+        if (isClipped) continue;
+      }
+
+      seenMeshes.add(mesh);
+      candidateHits.push(hit);
+    }
+    const valid = candidateHits;
     
     if (this.isMeasureMode) {
       let hit = valid.length > 0 ? valid[0] : null;
@@ -12881,11 +12942,13 @@ class BIMViewerApp {
     const isCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
 
-    if (valid.length > 0) {
-      const hitMesh = valid[0].object;
-      const hitPoint = valid[0].point;
+    if (candidateHits.length > 0) {
+      const hitMesh = candidateHits[0].object;
+      const hitPoint = candidateHits[0].point;
 
       if (isCtrl) {
+        this._penetrateState = null;
+        this.hidePenetratePickBadge();
         // Toggle selection
         const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
           [...this.selectedMeshes] : 
@@ -12904,6 +12967,8 @@ class BIMViewerApp {
           this.selectElements(current);
         }
       } else if (isShift) {
+        this._penetrateState = null;
+        this.hidePenetratePickBadge();
         // Remove from selection
         const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
           [...this.selectedMeshes] : 
@@ -12920,17 +12985,112 @@ class BIMViewerApp {
           }
         }
       } else {
-        this.selectElement(hitMesh, hitPoint);
+        // Normal single click: check if multi-click penetration cycling applies
+        const camHash = this.camera ? `${this.camera.position.x.toFixed(2)},${this.camera.position.y.toFixed(2)},${this.camera.position.z.toFixed(2)}_${this.camera.quaternion.x.toFixed(2)},${this.camera.quaternion.y.toFixed(2)},${this.camera.quaternion.z.toFixed(2)}` : '';
+        
+        let cycleIndex = 0;
+        if (candidateHits.length >= 2 &&
+            this._penetrateState &&
+            this._penetrateState.camHash === camHash &&
+            Math.hypot(e.clientX - this._penetrateState.clientX, e.clientY - this._penetrateState.clientY) <= 4 &&
+            this._penetrateState.candidateMeshes &&
+            this._penetrateState.candidateMeshes.length === candidateHits.length) {
+          const sameStack = this._penetrateState.candidateMeshes.every((m, idx) => m === candidateHits[idx].object);
+          if (sameStack) {
+            cycleIndex = (this._penetrateState.index + 1) % candidateHits.length;
+          }
+        }
+
+        const chosenHit = candidateHits[cycleIndex];
+        this.selectElement(chosenHit.object, chosenHit.point);
+
+        if (candidateHits.length >= 2) {
+          this._penetrateState = {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            camHash: camHash,
+            candidateMeshes: candidateHits.map(h => h.object),
+            index: cycleIndex
+          };
+          this.showPenetratePickBadge(e.clientX, e.clientY, cycleIndex + 1, candidateHits.length, chosenHit.object);
+        } else {
+          this._penetrateState = null;
+          this.hidePenetratePickBadge();
+        }
       }
     } else {
+      this._penetrateState = null;
+      this.hidePenetratePickBadge();
       if (!isCtrl && !isShift) {
         this.clearSelection();
       }
     }
   }
 
+  showPenetratePickBadge(clientX, clientY, current, total, mesh) {
+    if (!this.container) return;
+    let badge = document.getElementById('penetrate-pick-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'penetrate-pick-badge';
+      badge.className = 'penetrate-pick-badge';
+      this.container.appendChild(badge);
+    }
+
+    const meta = (mesh && mesh.userData) || {};
+    const name = meta.element || meta.name || (mesh && mesh.name) || (typeof I18N !== 'undefined' ? I18N.t('unnamedElement') : 'Element');
+    const badgeTitle = typeof I18N !== 'undefined' ? I18N.t('cyclePickBadge') : '穿透选择';
+
+    badge.innerHTML = `
+      <span class="badge-icon">🎯</span>
+      <span class="badge-title">${this.escapeHtml(badgeTitle)}</span>
+      <span class="badge-counter">${current}/${total}</span>
+      <span class="badge-sep">·</span>
+      <span class="badge-name" title="${this.escapeHtml(name)}">${this.escapeHtml(name)}</span>
+    `;
+
+    const rect = this.container.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+
+    const badgeW = 230;
+    const badgeH = 34;
+    let posX = localX + 16;
+    let posY = localY + 16;
+
+    if (posX + badgeW > rect.width - 8) {
+      posX = Math.max(8, localX - badgeW - 12);
+    }
+    if (posY + badgeH > rect.height - 8) {
+      posY = Math.max(8, localY - badgeH - 12);
+    }
+
+    badge.style.left = `${Math.round(posX)}px`;
+    badge.style.top = `${Math.round(posY)}px`;
+    badge.classList.add('visible');
+
+    if (this._penetrateBadgeTimer) {
+      clearTimeout(this._penetrateBadgeTimer);
+    }
+    this._penetrateBadgeTimer = setTimeout(() => {
+      this.hidePenetratePickBadge();
+    }, 1500);
+  }
+
+  hidePenetratePickBadge() {
+    if (this._penetrateBadgeTimer) {
+      clearTimeout(this._penetrateBadgeTimer);
+      this._penetrateBadgeTimer = null;
+    }
+    const badge = document.getElementById('penetrate-pick-badge');
+    if (badge && badge.classList.contains('visible')) {
+      badge.classList.remove('visible');
+    }
+  }
+
   handleWheelZoom(e) {
     if (e.cancelable) e.preventDefault();
+    this.hidePenetratePickBadge();
 
     if (this.viewWheelDebounceTimer) {
       clearTimeout(this.viewWheelDebounceTimer);

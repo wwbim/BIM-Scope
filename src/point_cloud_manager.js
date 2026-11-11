@@ -78,6 +78,9 @@ class LocalFileRequestManager {
   }
 }
 
+const PC_BUDGET_TIERS = [1000000, 2000000, 5000000, 10000000];
+const PC_BUDGET_LABELS = ['1M', '2M', '5M', '10M'];
+
 class BIMPointCloudManager {
   constructor(app) {
     this.app = app;
@@ -100,6 +103,30 @@ class BIMPointCloudManager {
 
     // Check URL parameters on initialization
     this.checkUrlParameters();
+  }
+
+  budgetToTierIndex(budget) {
+    const val = parseInt(budget, 10) || 2000000;
+    let closestIdx = 1;
+    let minDiff = Infinity;
+    for (let i = 0; i < PC_BUDGET_TIERS.length; i++) {
+      const diff = Math.abs(PC_BUDGET_TIERS[i] - val);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }
+
+  tierIndexToBudget(idx) {
+    const i = Math.max(0, Math.min(PC_BUDGET_TIERS.length - 1, parseInt(idx, 10) || 0));
+    return PC_BUDGET_TIERS[i];
+  }
+
+  getBudgetDisplay(budget) {
+    const idx = this.budgetToTierIndex(budget);
+    return `${PC_BUDGET_LABELS[idx]} pts`;
   }
 
   initPotree() {
@@ -1306,13 +1333,21 @@ class BIMPointCloudManager {
         <input type="range" id="pc-slider-size" min="0.2" max="4.0" step="0.1" value="${settings.pointSize}" style="width:100%;">
       </div>
 
-      <!-- Point Budget Slider -->
-      <div class="pc-control-row" style="margin-bottom:10px;">
+      <!-- Point Budget Stepped Slider -->
+      <div class="pc-control-row" style="margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
           <span>${isZh ? '点云预算 / 密度 (Budget)' : 'Point Budget'}</span>
-          <span id="pc-val-budget" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${(settings.pointBudget / 1000000).toFixed(1)}M pts</span>
+          <span id="pc-val-budget" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${this.getBudgetDisplay(settings.pointBudget)}</span>
         </div>
-        <input type="range" id="pc-slider-budget" min="500000" max="5000000" step="250000" value="${settings.pointBudget}" style="width:100%;">
+        <div class="pc-budget-slider-wrap" style="position:relative; padding:0 1px;">
+          <input type="range" id="pc-slider-budget" min="0" max="3" step="1" value="${this.budgetToTierIndex(settings.pointBudget)}" style="width:100%; cursor:pointer;">
+          <div class="pc-budget-ticks" id="pc-budget-ticks">
+            <span class="pc-budget-tick ${this.budgetToTierIndex(settings.pointBudget) === 0 ? 'active' : ''}" data-tier="0">1M</span>
+            <span class="pc-budget-tick ${this.budgetToTierIndex(settings.pointBudget) === 1 ? 'active' : ''}" data-tier="1">2M</span>
+            <span class="pc-budget-tick ${this.budgetToTierIndex(settings.pointBudget) === 2 ? 'active' : ''}" data-tier="2">5M</span>
+            <span class="pc-budget-tick ${this.budgetToTierIndex(settings.pointBudget) === 3 ? 'active' : ''}" data-tier="3">10M</span>
+          </div>
+        </div>
       </div>
 
       <!-- Color Mode Selector -->
@@ -1393,14 +1428,34 @@ class BIMPointCloudManager {
 
     const sliderBudget = card.querySelector('#pc-slider-budget');
     const valBudget = card.querySelector('#pc-val-budget');
+    const budgetTicks = card.querySelectorAll('.pc-budget-tick');
+
+    const setBudgetTier = (tierIdx) => {
+      const idx = Math.max(0, Math.min(3, parseInt(tierIdx, 10) || 0));
+      if (sliderBudget) sliderBudget.value = idx;
+      const s = this.getPointCloudSettings(pco);
+      s.pointBudget = PC_BUDGET_TIERS[idx];
+      if (valBudget) valBudget.textContent = `${PC_BUDGET_LABELS[idx]} pts`;
+      budgetTicks.forEach(tick => {
+        const t = parseInt(tick.getAttribute('data-tier'), 10);
+        tick.classList.toggle('active', t === idx);
+      });
+      if (this.app._wakeRender) this.app._wakeRender(300);
+    };
+
     if (sliderBudget) {
       sliderBudget.addEventListener('input', (e) => {
-        const s = this.getPointCloudSettings(pco);
-        s.pointBudget = parseInt(e.target.value, 10);
-        if (valBudget) valBudget.textContent = `${(s.pointBudget / 1000000).toFixed(1)}M pts`;
-        if (this.app._wakeRender) this.app._wakeRender(300);
+        setBudgetTier(e.target.value);
       });
     }
+
+    budgetTicks.forEach(tick => {
+      tick.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tier = tick.getAttribute('data-tier');
+        setBudgetTier(tier);
+      });
+    });
 
     const colorBtns = card.querySelectorAll('.pc-color-btn');
     colorBtns.forEach(btn => {

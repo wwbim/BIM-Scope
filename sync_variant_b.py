@@ -189,7 +189,7 @@ def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
         content = f.read()
 
     # 1. Remove v1.2610062100 dual-variant release note block completely
-    pattern = r"\n## \[v1\.2610062100\].*?\n---\n(?=\n## \[v1\.)"
+    pattern = r"\n## \[v1\.2610062100\].*?\n---\n(?=\n## \[(?:v1|v2)\.)"
     content = re.sub(pattern, "", content, flags=re.DOTALL)
 
     lines = content.splitlines()
@@ -200,14 +200,14 @@ def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
     out.append('# Changelog\n')
     out.append('This document records all formal version iterations and major changes of SWBIM Scope since project initiation.\n')
     out.append('> **Versioning Convention**:  ')
-    out.append('> - Major version is fixed at `v1` (displayed as `v1` in everyday usage);  ')
-    out.append('> - Full sub-version follows `v1.<YYMMDDHHMM>`, where the 10-digit timestamp represents Year, Month, Day, Hour, Minute.\n')
+    out.append('> - Major version formally upgraded to `v2` starting from massive point cloud support (previously `v1`, displayed as `v2` / `v1` in everyday usage);  ')
+    out.append('> - Full sub-version follows `<v1|v2>.<YYMMDDHHMM>`, where the 10-digit timestamp represents Year, Month, Day, Hour, Minute.\n')
     out.append('---\n')
 
     # Find where the first version begins
     v_pos = -1
     for idx, l in enumerate(lines):
-        if re.match(r'^## \[v1\.', l):
+        if re.match(r'^## \[(?:v1|v2)\.', l):
             v_pos = idx
             break
 
@@ -368,7 +368,14 @@ def run_sync(do_push=False):
     dst_changelog = os.path.join(target_proj_dir, "CHANGELOG.md")
     generate_swbim_changelog(src_changelog, dst_changelog)
     print("  - Generated tailored CHANGELOG.md for SWBIM Scope (branch history hidden)")
-    shutil.copy2(dst_changelog, os.path.join(target_deliv_dir, "CHANGELOG.md"))
+    shutil.copy2(dst_changelog, os.path.join(target_deliv_dir, "ChangeRelease.md"))
+    print("  - Exported tailored ChangeRelease.md to Deliverables B")
+    old_b_deliv = os.path.join(target_deliv_dir, "CHANGELOG.md")
+    if os.path.exists(old_b_deliv):
+        try:
+            os.remove(old_b_deliv)
+        except Exception:
+            pass
 
     # 3. Compile Variant B in target project
     print("\n[3/4] Compiling Variant B (SWBIM Scope) standalone distributions...")
