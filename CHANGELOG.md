@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of BIMScop
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **91 小时 32 分钟 (91.54 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **43 天 1 小时 27 分钟** (2026-09-29 22:17 至 2026-11-11 23:45)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **36,692 Steps** (跨 41 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **92 小时 37 分钟 (92.62 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **43 天 2 小时 32 分钟** (2026-09-29 22:17 至 2026-11-12 00:49)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **36,959 Steps** (跨 41 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -44,7 +44,7 @@ This document records all formal version iterations and major changes of BIMScop
 | **2026-11-06** | 19:47\~20:39, 22:52\~03:19 | 5h 18m (5.32h) | 变更记录与工时计量引擎全量审计重构 / Changelog comprehensive update & metrics engine overhaul |
 | **2026-11-07** | 10:25\~19:17, 20:23\~01:47 | 14h 16m (14.27h) | 原地环视/极限穿透/穿墙漫游，海量点云渲染与工程分析引擎 (v2 架构确立) / In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
 | **2026-11-09** | 22:24\~22:26 | 0h 01m (0.03h) | 点云着色模型微调与构建管线优化 / Point cloud shader tuning & build pipeline optimization |
-| **2026-11-11** | 21:25\~23:45 | 2h 20m (2.33h) | 双区拖拽追加加载、国际化、多次点击穿透选择与点云 10M 4 档预算滑条 / Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget |
+| **2026-11-11** | 21:25\~00:49 | 3h 24m (3.42h) | 双区拖拽追加加载、国际化、多次点击穿透选择与点云 10M 4 档预算滑条 / Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget |
 ---
 
 ## [v2.2611112245] - 2026-11-11 22:45

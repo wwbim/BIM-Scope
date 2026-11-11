@@ -2573,6 +2573,9 @@ class BIMViewerApp {
     this.edgeColor = 0x22262b;
     this.edgeOpacity = 0.65;
     
+    // Selection Cycle (Penetrate Selection) System (Session-only, default OFF)
+    this.cyclePickEnabled = false;
+    
     // Universal Animation Player Engine (for DAE, FBX & GLTF models)
     this.animMixer = null;
     this.animClips = [];
@@ -10570,7 +10573,6 @@ class BIMViewerApp {
     const itemHide = document.getElementById('menu-hide');
     const itemIsolate = document.getElementById('menu-isolate');
     const itemZoomTo = document.getElementById('menu-zoom-to');
-    const itemSectionBox = document.getElementById('menu-section-box');
     const itemEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
     const itemEnableSecPlaneHereText = document.getElementById('menu-enable-sec-plane-here-text');
     const itemEnableSecBoxHere = document.getElementById('menu-enable-sec-box-here');
@@ -10604,7 +10606,6 @@ class BIMViewerApp {
       if (itemZoomTo) itemZoomTo.style.display = 'flex';
 
       if (isSecEnabled) {
-        if (itemSectionBox) itemSectionBox.style.display = 'none';
         if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
         if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
         if (itemMoveSecHere) {
@@ -10616,15 +10617,10 @@ class BIMViewerApp {
         }
       } else {
         if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
-        if (hasHitPoint) {
-          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'flex';
-          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
-          if (itemSectionBox) itemSectionBox.style.display = 'flex';
-        } else {
-          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
-          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
-          if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        if (itemEnableSecPlaneHere) {
+          itemEnableSecPlaneHere.style.display = hasHitPoint ? 'flex' : 'none';
         }
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
       }
     } else {
       if (itemShowAll) itemShowAll.style.display = 'flex';
@@ -10634,7 +10630,6 @@ class BIMViewerApp {
       if (itemHide) itemHide.style.display = 'none';
       if (itemIsolate) itemIsolate.style.display = 'none';
       if (itemZoomTo) itemZoomTo.style.display = 'none';
-      if (itemSectionBox) itemSectionBox.style.display = 'none';
 
       if (isSecEnabled && hasHitPoint) {
         if (itemDivider) itemDivider.style.display = 'block';
@@ -10762,7 +10757,7 @@ class BIMViewerApp {
 
     // Hide all element / group / section / measure items
     const allOtherIds = [
-      'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box',
+      'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to',
       'menu-enable-sec-plane-here', 'menu-enable-sec-box-here', 'menu-move-sec-here', 'menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
       'menu-sectioning-divider', 'menu-toggle-section-box', 'menu-reset-sec-rot', 'menu-disable-sectioning',
       'menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point', 'menu-measure-delete-measurement',
@@ -10818,7 +10813,7 @@ class BIMViewerApp {
     });
 
     // Hide single-element and root empty selection items
-    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box', 'menu-enable-sec-plane-here', 'menu-enable-sec-box-here'].forEach(id => {
+    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-enable-sec-plane-here', 'menu-enable-sec-box-here'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -10999,18 +10994,6 @@ class BIMViewerApp {
       };
     }
 
-    const btnSectionBox = document.getElementById('menu-section-box');
-    if (btnSectionBox) {
-      btnSectionBox.onclick = () => {
-        this.hideContextMenu();
-        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
-          this.fitSectionBoxToTarget(this.selectedMeshes);
-        } else if (this.selectedMesh) {
-          this.applySectionBox(this.selectedMesh);
-        }
-      };
-    }
-
     const btnEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
     if (btnEnableSecPlaneHere) {
       btnEnableSecPlaneHere.onclick = () => {
@@ -11025,7 +11008,11 @@ class BIMViewerApp {
     if (btnEnableSecBoxHere) {
       btnEnableSecBoxHere.onclick = () => {
         this.hideContextMenu();
-        if (this.contextMenuHitPoint) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+          this.fitSectionBoxToTarget(this.selectedMeshes);
+        } else if (this.selectedMesh) {
+          this.applySectionBox(this.selectedMesh);
+        } else if (this.contextMenuHitPoint) {
           this.enableSectionBoxAtPoint(this.contextMenuHitPoint);
         }
       };
@@ -12985,35 +12972,43 @@ class BIMViewerApp {
           }
         }
       } else {
-        // Normal single click: check if multi-click penetration cycling applies
-        const camHash = this.camera ? `${this.camera.position.x.toFixed(2)},${this.camera.position.y.toFixed(2)},${this.camera.position.z.toFixed(2)}_${this.camera.quaternion.x.toFixed(2)},${this.camera.quaternion.y.toFixed(2)},${this.camera.quaternion.z.toFixed(2)}` : '';
-        
-        let cycleIndex = 0;
-        if (candidateHits.length >= 2 &&
-            this._penetrateState &&
-            this._penetrateState.camHash === camHash &&
-            Math.hypot(e.clientX - this._penetrateState.clientX, e.clientY - this._penetrateState.clientY) <= 4 &&
-            this._penetrateState.candidateMeshes &&
-            this._penetrateState.candidateMeshes.length === candidateHits.length) {
-          const sameStack = this._penetrateState.candidateMeshes.every((m, idx) => m === candidateHits[idx].object);
-          if (sameStack) {
-            cycleIndex = (this._penetrateState.index + 1) % candidateHits.length;
+        // Normal single click: check if multi-click penetration cycling applies (when enabled)
+        if (this.cyclePickEnabled) {
+          const camHash = this.camera ? `${this.camera.position.x.toFixed(2)},${this.camera.position.y.toFixed(2)},${this.camera.position.z.toFixed(2)}_${this.camera.quaternion.x.toFixed(2)},${this.camera.quaternion.y.toFixed(2)},${this.camera.quaternion.z.toFixed(2)}` : '';
+          
+          let cycleIndex = 0;
+          if (candidateHits.length >= 2 &&
+              this._penetrateState &&
+              this._penetrateState.camHash === camHash &&
+              Math.hypot(e.clientX - this._penetrateState.clientX, e.clientY - this._penetrateState.clientY) <= 4 &&
+              this._penetrateState.candidateMeshes &&
+              this._penetrateState.candidateMeshes.length === candidateHits.length) {
+            const sameStack = this._penetrateState.candidateMeshes.every((m, idx) => m === candidateHits[idx].object);
+            if (sameStack) {
+              cycleIndex = (this._penetrateState.index + 1) % candidateHits.length;
+            }
           }
-        }
 
-        const chosenHit = candidateHits[cycleIndex];
-        this.selectElement(chosenHit.object, chosenHit.point);
+          const chosenHit = candidateHits[cycleIndex];
+          this.selectElement(chosenHit.object, chosenHit.point);
 
-        if (candidateHits.length >= 2) {
-          this._penetrateState = {
-            clientX: e.clientX,
-            clientY: e.clientY,
-            camHash: camHash,
-            candidateMeshes: candidateHits.map(h => h.object),
-            index: cycleIndex
-          };
-          this.showPenetratePickBadge(e.clientX, e.clientY, cycleIndex + 1, candidateHits.length, chosenHit.object);
+          if (candidateHits.length >= 2) {
+            this._penetrateState = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              camHash: camHash,
+              candidateMeshes: candidateHits.map(h => h.object),
+              index: cycleIndex
+            };
+            this.showPenetratePickBadge(e.clientX, e.clientY, cycleIndex + 1, candidateHits.length, chosenHit.object);
+          } else {
+            this._penetrateState = null;
+            this.hidePenetratePickBadge();
+          }
         } else {
+          // Standard single pick without penetration cycling
+          const chosenHit = candidateHits[0];
+          this.selectElement(chosenHit.object, chosenHit.point);
           this._penetrateState = null;
           this.hidePenetratePickBadge();
         }
@@ -19006,6 +19001,19 @@ class BIMViewerApp {
       edgeOpSlider.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
         this.setEdgeLinesOpacity(val / 100);
+      });
+    }
+
+    // Selection Cycle (Penetrate Selection) Toggle
+    const cyclePickChk = document.getElementById('cycle-pick-toggle-chk');
+    if (cyclePickChk) {
+      cyclePickChk.checked = Boolean(this.cyclePickEnabled);
+      cyclePickChk.addEventListener('change', () => {
+        this.cyclePickEnabled = Boolean(cyclePickChk.checked);
+        if (!this.cyclePickEnabled) {
+          this._penetrateState = null;
+          this.hidePenetratePickBadge();
+        }
       });
     }
 

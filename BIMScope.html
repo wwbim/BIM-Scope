@@ -8577,10 +8577,6 @@ mark.help-match-highlight {
             <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
             <span data-i18n="menuZoomTo">Zoom to</span>
           </div>
-          <div class="context-menu-item" id="menu-section-box" style="display:none">
-            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
-            <span data-i18n="menuSectionBox">Section Box</span>
-          </div>
           <div class="context-menu-item" id="menu-enable-sec-plane-here" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M3 11h18v2H3v-2zm9-7l-4 4h3v2h2V8h3l-4-4zm0 16l4-4h-3v-2h-2v2H8l4 4z"/></svg>
             <span id="menu-enable-sec-plane-here-text" data-i18n="menuEnableSectionPlaneHere">Enable Section Plane Here</span>
@@ -8747,6 +8743,20 @@ mark.help-match-highlight {
               <span class="pref-inline-label" data-i18n="edgeOpacity">Edge Intensity</span>
               <input type="range" min="10" max="100" step="5" value="65" class="range-slider pref-fixed-slider" id="edge-opacity-slider">
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
+            </div>
+          </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
+          <!-- Selection Cycle (Penetrate Selection) -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row">
+              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="cyclePickToggle" data-i18n-title="cyclePickTooltip" title="连续在同处点击时沿视线方向逐层穿透循环选择重叠构件">Selection Cycle</span>
+              <label class="toggle-switch" style="margin-left:auto" data-i18n-title="cyclePickTooltip" title="连续在同处点击时沿视线方向逐层穿透循环选择重叠构件">
+                <input type="checkbox" id="cycle-pick-toggle-chk">
+                <span class="slider-switch"></span>
+              </label>
             </div>
           </div>
 
@@ -25091,6 +25101,8 @@ const I18N = {
       edgeLinesTitle: "Edge Lines",
       edgeLinesToggle: "Edge Lines (Outline)",
       edgeOpacity: "Edge Intensity",
+      cyclePickToggle: "Selection Cycle",
+      cyclePickTooltip: "Cycle through occluded components sequentially along the line of sight on consecutive clicks",
       collapseInspector: "Collapse Inspector",
       expandInspector: "Expand Inspector",
       multiSelectTitle: "{count} Elements Selected",
@@ -25727,6 +25739,8 @@ const I18N = {
       edgeLinesTitle: "构件轮廓线",
       edgeLinesToggle: "边缘轮廓线 (Edge Lines)",
       edgeOpacity: "轮廓线浓度",
+      cyclePickToggle: "穿透循环选择",
+      cyclePickTooltip: "连续在同处点击时沿视线方向逐层穿透循环选择重叠构件",
       collapseInspector: "折叠检查器",
       expandInspector: "展开检查器",
       multiSelectTitle: "已选中 {count} 个构件",
@@ -42006,6 +42020,9 @@ class BIMViewerApp {
     this.edgeColor = 0x22262b;
     this.edgeOpacity = 0.65;
     
+    // Selection Cycle (Penetrate Selection) System (Session-only, default OFF)
+    this.cyclePickEnabled = false;
+    
     // Universal Animation Player Engine (for DAE, FBX & GLTF models)
     this.animMixer = null;
     this.animClips = [];
@@ -50003,7 +50020,6 @@ class BIMViewerApp {
     const itemHide = document.getElementById('menu-hide');
     const itemIsolate = document.getElementById('menu-isolate');
     const itemZoomTo = document.getElementById('menu-zoom-to');
-    const itemSectionBox = document.getElementById('menu-section-box');
     const itemEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
     const itemEnableSecPlaneHereText = document.getElementById('menu-enable-sec-plane-here-text');
     const itemEnableSecBoxHere = document.getElementById('menu-enable-sec-box-here');
@@ -50037,7 +50053,6 @@ class BIMViewerApp {
       if (itemZoomTo) itemZoomTo.style.display = 'flex';
 
       if (isSecEnabled) {
-        if (itemSectionBox) itemSectionBox.style.display = 'none';
         if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
         if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
         if (itemMoveSecHere) {
@@ -50049,15 +50064,10 @@ class BIMViewerApp {
         }
       } else {
         if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
-        if (hasHitPoint) {
-          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'flex';
-          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
-          if (itemSectionBox) itemSectionBox.style.display = 'flex';
-        } else {
-          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
-          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
-          if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        if (itemEnableSecPlaneHere) {
+          itemEnableSecPlaneHere.style.display = hasHitPoint ? 'flex' : 'none';
         }
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
       }
     } else {
       if (itemShowAll) itemShowAll.style.display = 'flex';
@@ -50067,7 +50077,6 @@ class BIMViewerApp {
       if (itemHide) itemHide.style.display = 'none';
       if (itemIsolate) itemIsolate.style.display = 'none';
       if (itemZoomTo) itemZoomTo.style.display = 'none';
-      if (itemSectionBox) itemSectionBox.style.display = 'none';
 
       if (isSecEnabled && hasHitPoint) {
         if (itemDivider) itemDivider.style.display = 'block';
@@ -50195,7 +50204,7 @@ class BIMViewerApp {
 
     // Hide all element / group / section / measure items
     const allOtherIds = [
-      'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box',
+      'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to',
       'menu-enable-sec-plane-here', 'menu-enable-sec-box-here', 'menu-move-sec-here', 'menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
       'menu-sectioning-divider', 'menu-toggle-section-box', 'menu-reset-sec-rot', 'menu-disable-sectioning',
       'menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point', 'menu-measure-delete-measurement',
@@ -50251,7 +50260,7 @@ class BIMViewerApp {
     });
 
     // Hide single-element and root empty selection items
-    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box', 'menu-enable-sec-plane-here', 'menu-enable-sec-box-here'].forEach(id => {
+    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-enable-sec-plane-here', 'menu-enable-sec-box-here'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -50432,18 +50441,6 @@ class BIMViewerApp {
       };
     }
 
-    const btnSectionBox = document.getElementById('menu-section-box');
-    if (btnSectionBox) {
-      btnSectionBox.onclick = () => {
-        this.hideContextMenu();
-        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
-          this.fitSectionBoxToTarget(this.selectedMeshes);
-        } else if (this.selectedMesh) {
-          this.applySectionBox(this.selectedMesh);
-        }
-      };
-    }
-
     const btnEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
     if (btnEnableSecPlaneHere) {
       btnEnableSecPlaneHere.onclick = () => {
@@ -50458,7 +50455,11 @@ class BIMViewerApp {
     if (btnEnableSecBoxHere) {
       btnEnableSecBoxHere.onclick = () => {
         this.hideContextMenu();
-        if (this.contextMenuHitPoint) {
+        if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+          this.fitSectionBoxToTarget(this.selectedMeshes);
+        } else if (this.selectedMesh) {
+          this.applySectionBox(this.selectedMesh);
+        } else if (this.contextMenuHitPoint) {
           this.enableSectionBoxAtPoint(this.contextMenuHitPoint);
         }
       };
@@ -52418,35 +52419,43 @@ class BIMViewerApp {
           }
         }
       } else {
-        // Normal single click: check if multi-click penetration cycling applies
-        const camHash = this.camera ? `${this.camera.position.x.toFixed(2)},${this.camera.position.y.toFixed(2)},${this.camera.position.z.toFixed(2)}_${this.camera.quaternion.x.toFixed(2)},${this.camera.quaternion.y.toFixed(2)},${this.camera.quaternion.z.toFixed(2)}` : '';
-        
-        let cycleIndex = 0;
-        if (candidateHits.length >= 2 &&
-            this._penetrateState &&
-            this._penetrateState.camHash === camHash &&
-            Math.hypot(e.clientX - this._penetrateState.clientX, e.clientY - this._penetrateState.clientY) <= 4 &&
-            this._penetrateState.candidateMeshes &&
-            this._penetrateState.candidateMeshes.length === candidateHits.length) {
-          const sameStack = this._penetrateState.candidateMeshes.every((m, idx) => m === candidateHits[idx].object);
-          if (sameStack) {
-            cycleIndex = (this._penetrateState.index + 1) % candidateHits.length;
+        // Normal single click: check if multi-click penetration cycling applies (when enabled)
+        if (this.cyclePickEnabled) {
+          const camHash = this.camera ? `${this.camera.position.x.toFixed(2)},${this.camera.position.y.toFixed(2)},${this.camera.position.z.toFixed(2)}_${this.camera.quaternion.x.toFixed(2)},${this.camera.quaternion.y.toFixed(2)},${this.camera.quaternion.z.toFixed(2)}` : '';
+          
+          let cycleIndex = 0;
+          if (candidateHits.length >= 2 &&
+              this._penetrateState &&
+              this._penetrateState.camHash === camHash &&
+              Math.hypot(e.clientX - this._penetrateState.clientX, e.clientY - this._penetrateState.clientY) <= 4 &&
+              this._penetrateState.candidateMeshes &&
+              this._penetrateState.candidateMeshes.length === candidateHits.length) {
+            const sameStack = this._penetrateState.candidateMeshes.every((m, idx) => m === candidateHits[idx].object);
+            if (sameStack) {
+              cycleIndex = (this._penetrateState.index + 1) % candidateHits.length;
+            }
           }
-        }
 
-        const chosenHit = candidateHits[cycleIndex];
-        this.selectElement(chosenHit.object, chosenHit.point);
+          const chosenHit = candidateHits[cycleIndex];
+          this.selectElement(chosenHit.object, chosenHit.point);
 
-        if (candidateHits.length >= 2) {
-          this._penetrateState = {
-            clientX: e.clientX,
-            clientY: e.clientY,
-            camHash: camHash,
-            candidateMeshes: candidateHits.map(h => h.object),
-            index: cycleIndex
-          };
-          this.showPenetratePickBadge(e.clientX, e.clientY, cycleIndex + 1, candidateHits.length, chosenHit.object);
+          if (candidateHits.length >= 2) {
+            this._penetrateState = {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              camHash: camHash,
+              candidateMeshes: candidateHits.map(h => h.object),
+              index: cycleIndex
+            };
+            this.showPenetratePickBadge(e.clientX, e.clientY, cycleIndex + 1, candidateHits.length, chosenHit.object);
+          } else {
+            this._penetrateState = null;
+            this.hidePenetratePickBadge();
+          }
         } else {
+          // Standard single pick without penetration cycling
+          const chosenHit = candidateHits[0];
+          this.selectElement(chosenHit.object, chosenHit.point);
           this._penetrateState = null;
           this.hidePenetratePickBadge();
         }
@@ -58439,6 +58448,19 @@ class BIMViewerApp {
       edgeOpSlider.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
         this.setEdgeLinesOpacity(val / 100);
+      });
+    }
+
+    // Selection Cycle (Penetrate Selection) Toggle
+    const cyclePickChk = document.getElementById('cycle-pick-toggle-chk');
+    if (cyclePickChk) {
+      cyclePickChk.checked = Boolean(this.cyclePickEnabled);
+      cyclePickChk.addEventListener('change', () => {
+        this.cyclePickEnabled = Boolean(cyclePickChk.checked);
+        if (!this.cyclePickEnabled) {
+          this._penetrateState = null;
+          this.hidePenetratePickBadge();
+        }
       });
     }
 

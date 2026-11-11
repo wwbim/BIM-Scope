@@ -1263,10 +1263,6 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
             <span data-i18n="menuZoomTo">Zoom to</span>
           </div>
-          <div class="context-menu-item" id="menu-section-box" style="display:none">
-            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
-            <span data-i18n="menuSectionBox">Section Box</span>
-          </div>
           <div class="context-menu-item" id="menu-enable-sec-plane-here" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M3 11h18v2H3v-2zm9-7l-4 4h3v2h2V8h3l-4-4zm0 16l4-4h-3v-2h-2v2H8l4 4z"/></svg>
             <span id="menu-enable-sec-plane-here-text" data-i18n="menuEnableSectionPlaneHere">Enable Section Plane Here</span>
@@ -1433,6 +1429,20 @@ def generate_html(variant_cfg, sources):
               <span class="pref-inline-label" data-i18n="edgeOpacity">Edge Intensity</span>
               <input type="range" min="10" max="100" step="5" value="65" class="range-slider pref-fixed-slider" id="edge-opacity-slider">
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
+            </div>
+          </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
+          <!-- Selection Cycle (Penetrate Selection) -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row">
+              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="cyclePickToggle" data-i18n-title="cyclePickTooltip" title="连续在同处点击时沿视线方向逐层穿透循环选择重叠构件">Selection Cycle</span>
+              <label class="toggle-switch" style="margin-left:auto" data-i18n-title="cyclePickTooltip" title="连续在同处点击时沿视线方向逐层穿透循环选择重叠构件">
+                <input type="checkbox" id="cycle-pick-toggle-chk">
+                <span class="slider-switch"></span>
+              </label>
             </div>
           </div>
 
