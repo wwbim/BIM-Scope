@@ -227,52 +227,10 @@ def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
 
         if line.startswith('### '):
             title = line[4:].strip()
-            if '/' in title:
+            if '/' in title and re.search(r'[a-zA-Z]', title.rsplit('/', 1)[1]):
                 title = title.rsplit('/', 1)[1].strip()
             out.append(f'### {title}')
             i += 1
-            continue
-
-        # Language section: - **中文**:
-        if re.search(r'-\s*\*\*中文\*\*', line):
-            i += 1
-            while i < n:
-                if re.search(r'-\s*\*\*English\*\*', lines[i]):
-                    break
-                if lines[i].startswith('##') or lines[i].strip() == '---':
-                    break
-                if lines[i].startswith('- **') and not re.search(r'-\s*\*\*English\*\*', lines[i]):
-                    break
-                i += 1
-            continue
-
-        # Language section: - **English**:
-        if re.search(r'-\s*\*\*English\*\*', line):
-            inline = re.sub(r'^\s*-\s*\*\*English\*\*:\s*', '', line).strip()
-            if inline:
-                inline = re.sub(r'\s*/\s*[\u4e00-\u9fff]+', '', inline)
-                inline = re.sub(r'\(keeping\s*\"[^\"]+\"\s*in\s*Chinese\)', '(with Chinese localization)', inline)
-                inline = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', inline).strip()
-                out.append(f'  - {inline}')
-            i += 1
-            while i < n:
-                cur = lines[i]
-                if cur.startswith('##') or cur.strip() == '---':
-                    break
-                if cur.startswith('- **'):
-                    break
-                cur_cleaned = cur
-                if re.search(r'[\u4e00-\u9fff]', cur_cleaned):
-                    cur_cleaned = re.sub(r'\s*/\s*[\u4e00-\u9fff]+', '', cur_cleaned)
-                    cur_cleaned = re.sub(r'\(keeping\s*\"[^\"]+\"\s*in\s*Chinese\)', '(with Chinese localization)', cur_cleaned)
-                    cur_cleaned = re.sub(r'[\u4e00-\u9fff\uff00-\uffef]+', '', cur_cleaned)
-                if cur_cleaned.startswith('    '):
-                    out.append('  ' + cur_cleaned.strip())
-                elif cur_cleaned.strip() == '':
-                    out.append('')
-                else:
-                    out.append(cur_cleaned)
-                i += 1
             continue
 
         # Sub-bullet: - **...**
@@ -282,16 +240,33 @@ def generate_swbim_changelog(src_changelog_path, dst_changelog_path):
             if m:
                 inner = m.group(1)
                 rest = m.group(2)
-                if '/' in inner:
+                if '/' in inner and re.search(r'[a-zA-Z]', inner.rsplit('/', 1)[1]):
                     inner = inner.rsplit('/', 1)[1].strip()
-                out.append(f'- **{inner}**{rest}')
+                    out.append(f'- **{inner}**{rest}')
+                elif re.search(r'[\u4e00-\u9fff]', inner) or re.search(r'[\u4e00-\u9fff]', rest):
+                    i += 1
+                    continue
+                else:
+                    out.append(line)
             else:
+                if re.search(r'[\u4e00-\u9fff]', line):
+                    i += 1
+                    continue
                 out.append(line)
             i += 1
             continue
 
-        if not re.search(r'[\u4e00-\u9fff]', line):
-            out.append(line)
+        if re.search(r'[\u4e00-\u9fff]', line):
+            i += 1
+            continue
+
+        if line.strip() == '':
+            if out and out[-1] != '':
+                out.append('')
+            i += 1
+            continue
+
+        out.append(line)
         i += 1
 
     res = '\n'.join(out)
